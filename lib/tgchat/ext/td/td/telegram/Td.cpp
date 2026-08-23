@@ -25,6 +25,7 @@
 #include "td/telegram/ChannelRecommendationManager.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/CommonDialogManager.h"
+#include "td/telegram/CommunityManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ConnectionStateManager.h"
 #include "td/telegram/CountryInfoManager.h"
@@ -37,6 +38,7 @@
 #include "td/telegram/DocumentsManager.h"
 #include "td/telegram/DownloadManager.h"
 #include "td/telegram/DownloadManagerCallback.h"
+#include "td/telegram/DraftMessageManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileManager.h"
@@ -523,6 +525,7 @@ void Td::dec_actor_refcnt() {
       reset_manager(channel_recommendation_manager_, "ChannelRecommendationManager");
       reset_manager(chat_manager_, "ChatManager");
       reset_manager(common_dialog_manager_, "CommonDialogManager");
+      reset_manager(community_manager_, "CommunityManager");
       reset_manager(connection_state_manager_, "ConnectionStateManager");
       reset_manager(country_info_manager_, "CountryInfoManager");
       reset_manager(dialog_action_manager_, "DialogActionManager");
@@ -532,6 +535,7 @@ void Td::dec_actor_refcnt() {
       reset_manager(dialog_participant_manager_, "DialogParticipantManager");
       reset_manager(documents_manager_, "DocumentsManager");
       reset_manager(download_manager_, "DownloadManager");
+      reset_manager(draft_message_manager_, "DraftMessageManager");
       reset_manager(file_manager_, "FileManager");
       reset_manager(file_reference_manager_, "FileReferenceManager");
       reset_manager(forum_topic_manager_, "ForumTopicManager");
@@ -702,6 +706,7 @@ void Td::clear() {
   reset_actor(ActorOwn<Actor>(std::move(channel_recommendation_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(chat_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(common_dialog_manager_actor_)));
+  reset_actor(ActorOwn<Actor>(std::move(community_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(connection_state_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(country_info_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(dialog_action_manager_actor_)));
@@ -710,6 +715,7 @@ void Td::clear() {
   reset_actor(ActorOwn<Actor>(std::move(dialog_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(dialog_participant_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(download_manager_actor_)));
+  reset_actor(ActorOwn<Actor>(std::move(draft_message_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(file_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(file_reference_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(forum_topic_manager_actor_)));
@@ -954,6 +960,11 @@ void Td::init(Parameters parameters, Result<TdDb::OpenedDatabase> r_opened_datab
 
 void Td::process_binlog_events(TdDb::OpenedDatabase &&events) {
   VLOG(td_init) << "Send binlog events";
+  // users and channels may contain links to communities, therefore must be inited after
+  for (auto &event : events.community_events) {
+    community_manager_->on_binlog_community_event(std::move(event));
+  }
+
   for (auto &event : events.user_events) {
     user_manager_->on_binlog_user_event(std::move(event));
   }
@@ -962,7 +973,7 @@ void Td::process_binlog_events(TdDb::OpenedDatabase &&events) {
     chat_manager_->on_binlog_channel_event(std::move(event));
   }
 
-  // chats may contain links to channels, so should be inited after
+  // chats may contain links to channels, so must be inited after
   for (auto &event : events.chat_events) {
     chat_manager_->on_binlog_chat_event(std::move(event));
   }
@@ -1105,7 +1116,8 @@ void Td::init_file_manager() {
     }
 
     void reload_photo(PhotoSizeSource source, Promise<Unit> promise) final {
-      FileReferenceManager::reload_photo(std::move(source), std::move(promise));
+      send_closure(G()->file_reference_manager(), &FileReferenceManager::reload_photo, std::move(source),
+                   std::move(promise));
     }
 
     bool keep_exact_remote_location() final {
@@ -1125,7 +1137,7 @@ void Td::init_file_manager() {
   file_manager_->init_actor();
   G()->set_file_manager(file_manager_actor_.get());
 
-  file_reference_manager_ = make_unique<FileReferenceManager>(create_reference());
+  file_reference_manager_ = make_unique<FileReferenceManager>(this, create_reference());
   file_reference_manager_actor_ = register_actor("FileReferenceManager", file_reference_manager_.get());
   G()->set_file_reference_manager(file_reference_manager_actor_.get());
 }
@@ -1179,6 +1191,9 @@ void Td::init_managers() {
   G()->set_chat_manager(chat_manager_actor_.get());
   common_dialog_manager_ = make_unique<CommonDialogManager>(this, create_reference());
   common_dialog_manager_actor_ = register_actor("CommonDialogManager", common_dialog_manager_.get());
+  community_manager_ = make_unique<CommunityManager>(this, create_reference());
+  community_manager_actor_ = register_actor("CommunityManager", community_manager_.get());
+  G()->set_community_manager(community_manager_actor_.get());
   connection_state_manager_ = make_unique<ConnectionStateManager>(this, create_reference());
   connection_state_manager_actor_ = register_actor("ConnectionStateManager", connection_state_manager_.get());
   country_info_manager_ = make_unique<CountryInfoManager>(this, create_reference());
@@ -1201,6 +1216,9 @@ void Td::init_managers() {
   download_manager_ = DownloadManager::create(td::make_unique<DownloadManagerCallback>(this, create_reference()));
   download_manager_actor_ = register_actor("DownloadManager", download_manager_.get());
   G()->set_download_manager(download_manager_actor_.get());
+  draft_message_manager_ = make_unique<DraftMessageManager>(this, create_reference());
+  draft_message_manager_actor_ = register_actor("DraftMessageManager", draft_message_manager_.get());
+  G()->set_draft_message_manager(draft_message_manager_actor_.get());
   forum_topic_manager_ = make_unique<ForumTopicManager>(this, create_reference());
   forum_topic_manager_actor_ = register_actor("ForumTopicManager", forum_topic_manager_.get());
   G()->set_forum_topic_manager(forum_topic_manager_actor_.get());

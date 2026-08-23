@@ -16,12 +16,14 @@
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/DialogParticipantManager.h"
 #include "td/telegram/FactCheck.h"
+#include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/FolderId.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/HashtagHints.h"
 #include "td/telegram/InlineQueriesManager.h"
+#include "td/telegram/InputMessageText.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MessageContent.h"
@@ -29,9 +31,11 @@
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageReaction.h"
 #include "td/telegram/MessageSearchOffset.h"
+#include "td/telegram/MessageSelfDestructType.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesInfo.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/RequestedDialogType.h"
 #include "td/telegram/RichMessage.h"
 #include "td/telegram/SearchPostsFlood.h"
@@ -42,6 +46,7 @@
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/ToDoItem.h"
+#include "td/telegram/TranslationManager.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/UserManager.h"
@@ -70,13 +75,12 @@
 namespace td {
 
 class GetRichMessageQuery final : public Td::ResultHandler {
-  Promise<td_api::object_ptr<td_api::richMessage>> promise_;
+  Promise<RichMessage> promise_;
   DialogId dialog_id_;
   MessageId message_id_;
 
  public:
-  explicit GetRichMessageQuery(Promise<td_api::object_ptr<td_api::richMessage>> &&promise)
-      : promise_(std::move(promise)) {
+  explicit GetRichMessageQuery(Promise<RichMessage> &&promise) : promise_(std::move(promise)) {
   }
 
   void send(MessageFullId message_full_id) {
@@ -86,7 +90,6 @@ class GetRichMessageQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Chat not found"));
     }
     message_id_ = message_full_id.get_message_id();
-    CHECK(message_id_.is_server());
     send_query(G()->net_query_creator().create(
         telegram_api::messages_getRichMessage(std::move(input_peer), message_id_.get_server_message_id().get())));
   }
@@ -101,11 +104,13 @@ class GetRichMessageQuery final : public Td::ResultHandler {
     LOG(INFO) << "Receive result for GetRichMessageQuery: " << to_string(ptr);
     auto info = get_messages_info(td_, dialog_id_, std::move(ptr), "GetRichMessageQuery");
     if (info.messages.size() != 1u || info.messages[0]->get_id() != telegram_api::message::ID) {
-      return promise_.set_value(nullptr);
+      return promise_.set_error(500, "Receive invalid response");
     }
-    auto rich_message = RichMessage(
-        td_, std::move(static_cast<telegram_api::message *>(info.messages[0].get())->rich_message_), dialog_id_);
-    promise_.set_value(rich_message.get_rich_message_object(td_, true));
+    auto rich_message = std::move(static_cast<telegram_api::message *>(info.messages[0].get())->rich_message_);
+    if (rich_message == nullptr) {
+      return promise_.set_error(500, "Receive invalid response");
+    }
+    promise_.set_value(RichMessage(td_, std::move(rich_message), dialog_id_));
   }
 
   void on_error(Status status) final {
@@ -483,9 +488,9 @@ class SearchMessagesGlobalQuery final : public Td::ResultHandler {
       }
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_searchGlobal(
-        flags, broadcasts_only, groups_only, users_only, folder_id.get(), query, get_input_messages_filter(filter),
-        min_date_, max_date_, offset_date_, std::move(input_peer), offset_message_id.get_server_message_id().get(),
-        limit)));
+        flags, broadcasts_only, groups_only, users_only, folder_id.get(), nullptr, query,
+        get_input_messages_filter(filter), min_date_, max_date_, offset_date_, std::move(input_peer),
+        offset_message_id.get_server_message_id().get(), limit)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1134,13 +1139,10 @@ class SummarizeTextQuery final : public Td::ResultHandler {
       : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, MessageId message_id, const string &to_language_code, string tone) {
+  void send(DialogId dialog_id, MessageId message_id, const string &to_language_code, const string &tone) {
     int32 flags = 0;
     if (!to_language_code.empty()) {
       flags |= telegram_api::messages_summarizeText::TO_LANG_MASK;
-    }
-    if (tone == "neutral") {
-      tone.clear();
     }
     if (!tone.empty()) {
       flags |= telegram_api::messages_summarizeText::TONE_MASK;
@@ -1338,6 +1340,68 @@ class BlockFromRepliesQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class EditEphemeralMessageQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit EditEphemeralMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, UserId receiver_user_id, EphemeralMessageId ephemeral_message_id, bool force_edit_text,
+            const FormattedText *text, bool disable_web_page_preview, InputMedia &&input_media, bool invert_media,
+            const unique_ptr<ReplyMarkup> &reply_markup) {
+    // file upload isn't supported, so only previously uploaded files or URLs can be used in the InputMedia
+    CHECK(!FileManager::extract_was_uploaded(input_media));
+
+    int32 flags = 0;
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    CHECK(input_peer != nullptr);
+    auto r_input_user = td_->user_manager_->get_input_user(receiver_user_id);
+    if (r_input_user.is_error()) {
+      return on_error(Status::Error(400, "Can't access the user"));
+    }
+    auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), reply_markup);
+    if (input_reply_markup != nullptr) {
+      flags |= telegram_api::ephemeral_editMessage::REPLY_MARKUP_MASK;
+    }
+    vector<telegram_api::object_ptr<telegram_api::MessageEntity>> entities;
+    if (force_edit_text || (text != nullptr && !text->text.empty())) {
+      flags |= telegram_api::ephemeral_editMessage::MESSAGE_MASK;
+
+      entities = get_input_message_entities(td_->user_manager_.get(), text, "EditEphemeralMessageQuery");
+      if (!entities.empty()) {
+        flags |= telegram_api::ephemeral_editMessage::ENTITIES_MASK;
+      }
+    }
+    if (input_media.media_ != nullptr) {
+      flags |= telegram_api::ephemeral_editMessage::MEDIA_MASK;
+    }
+    if (input_media.rich_message_ != nullptr) {
+      // flags |= telegram_api::ephemeral_editMessage::RICH_MESSAGE_MASK;
+    }
+    send_query(G()->net_query_creator().create(telegram_api::ephemeral_editMessage(
+        flags, std::move(input_peer), r_input_user.move_as_ok(), ephemeral_message_id.get(),
+        text == nullptr ? string() : text->text, std::move(input_media.media_), std::move(entities),
+        std::move(input_reply_markup))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::ephemeral_editMessage>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for EditEphemeralMessageQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    LOG(INFO) << "Receive error for EditEphemeralMessageQuery: " << status;
     promise_.set_error(std::move(status));
   }
 };
@@ -1657,6 +1721,45 @@ class DeleteScheduledMessagesQuery final : public Td::ResultHandler {
       LOG(ERROR) << "Receive error for delete scheduled messages: " << status;
     }
     td_->messages_manager_->on_failed_scheduled_message_deletion(dialog_id_, message_ids_);
+    promise_.set_error(std::move(status));
+  }
+};
+
+class DeleteEphemeralMessageQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  DialogId dialog_id_;
+
+ public:
+  explicit DeleteEphemeralMessageQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, DialogId receiver_dialog_id, EphemeralMessageId ephemeral_message_id) {
+    dialog_id_ = dialog_id;
+
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    if (input_peer == nullptr || receiver_dialog_id.get_type() != DialogType::User) {
+      return on_error(Status::Error(400, "Can't access the chat"));
+    }
+    auto r_input_user = td_->user_manager_->get_input_user(receiver_dialog_id.get_user_id());
+    if (r_input_user.is_error()) {
+      return on_error(Status::Error(400, "Can't access the user"));
+    }
+    send_query(G()->net_query_creator().create(telegram_api::ephemeral_deleteMessage(
+        std::move(input_peer), r_input_user.move_as_ok(), ephemeral_message_id.get())));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::ephemeral_deleteMessage>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    if (!td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "DeleteEphemeralMessageQuery")) {
+      LOG(ERROR) << "Receive error for delete ephemeral messages: " << status;
+    }
     promise_.set_error(std::move(status));
   }
 };
@@ -2092,6 +2195,10 @@ MessageQueryManager::MessageQueryManager(Td *td, ActorShared<> parent) : td_(td)
   send_message_view_metrics_timeout_.set_callback_data(static_cast<void *>(this));
 }
 
+MessageQueryManager::~MessageQueryManager() {
+  Scheduler::instance()->destroy_on_scheduler(G()->get_gc_scheduler_id(), rich_message_full_id_to_file_source_id_);
+}
+
 void MessageQueryManager::tear_down() {
   parent_.reset();
 }
@@ -2145,7 +2252,77 @@ void MessageQueryManager::on_get_affected_history(DialogId dialog_id, AffectedHi
 
 void MessageQueryManager::get_full_rich_message(MessageFullId message_full_id,
                                                 Promise<td_api::object_ptr<td_api::richMessage>> &&promise) {
-  td_->create_handler<GetRichMessageQuery>(std::move(promise))->send(message_full_id);
+  if (!message_full_id.get_message_id().is_server()) {
+    return promise.set_error(400, "Invalid message specified");
+  }
+  auto &queries = get_full_rich_message_queries_[message_full_id];
+  queries.push_back(std::move(promise));
+  if (queries.size() != 1u) {
+    return;
+  }
+  auto query_promise = PromiseCreator::lambda([actor_id = actor_id(this),
+                                               message_full_id](Result<RichMessage> r_rich_message) {
+    send_closure(actor_id, &MessageQueryManager::on_get_full_rich_message, message_full_id, std::move(r_rich_message));
+  });
+  td_->create_handler<GetRichMessageQuery>(std::move(query_promise))->send(message_full_id);
+}
+
+void MessageQueryManager::on_get_full_rich_message(MessageFullId message_full_id,
+                                                   Result<RichMessage> &&r_rich_message) {
+  auto it = get_full_rich_message_queries_.find(message_full_id);
+  CHECK(it != get_full_rich_message_queries_.end());
+  auto promises = std::move(it->second);
+  get_full_rich_message_queries_.erase(it);
+
+  if (r_rich_message.is_error()) {
+    return fail_promises(promises, r_rich_message.move_as_error());
+  }
+  auto rich_message = r_rich_message.move_as_ok();
+  auto file_source_id = get_rich_message_file_source_id(message_full_id);
+  if (file_source_id.is_valid()) {
+    vector<FileId> file_ids;
+    rich_message.append_file_ids(td_, file_ids);
+    auto &old_file_ids = rich_message_file_ids_[message_full_id];
+    td_->file_manager_->change_files_source(file_source_id, old_file_ids, file_ids, "on_get_full_rich_message");
+    if (file_ids.empty()) {
+      rich_message_file_ids_.erase(message_full_id);
+    } else {
+      old_file_ids = std::move(file_ids);
+    }
+  }
+  for (auto &promise : promises) {
+    promise.set_value(rich_message.get_rich_message_object(td_, true));
+  }
+}
+
+void MessageQueryManager::reload_full_rich_message(MessageFullId message_full_id, Promise<Unit> &&promise) {
+  return get_full_rich_message(
+      message_full_id, PromiseCreator::lambda([promise = std::move(promise)](
+                                                  Result<td_api::object_ptr<td_api::richMessage>> result) mutable {
+        if (result.is_error()) {
+          promise.set_error(result.move_as_error());
+        } else {
+          promise.set_value(Unit());
+        }
+      }));
+}
+
+FileSourceId MessageQueryManager::get_rich_message_file_source_id(MessageFullId message_full_id) {
+  if (td_->auth_manager_->is_bot()) {
+    return FileSourceId();
+  }
+
+  auto dialog_id = message_full_id.get_dialog_id();
+  auto message_id = message_full_id.get_message_id();
+  if (!dialog_id.is_valid() || dialog_id.get_type() == DialogType::SecretChat || !message_id.is_server()) {
+    return FileSourceId();
+  }
+
+  auto &file_source_id = rich_message_full_id_to_file_source_id_[message_full_id];
+  if (!file_source_id.is_valid()) {
+    file_source_id = td_->file_reference_manager_->create_rich_message_file_source(message_full_id);
+  }
+  return file_source_id;
 }
 
 void MessageQueryManager::upload_message_covers(BusinessConnectionId business_connection_id, DialogId dialog_id,
@@ -2188,6 +2365,9 @@ void MessageQueryManager::upload_message_cover(BusinessConnectionId business_con
 
 void MessageQueryManager::on_upload_cover(FileUploadId file_upload_id,
                                           telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    return;
+  }
   LOG(INFO) << "Cover " << file_upload_id << " has been uploaded";
 
   auto it = being_uploaded_covers_.find(file_upload_id);
@@ -2200,6 +2380,9 @@ void MessageQueryManager::on_upload_cover(FileUploadId file_upload_id,
 }
 
 void MessageQueryManager::on_upload_cover_error(FileUploadId file_upload_id, Status status) {
+  if (G()->close_flag()) {
+    return;
+  }
   CHECK(status.is_error());
 
   auto it = being_uploaded_covers_.find(file_upload_id);
@@ -2217,7 +2400,7 @@ void MessageQueryManager::do_upload_cover(FileUploadId file_upload_id, BeingUplo
 
   auto input_media = being_uploaded_cover.cover_.get_input_media(td_, std::move(input_file));
   CHECK(input_media != nullptr);
-  if (is_uploaded_input_media(input_media)) {
+  if (is_uploaded_input_media(input_media, true)) {
     return being_uploaded_cover.promise_.set_value(Unit());
   } else {
     td_->create_handler<UploadCoverQuery>(std::move(being_uploaded_cover.promise_))
@@ -2741,6 +2924,7 @@ void MessageQueryManager::send_message_view_metrics_timeout(DialogId dialog_id) 
   }
   FlatHashMap<MessageId, MessageViewMetrics, MessageIdHash> metrics;
   for (const auto &input_metric : it->second) {
+    CHECK(input_metric.message_id_.is_server());
     auto &metric = metrics[input_metric.message_id_];
     metric.message_id_ = input_metric.message_id_;
     metric.time_in_view_ms_ += input_metric.time_in_view_ms_;
@@ -2979,7 +3163,7 @@ void MessageQueryManager::do_get_paid_message_reaction_senders(
 }
 
 void MessageQueryManager::summarize_message_text(MessageFullId message_full_id, const string &to_language_code,
-                                                 const string &tone,
+                                                 string tone,
                                                  Promise<td_api::object_ptr<td_api::formattedText>> &&promise) {
   auto dialog_id = message_full_id.get_dialog_id();
   TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Read,
@@ -2987,9 +3171,7 @@ void MessageQueryManager::summarize_message_text(MessageFullId message_full_id, 
   if (!td_->messages_manager_->have_message_force(message_full_id, "summarize_message_text")) {
     return promise.set_error(400, "Message not found");
   }
-  if (tone != string() && tone != "formal" && tone != "neutral" && tone != "casual") {
-    return promise.set_error(400, "Invalid tone specified");
-  }
+  TRY_STATUS_PROMISE(promise, TranslationManager::check_tone(tone));
   auto message_id = message_full_id.get_message_id();
   if (!message_id.is_server()) {
     return promise.set_error(400, "Message can't be summarized");
@@ -3169,6 +3351,62 @@ void MessageQueryManager::block_message_sender_from_replies_on_server(MessageId 
 
   td_->create_handler<BlockFromRepliesQuery>(get_erase_log_event_promise(log_event_id, std::move(promise)))
       ->send(message_id, need_delete_message, need_delete_all_messages, report_spam);
+}
+
+void MessageQueryManager::edit_ephemeral_message(
+    DialogId dialog_id, UserId receiver_user_id, EphemeralMessageId ephemeral_message_id,
+    td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+    td_api::object_ptr<td_api::InputMessageContent> &&input_message_content, Promise<Unit> &&promise) {
+  auto is_bot = td_->auth_manager_->is_bot();
+  CHECK(is_bot);
+
+  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Write,
+                                                                        "edit_ephemeral_message_text"));
+  TRY_RESULT_PROMISE(promise, new_reply_markup, get_inline_reply_markup(std::move(reply_markup), is_bot, true));
+  if (input_message_content == nullptr) {
+    td_->create_handler<EditEphemeralMessageQuery>(std::move(promise))
+        ->send(dialog_id, receiver_user_id, ephemeral_message_id, false, nullptr, false, InputMedia(), false,
+               new_reply_markup);
+    return;
+  }
+  int32 new_message_content_type = input_message_content->get_id();
+  if (new_message_content_type == td_api::inputMessageText::ID) {
+    auto text = static_cast<td_api::inputMessageText *>(input_message_content.get());
+    InputMessageText input_message_text;
+    if ((text->text_ != nullptr && !text->text_->text_.empty()) || text->link_preview_options_ != nullptr) {
+      TRY_RESULT_PROMISE_ASSIGN(promise, input_message_text,
+                                process_input_message_text(td_, dialog_id, std::move(input_message_content), is_bot));
+    }
+    td_->create_handler<EditEphemeralMessageQuery>(std::move(promise))
+        ->send(dialog_id, receiver_user_id, ephemeral_message_id, true, &input_message_text.text,
+               input_message_text.disable_web_page_preview, input_message_text.get_input_media_web_page(),
+               input_message_text.show_above_text, new_reply_markup);
+  }
+
+  if (new_message_content_type != td_api::inputMessageAnimation::ID &&
+      new_message_content_type != td_api::inputMessageAudio::ID &&
+      new_message_content_type != td_api::inputMessageDocument::ID &&
+      new_message_content_type != td_api::inputMessagePhoto::ID &&
+      new_message_content_type != td_api::inputMessageVideo::ID) {
+    return promise.set_error(400, "Invalid message content type specified");
+  }
+
+  TRY_RESULT_PROMISE(promise, content,
+                     get_input_message_content(dialog_id, std::move(input_message_content), td_, false));
+  if (!content.ttl.is_empty()) {
+    return promise.set_error(400, "Can't enable self-destruction for media");
+  }
+
+  auto input_media =
+      get_message_content_input_media(content.content.get(), td_, MessageSelfDestructType(), string(), true, -1);
+  if (input_media.is_empty()) {
+    return promise.set_error(400, "File upload isn't allowed");
+  }
+
+  const FormattedText *caption = get_message_content_caption(content.content.get());
+  td_->create_handler<EditEphemeralMessageQuery>(std::move(promise))
+      ->send(dialog_id, receiver_user_id, ephemeral_message_id, true, caption, false, std::move(input_media),
+             content.invert_media, new_reply_markup);
 }
 
 void MessageQueryManager::delete_dialog_messages_by_sender(DialogId dialog_id, DialogId sender_dialog_id,
@@ -3606,6 +3844,55 @@ void MessageQueryManager::delete_scheduled_messages_on_server(DialogId dialog_id
   td_->create_handler<DeleteScheduledMessagesQuery>(std::move(promise))->send(dialog_id, std::move(message_ids));
 }
 
+class MessageQueryManager::DeleteEphemeralMessageOnServerLogEvent {
+ public:
+  DialogId dialog_id_;
+  DialogId receiver_dialog_id_;
+  EphemeralMessageId ephemeral_message_id_;
+
+  template <class StorerT>
+  void store(StorerT &storer) const {
+    td::store(dialog_id_, storer);
+    td::store(receiver_dialog_id_, storer);
+    td::store(ephemeral_message_id_, storer);
+  }
+
+  template <class ParserT>
+  void parse(ParserT &parser) {
+    td::parse(dialog_id_, parser);
+    td::parse(receiver_dialog_id_, parser);
+    td::parse(ephemeral_message_id_, parser);
+  }
+};
+
+uint64 MessageQueryManager::save_delete_ephemeral_message_on_server_log_event(DialogId dialog_id,
+                                                                              DialogId receiver_dialog_id,
+                                                                              EphemeralMessageId ephemeral_message_id) {
+  DeleteEphemeralMessageOnServerLogEvent log_event{dialog_id, receiver_dialog_id, ephemeral_message_id};
+  return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::DeleteEphemeralMessageOnServer,
+                    get_log_event_storer(log_event));
+}
+
+void MessageQueryManager::delete_ephemeral_message_on_server(DialogId dialog_id, DialogId receiver_dialog_id,
+                                                             EphemeralMessageId ephemeral_message_id,
+                                                             uint64 log_event_id, Promise<Unit> &&promise) {
+  LOG(INFO) << "Delete " << ephemeral_message_id << " from " << receiver_dialog_id << " in " << dialog_id
+            << " from server";
+
+  td_->messages_manager_->on_delete_ephemeral_messages(dialog_id, {ephemeral_message_id});
+
+  if (log_event_id == 0 && G()->use_message_database()) {
+    log_event_id =
+        save_delete_ephemeral_message_on_server_log_event(dialog_id, receiver_dialog_id, ephemeral_message_id);
+  }
+
+  auto new_promise = get_erase_log_event_promise(log_event_id, std::move(promise));
+  promise = std::move(new_promise);  // to prevent self-move
+
+  td_->create_handler<DeleteEphemeralMessageQuery>(std::move(promise))
+      ->send(dialog_id, receiver_dialog_id, ephemeral_message_id);
+}
+
 void MessageQueryManager::delete_topic_history(DialogId dialog_id, ForumTopicId forum_topic_id,
                                                Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(
@@ -3958,6 +4245,7 @@ bool MessageQueryManager::has_message_pending_read_poll_votes(MessageFullId mess
 }
 
 void MessageQueryManager::read_message_poll_votes_on_server(DialogId dialog_id, vector<MessageId> message_ids) {
+  CHECK(dialog_id.is_valid());
   for (auto message_id : message_ids) {
     pending_read_poll_votes_[{dialog_id, message_id}]++;
   }
@@ -4180,6 +4468,26 @@ void MessageQueryManager::on_binlog_events(vector<BinlogEvent> &&events) {
         td_->messages_manager_->on_scheduled_messages_deleted(dialog_id, log_event.message_ids_);
 
         delete_scheduled_messages_on_server(dialog_id, std::move(log_event.message_ids_), event.id_, Auto());
+        break;
+      }
+      case LogEvent::HandlerType::DeleteEphemeralMessageOnServer: {
+        if (!have_old_message_database) {
+          binlog_erase(G()->td_db()->get_binlog(), event.id_);
+          break;
+        }
+
+        DeleteEphemeralMessageOnServerLogEvent log_event;
+        log_event_parse(log_event, event.get_data()).ensure();
+
+        auto dialog_id = log_event.dialog_id_;
+        if (!td_->dialog_manager_->have_dialog_force(dialog_id, "DeleteEphemeralMessageOnServerLogEvent") ||
+            !td_->dialog_manager_->have_input_peer(dialog_id, true, AccessRights::Read)) {
+          binlog_erase(G()->td_db()->get_binlog(), event.id_);
+          break;
+        }
+
+        delete_ephemeral_message_on_server(dialog_id, log_event.receiver_dialog_id_, log_event.ephemeral_message_id_,
+                                           event.id_, Auto());
         break;
       }
       case LogEvent::HandlerType::DeleteTopicHistoryOnServer: {

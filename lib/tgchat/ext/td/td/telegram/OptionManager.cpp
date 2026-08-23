@@ -184,20 +184,20 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("checklist_task_count_max", is_test_dc ? 10 : 30);
   set_default_integer_option("suggested_post_star_count_min", 5);
   set_default_integer_option("suggested_post_star_count_max", 100000);
-  set_default_integer_option("suggested_post_toncoin_cent_count_min", 1);
-  set_default_integer_option("suggested_post_toncoin_cent_count_max", 1000000);
+  set_default_integer_option("suggested_post_gram_cent_count_min", 1);
+  set_default_integer_option("suggested_post_gram_cent_count_max", 1000000);
   set_default_integer_option("suggested_post_star_earnings_per_mille", 850);
-  set_default_integer_option("suggested_post_toncoin_earnings_per_mille", 850);
-  set_default_integer_option("million_toncoin_to_usd_rate", 3000000);
+  set_default_integer_option("suggested_post_gram_earnings_per_mille", 850);
+  set_default_integer_option("million_gram_to_usd_rate", 3000000);
   set_default_integer_option("suggested_post_lifetime_min", is_test_dc ? 120 : 86400);
   set_default_integer_option("suggested_post_send_delay_min", 300);
   set_default_integer_option("suggested_post_send_delay_max", 2678400);
   set_default_integer_option("star_withdrawal_count_max", is_test_dc ? 100 : 25000000);
   set_default_integer_option("gift_collection_count_max", 10);
   set_default_integer_option("gift_collection_size_max", 500);
-  set_default_integer_option("gift_resale_toncoin_cent_count_min", is_test_dc ? 5000 : 700);
-  set_default_integer_option("gift_resale_toncoin_cent_count_max", 10000000);
-  set_default_integer_option("gift_resale_toncoin_earnings_per_mille", 900);
+  set_default_integer_option("gift_resale_gram_cent_count_min", is_test_dc ? 5000 : 700);
+  set_default_integer_option("gift_resale_gram_cent_count_max", 10000000);
+  set_default_integer_option("gift_resale_gram_earnings_per_mille", 900);
   set_default_integer_option("story_album_count_max", is_test_dc ? 20 : 100);
   set_default_integer_option("story_album_size_max", is_test_dc ? 200 : 1000);
   set_default_integer_option("pending_text_message_period", 30);
@@ -242,6 +242,14 @@ OptionManager::OptionManager(Td *td)
   set_option_empty("user_rating_learn_more_url");
   set_option_empty("gift_collection_gift_count_max");
   set_option_empty("story_album_story_count_max");
+  set_option_empty("suggested_post_toncoin_cent_count_min");
+  set_option_empty("suggested_post_toncoin_cent_count_max");
+  set_option_empty("suggested_post_toncoin_earnings_per_mille");
+  set_option_empty("million_toncoin_to_usd_rate");
+  set_option_empty("gift_resale_toncoin_cent_count_min");
+  set_option_empty("gift_resale_toncoin_cent_count_max");
+  set_option_empty("gift_resale_toncoin_earnings_per_mille");
+  set_option_empty("toncoin_top_up_url");
 }
 
 OptionManager::~OptionManager() = default;
@@ -269,10 +277,8 @@ void OptionManager::update_premium_options() {
     set_option_integer("monthly_sent_story_count_max", get_option_integer("stories_sent_monthly_limit_premium", 3000));
     set_option_integer("story_suggested_reaction_area_count_max",
                        get_option_integer("stories_suggested_reactions_limit_premium", 5));
-    set_option_integer("story_suggested_reaction_area_count_max",
-                       get_option_integer("stories_suggested_reactions_limit_premium", 5));
     set_option_integer("owned_bot_count_max", get_option_integer("bots_create_limit_premium", 40));
-    set_option_integer("added_text_composition_style_max",
+    set_option_integer("added_text_composition_style_count_max",
                        get_option_integer("aicompose_tone_saved_limit_premium", 20));
 
     set_option_boolean("can_set_new_chat_privacy_settings", true);
@@ -299,7 +305,8 @@ void OptionManager::update_premium_options() {
     set_option_integer("story_suggested_reaction_area_count_max",
                        get_option_integer("stories_suggested_reactions_limit_default", 1));
     set_option_integer("owned_bot_count_max", get_option_integer("bots_create_limit_default", 20));
-    set_option_integer("added_text_composition_style_max", get_option_integer("aicompose_tone_saved_limit_default", 5));
+    set_option_integer("added_text_composition_style_count_max",
+                       get_option_integer("aicompose_tone_saved_limit_default", 5));
 
     set_option_boolean("can_set_new_chat_privacy_settings", !get_option_boolean("need_premium_for_new_chat_privacy"));
     set_option_boolean("can_use_text_entities_in_story_caption",
@@ -801,7 +808,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.65");
+        return td_api::make_object<td_api::optionValueString>("1.8.66");
       }
       break;
   }

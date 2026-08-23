@@ -56,6 +56,7 @@ const (
 	IndexLock                            = "lock"
 	IndexSettingChatLock                 = "setting_chatLock"
 	IndexDeviceCapabilities              = "device_capabilities"
+	IndexDeviceCapabilitiesV2            = "device_capabilities_v2"
 	IndexNoteEdit                        = "note_edit"
 	IndexMerchantPaymentPartner          = "merchant_payment_partner"
 	IndexPaymentTOS                      = "payment_tos"
@@ -67,6 +68,7 @@ const (
 	IndexThreadPin                       = "thread_pin"
 	IndexSettingAutoOrganizeBusinessChat = "setting_autoOrganizeBusinessChat"
 	IndexCoexV2Version                   = "coexV2Version"
+	IndexLockMessage                     = "lock_message"
 )
 
 // Constants for the regular app state indexes.
@@ -102,6 +104,7 @@ const (
 	IndexShareOwnPN                                      = "shareOwnPn"
 	IndexBroadcast                                       = "broadcast"
 	IndexSubscriptionsSync                               = "subscriptions_sync_v2"
+	IndexLabelSublist                                    = "label_sublist"
 )
 
 // Constants for the regular_high app state indexes.

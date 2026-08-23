@@ -27,6 +27,7 @@
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/ChatTheme.h"
 #include "td/telegram/CommonDialogManager.h"
+#include "td/telegram/CommunityManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogLocation.h"
@@ -1828,6 +1829,7 @@ void UserManager::User::store(StorerT &storer) const {
   bool has_bot_verification_icon = bot_verification_icon.is_valid();
   bool has_paid_message_star_count = paid_message_star_count != 0;
   bool has_peer_color_collectible = peer_color_collectible != nullptr;
+  bool has_linked_community_id = linked_community_id.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_received);
   STORE_FLAG(is_verified);
@@ -1885,6 +1887,7 @@ void UserManager::User::store(StorerT &storer) const {
     STORE_FLAG(can_manage_bots);  // 20
     STORE_FLAG(is_guestchat_bot);
     STORE_FLAG(is_guard_bot);
+    STORE_FLAG(has_linked_community_id);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -1953,6 +1956,9 @@ void UserManager::User::store(StorerT &storer) const {
   if (has_peer_color_collectible) {
     store(peer_color_collectible, storer);
   }
+  if (has_linked_community_id) {
+    store(linked_community_id, storer);
+  }
 }
 
 template <class ParserT>
@@ -1982,6 +1988,7 @@ void UserManager::User::parse(ParserT &parser) {
   bool has_bot_verification_icon = false;
   bool has_paid_message_star_count = false;
   bool has_peer_color_collectible = false;
+  bool has_linked_community_id = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_received);
   PARSE_FLAG(is_verified);
@@ -2039,6 +2046,7 @@ void UserManager::User::parse(ParserT &parser) {
     PARSE_FLAG(can_manage_bots);
     PARSE_FLAG(is_guestchat_bot);
     PARSE_FLAG(is_guard_bot);
+    PARSE_FLAG(has_linked_community_id);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -2135,6 +2143,9 @@ void UserManager::User::parse(ParserT &parser) {
   if (has_peer_color_collectible) {
     parse(peer_color_collectible, parser);
   }
+  if (has_linked_community_id) {
+    parse(linked_community_id, parser);
+  }
 
   if (!check_utf8(first_name)) {
     LOG(ERROR) << "Have invalid first name \"" << first_name << '"';
@@ -2205,6 +2216,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
   bool has_first_saved_music_file_id = first_saved_music_file_id != FileId();
   bool has_note = !note.text.empty();
   bool has_manager_bot_user_id = bot_info != nullptr && bot_info->manager_bot_user_id != UserId();
+  bool has_linked_community_id = linked_community_id.is_valid();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_about);
   STORE_FLAG(is_blocked);
@@ -2264,6 +2276,7 @@ void UserManager::UserFull::store(StorerT &storer) const {
     STORE_FLAG(noforwards_peer_enabled);
     STORE_FLAG(has_manager_bot_user_id);
     STORE_FLAG(unofficial_security_risk);
+    STORE_FLAG(has_linked_community_id);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -2372,6 +2385,9 @@ void UserManager::UserFull::store(StorerT &storer) const {
   if (has_manager_bot_user_id) {
     store(bot_info->manager_bot_user_id, storer);
   }
+  if (has_linked_community_id) {
+    store(linked_community_id, storer);
+  }
 }
 
 template <class ParserT>
@@ -2415,6 +2431,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_first_saved_music_file_id = false;
   bool has_note = false;
   bool has_manager_bot_user_id = false;
+  bool has_linked_community_id = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_about);
   PARSE_FLAG(is_blocked);
@@ -2474,6 +2491,7 @@ void UserManager::UserFull::parse(ParserT &parser) {
     PARSE_FLAG(noforwards_peer_enabled);
     PARSE_FLAG(has_manager_bot_user_id);
     PARSE_FLAG(unofficial_security_risk);
+    PARSE_FLAG(has_linked_community_id);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -2585,6 +2603,9 @@ void UserManager::UserFull::parse(ParserT &parser) {
   }
   if (has_manager_bot_user_id) {
     parse(add_bot_info()->manager_bot_user_id, parser);
+  }
+  if (has_linked_community_id) {
+    parse(linked_community_id, parser);
   }
 }
 
@@ -3404,6 +3425,7 @@ UserId UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&u
   PeerColor profile_peer_color(user->profile_color_);
   on_update_user_profile_colors(u, user_id, profile_peer_color.accent_color_id_,
                                 profile_peer_color.background_custom_emoji_id_);
+  on_update_user_linked_community_id(u, user_id, CommunityId(user->linked_community_id_));
   if (is_me_regular_user) {
     if (is_received) {
       on_update_user_stories_hidden(u, user_id, stories_hidden);
@@ -3741,6 +3763,16 @@ void UserManager::on_update_user_profile_colors(User *u, UserId user_id, AccentC
     u->profile_background_custom_emoji_id = background_custom_emoji_id;
     u->is_accent_color_changed = true;
     u->is_changed = true;
+  }
+}
+
+void UserManager::on_update_user_linked_community_id(User *u, UserId user_id, CommunityId linked_community_id) {
+  if (!linked_community_id.is_valid() || !is_user_bot(u)) {
+    linked_community_id = CommunityId();
+  }
+  if (u->linked_community_id != linked_community_id) {
+    u->linked_community_id = linked_community_id;
+    u->need_save_to_database = true;
   }
 }
 
@@ -4591,6 +4623,14 @@ void UserManager::on_update_user_full_can_manage_emoji_status(UserFull *user_ful
   }
 }
 
+void UserManager::on_update_user_full_linked_community_id(UserFull *user_full, CommunityId linked_community_id) {
+  CHECK(user_full != nullptr);
+  if (user_full->linked_community_id != linked_community_id) {
+    user_full->linked_community_id = linked_community_id;
+    user_full->is_changed = true;
+  }
+}
+
 void UserManager::on_update_user_full_first_saved_music_file_id(UserFull *user_full, FileId first_saved_music_file_id) {
   CHECK(user_full != nullptr);
   if (user_full->first_saved_music_file_id != first_saved_music_file_id) {
@@ -5053,7 +5093,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
         false, need_apply_min_photo, false, false, false, false, 0, false, false, false, false, false, false, false,
         false, false, false, false, false, user_id.get(), 1, first_name, string(), username, phone_number,
         std::move(profile_photo), nullptr, bot_info_version, Auto(), string(), string(), nullptr,
-        vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0);
+        vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
     CHECK(u != nullptr && u->is_received);
@@ -5560,7 +5600,7 @@ RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const
     return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          true, false, false, true, ChannelType::Unknown);
+                          true, false, false, true, false, ChannelType::Unknown);
 }
 
 RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId secret_chat_id) const {
@@ -5569,7 +5609,7 @@ RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId s
     return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          false, false, false, false, ChannelType::Unknown);
+                          false, false, false, false, false, ChannelType::Unknown);
 }
 
 td_api::object_ptr<td_api::emojiStatus> UserManager::get_user_emoji_status_object(UserId user_id) const {
@@ -6067,6 +6107,10 @@ void UserManager::upload_profile_photo(UserId user_id, FileUploadId file_upload_
 
 void UserManager::on_upload_profile_photo(FileUploadId file_upload_id,
                                           telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    return;
+  }
+
   auto it = being_uploaded_profile_photos_.find(file_upload_id);
   CHECK(it != being_uploaded_profile_photos_.end());
   UserId user_id = it->second.user_id;
@@ -6113,6 +6157,10 @@ void UserManager::on_upload_profile_photo(FileUploadId file_upload_id,
 }
 
 void UserManager::on_upload_profile_photo_error(FileUploadId file_upload_id, Status status) {
+  if (G()->close_flag()) {
+    return;
+  }
+
   LOG(INFO) << "Profile photo " << file_upload_id << " has upload error " << status;
   CHECK(status.is_error());
 
@@ -7112,8 +7160,14 @@ void UserManager::check_is_saved_music(FileId file_id, Promise<Unit> &&promise) 
   return promise.set_value(Unit());
 }
 
-void UserManager::add_new_saved_music(const td_api::object_ptr<td_api::InputFile> &audio, int32 duration,
-                                      const string &title, const string &performer, Promise<Unit> &&promise) {
+void UserManager::add_new_saved_music(td_api::object_ptr<td_api::inputAudio> &&input_audio, Promise<Unit> &&promise) {
+  if (input_audio == nullptr) {
+    return promise.set_error(400, "Audio must be non-empty");
+  }
+  if (!clean_input_string(input_audio->title_) || !clean_input_string(input_audio->performer_)) {
+    return promise.set_error(400, "Strings must be encoded in UTF-8");
+  }
+  auto audio = std::move(input_audio->audio_);
   TRY_RESULT_PROMISE(promise, file_id,
                      td_->file_manager_->get_input_file_id(FileType::Audio, audio, DialogId(), false, false));
   CHECK(file_id.is_valid());
@@ -7132,8 +7186,8 @@ void UserManager::add_new_saved_music(const td_api::object_ptr<td_api::InputFile
     return add_saved_music(file_id, FileId(), std::move(promise));
   }
 
-  td_->audios_manager_->create_audio(file_id, string(), PhotoSize(), string(), string(), duration, title, performer, 0,
-                                     false);
+  td_->audios_manager_->create_audio(file_id, string(), PhotoSize(), string(), string(), input_audio->duration_,
+                                     input_audio->title_, input_audio->performer_, 0, false);
   auto upload_promise = PromiseCreator::lambda(
       [actor_id = actor_id(this), file_id, promise = std::move(promise)](Result<Unit> &&result) mutable {
         if (result.is_error()) {
@@ -7160,6 +7214,9 @@ void UserManager::upload_saved_music(FileId file_id, Promise<Unit> &&promise) {
 
 void UserManager::on_upload_saved_music(FileUploadId file_upload_id,
                                         telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    return;
+  }
   LOG(INFO) << "Profile audio " << file_upload_id << " has been uploaded";
 
   auto it = being_uploaded_saved_music_files_.find(file_upload_id);
@@ -7172,7 +7229,6 @@ void UserManager::on_upload_saved_music(FileUploadId file_upload_id,
 
 void UserManager::on_upload_saved_music_error(FileUploadId file_upload_id, Status status) {
   if (G()->close_flag()) {
-    // do not fail upload if closing
     return;
   }
 
@@ -9154,6 +9210,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     }
   }
 
+  on_update_user_full_linked_community_id(user_full, u->linked_community_id);
   on_update_user_full_can_manage_emoji_status(user_full, user->bot_can_manage_emoji_status_);
   if (personal_channel_id != ChannelId() &&
       td_->chat_manager_->get_channel_type(personal_channel_id) != ChannelType::Broadcast) {
@@ -9312,6 +9369,7 @@ void UserManager::on_load_user_full_from_database(UserId user_id, string value) 
 
   Dependencies dependencies;
   dependencies.add(user_id);
+  dependencies.add(user_full->linked_community_id);
   if (user_full->business_info != nullptr) {
     user_full->business_info->add_dependencies(dependencies);
   }
@@ -9367,6 +9425,7 @@ void UserManager::register_noforwards_request(MessageFullId message_full_id, int
   auto duration = td_->option_manager_->get_option_integer("has_protected_content_disable_request_duration");
   auto left_time = message_date + duration - G()->unix_time();
   if (left_time > 0 && !message_id.is_scheduled()) {
+    CHECK(message_id != MessageId());
     auto &request_id = noforwards_request_ids_[message_full_id];
     CHECK(request_id == 0);
     request_id = ++current_noforwards_request_id_;
@@ -9505,6 +9564,7 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->common_chat_count = 0;
   user_full->personal_channel_id = ChannelId();
   user_full->main_profile_tab = ProfileTab::Default;
+  user_full->linked_community_id = CommunityId();
   user_full->business_info = nullptr;
   user_full->bot_verification = nullptr;
   user_full->star_rating = nullptr;
@@ -10084,16 +10144,10 @@ void UserManager::update_user_full(UserFull *user_full, UserId user_id, const ch
   }
   if (true) {
     vector<FileId> file_ids;
-    if (!user_full->personal_photo.is_empty()) {
-      append(file_ids, photo_get_file_ids(user_full->personal_photo));
-    }
-    if (!user_full->fallback_photo.is_empty()) {
-      append(file_ids, photo_get_file_ids(user_full->fallback_photo));
-    }
+    photo_append_file_ids(user_full->personal_photo, file_ids);
+    photo_append_file_ids(user_full->fallback_photo, file_ids);
     if (user_full->bot_info != nullptr) {
-      if (!user_full->bot_info->description_photo.is_empty()) {
-        append(file_ids, photo_get_file_ids(user_full->bot_info->description_photo));
-      }
+      photo_append_file_ids(user_full->bot_info->description_photo, file_ids);
       if (user_full->bot_info->description_animation_file_id.is_valid()) {
         file_ids.push_back(user_full->bot_info->description_animation_file_id);
       }
@@ -10378,14 +10432,16 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   return td_api::make_object<td_api::userFullInfo>(
       get_chat_photo_object(td_->file_manager_.get(), user_full->personal_photo),
       get_chat_photo_object(td_->file_manager_.get(), user_full->photo),
-      get_chat_photo_object(td_->file_manager_.get(), user_full->fallback_photo), block_list_id.get_block_list_object(),
-      user_full->can_be_called, user_full->supports_video_calls, user_full->has_private_calls,
-      !user_full->private_forward_name.empty(), voice_messages_forbidden, user_full->has_pinned_stories,
-      user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception, user_full->wallpaper_overridden,
-      user_full->unofficial_security_risk, std::move(bio_object), user_full->birthdate.get_birthdate_object(),
-      personal_chat_id, user_full->gift_count, user_full->common_chat_count, user_full->charge_paid_message_stars,
-      user_full->send_paid_message_stars, user_full->gift_settings.get_gift_settings_object(),
-      std::move(bot_verification), get_profile_tab_object(user_full->main_profile_tab),
+      get_chat_photo_object(td_->file_manager_.get(), user_full->fallback_photo),
+      is_bot ? td_->community_manager_->get_community_id_object(user_full->linked_community_id, "userFullInfo") : 0,
+      block_list_id.get_block_list_object(), user_full->can_be_called, user_full->supports_video_calls,
+      user_full->has_private_calls, !user_full->private_forward_name.empty(), voice_messages_forbidden,
+      user_full->has_pinned_stories, user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception,
+      user_full->wallpaper_overridden, user_full->unofficial_security_risk, std::move(bio_object),
+      user_full->birthdate.get_birthdate_object(), personal_chat_id, user_full->gift_count,
+      user_full->common_chat_count, user_full->charge_paid_message_stars, user_full->send_paid_message_stars,
+      user_full->gift_settings.get_gift_settings_object(), std::move(bot_verification),
+      get_profile_tab_object(user_full->main_profile_tab),
       td_->audios_manager_->get_audio_object(user_full->first_saved_music_file_id), std::move(user_rating),
       std::move(pending_user_rating), user_full->pending_star_rating_date, std::move(note), std::move(business_info),
       std::move(bot_info));

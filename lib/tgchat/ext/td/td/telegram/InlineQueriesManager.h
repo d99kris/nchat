@@ -98,9 +98,9 @@ class InlineQueriesManager final : public Actor {
   void on_get_requested_web_view_button(UserId bot_user_id, const string &prepared_button_id,
                                         const RequestedDialogType *requested_dialog_type);
 
-  void on_new_query(int64 query_id, UserId sender_user_id, Location user_location,
-                    tl_object_ptr<telegram_api::InlineQueryPeerType> peer_type, const string &query,
-                    const string &offset);
+  void on_new_inline_query(int64 query_id, UserId sender_user_id, Location user_location,
+                           telegram_api::object_ptr<telegram_api::InlineQueryPeerType> peer_type, const string &query,
+                           const string &offset);
 
   void on_chosen_result(UserId user_id, Location user_location, const string &query, const string &result_id,
                         tl_object_ptr<telegram_api::InputBotInlineMessageID> &&input_bot_inline_message_id);
@@ -109,8 +109,9 @@ class InlineQueriesManager final : public Actor {
       tl_object_ptr<telegram_api::InputBotInlineMessageID> &&input_bot_inline_message_id);
 
  private:
-  static constexpr size_t MAX_RECENT_INLINE_BOTS = 20;  // some reasonable value
-  static constexpr int32 INLINE_QUERY_DELAY_MS = 400;   // server-side limit
+  static constexpr size_t MAX_RECENT_INLINE_BOTS = 20;              // some reasonable value
+  static constexpr int32 INLINE_QUERY_DELAY_MS = 400;               // server-side limit
+  static constexpr std::size_t MAX_INLINE_QUERY_RESULT_COUNT = 50;  // server-side limit
 
   Result<tl_object_ptr<telegram_api::InputBotInlineResult>> get_input_bot_inline_result(
       td_api::object_ptr<td_api::InputInlineQueryResult> &&result, bool *is_gallery, bool *force_vertical) const;

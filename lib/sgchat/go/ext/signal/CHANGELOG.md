@@ -1,6 +1,13 @@
+# v26.07
+
+* Updated Docker image to Alpine 3.24.
+* Updated libsignal to v0.97.2.
+* Added automatic retry when sender key send fails due to missing session.
+* Fixed changing poll votes from Matrix.
+
 # v26.06
 
-* Updated libsignal to v0.94.4
+* Updated libsignal to v0.94.4.
 * Updated mrenclave to fix looking up phone numbers.
 * Changed knock accept handling to auto-join the ghost user afterwards.
 

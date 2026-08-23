@@ -24,15 +24,16 @@ package libsignalgo
 import "C"
 import (
 	"fmt"
-	"unsafe"
 
 	"github.com/google/uuid"
 )
 
-// type AuthCredential [C.SignalAUTH_CREDENTIAL_LEN]byte
-// type AuthCredentialResponse [C.SignalAUTH_CREDENTIAL_RESPONSE_LEN]byte
-type AuthCredentialWithPni [C.SignalAUTH_CREDENTIAL_WITH_PNI_LEN]byte
-type AuthCredentialWithPniResponse [C.SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]byte
+// type AuthCredential [181]byte
+// type AuthCredentialResponse [361]byte
+const AuthCredentialWithPniLength = 265
+
+type AuthCredentialWithPni [AuthCredentialWithPniLength]byte
+type AuthCredentialWithPniResponse [425]byte
 type AuthCredentialPresentation []byte
 
 func (ac *AuthCredentialWithPni) Slice() []byte {
@@ -51,8 +52,8 @@ func ReceiveAuthCredentialWithPni(
 	signalFfiError := C.signal_server_public_params_receive_auth_credential_with_pni_as_service_id(
 		&c_result,
 		C.SignalConstPointerServerPublicParams{serverPublicParams},
-		NewACIServiceID(aci).CFixedBytes(),
-		NewPNIServiceID(pni).CFixedBytes(),
+		NewACIServiceID(aci).cConstFixedArray(),
+		NewPNIServiceID(pni).cConstFixedArray(),
 		C.uint64_t(redemptionTime),
 		BytesToBuffer(authCredResponse[:]),
 	)
@@ -60,8 +61,8 @@ func ReceiveAuthCredentialWithPni(
 		return nil, wrapError(signalFfiError)
 	}
 	resultBytes := CopySignalOwnedBufferToBytes(c_result)
-	if len(resultBytes) != C.SignalAUTH_CREDENTIAL_WITH_PNI_LEN {
-		return nil, fmt.Errorf("invalid response length %d (expected %d)", len(resultBytes), C.SignalAUTH_CREDENTIAL_WITH_PNI_LEN)
+	if len(resultBytes) != AuthCredentialWithPniLength {
+		return nil, fmt.Errorf("invalid response length %d (expected %d)", len(resultBytes), AuthCredentialWithPniLength)
 	}
 	return (*AuthCredentialWithPni)(resultBytes), nil
 }
@@ -83,14 +84,12 @@ func CreateAuthCredentialWithPniPresentation(
 	authCredWithPni AuthCredentialWithPni,
 ) (*AuthCredentialPresentation, error) {
 	var c_result C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	c_randomness := (*[C.SignalRANDOMNESS_LEN]C.uchar)(unsafe.Pointer(&randomness[0]))
-	c_groupSecretParams := (*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(&groupSecretParams[0]))
 
 	signalFfiError := C.signal_server_public_params_create_auth_credential_with_pni_presentation_deterministic(
 		&c_result,
 		C.SignalConstPointerServerPublicParams{serverPublicParams},
-		c_randomness,
-		c_groupSecretParams,
+		randomness.cConstFixedArray(),
+		groupSecretParams.cConstFixedArray(),
 		BytesToBuffer(authCredWithPni[:]),
 	)
 	if signalFfiError != nil {

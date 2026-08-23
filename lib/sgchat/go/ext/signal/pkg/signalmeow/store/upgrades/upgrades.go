@@ -22,11 +22,11 @@ import (
 	"go.mau.fi/util/dbutil"
 )
 
-var Table dbutil.UpgradeTable
-
 //go:embed *.sql
 var rawUpgrades embed.FS
 
-func init() {
-	Table.RegisterFS(rawUpgrades)
-}
+var Table = dbutil.BuildUpgradeTable().
+	WithFS(rawUpgrades).
+	With(upgradeV16).
+	With(upgradeV20).
+	Finish()

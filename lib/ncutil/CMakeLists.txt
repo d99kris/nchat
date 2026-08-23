@@ -16,6 +16,15 @@ find_path(MAGIC_INCLUDE_DIR magic.h
   /usr/local/include
   /usr/include
 )
+if(HAS_STATIC_EXTLIBS)
+  # static libmagic needs its compression backends
+  foreach(MAGIC_DEP z bz2 lzma zstd)
+    find_library(MAGIC_DEP_LIBRARY_${MAGIC_DEP} ${MAGIC_DEP})
+    if(MAGIC_DEP_LIBRARY_${MAGIC_DEP})
+      list(APPEND MAGIC_LIBRARY ${MAGIC_DEP_LIBRARY_${MAGIC_DEP}})
+    endif()
+  endforeach()
+endif()
 find_package(SQLite3 REQUIRED)
 
 # Platform specifics
@@ -29,6 +38,7 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/appconfig.h
   src/apputil.cpp
   src/apputil.h
+  src/buildinfo.cpp
   src/cacheutil.cpp
   src/cacheutil.h
   src/clipboard.cpp
@@ -77,6 +87,15 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
 )
 install(TARGETS ncutil DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
+# Volatile build metadata (git sha/branch/origin, resolved by the top-level
+# CMakeLists and inherited here) is written to a generated header included only
+# by buildinfo.cpp, rather than passed target-wide via target_compile_definitions,
+# so a commit-to-commit sha/branch change recompiles only buildinfo.cpp instead of
+# all of ncutil. configure_file rewrites the header only when a value changes.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/buildinfo.h.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/buildinfo.h" @ONLY)
+target_include_directories(ncutil PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
 # Optional dependencies
 check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)
 if(FOUND_EXECINFO_H)
@@ -103,6 +122,18 @@ endif()
 add_subdirectory(ext/QR-Code-generator/cpp)
 add_subdirectory(ext/stb)
 add_subdirectory(ext/clip)
+if(HAS_STATIC_EXTLIBS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  # static libxcb needs libXau and libXdmcp
+  find_library(XAU_LIBRARY Xau)
+  find_library(XDMCP_LIBRARY Xdmcp)
+  if(XAU_LIBRARY AND XDMCP_LIBRARY)
+    target_link_libraries(clip ${XAU_LIBRARY} ${XDMCP_LIBRARY})
+  endif()
+  # static libpng needs zlib after it on the link line
+  if(FOUND_PNG_H)
+    target_link_libraries(clip ${PNG_LIBRARIES})
+  endif()
+endif()
 
 # Common
 target_common_config(ncutil)

@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/InlineQueriesManager.h"
 #include "td/telegram/MessagesManager.h"
@@ -98,6 +99,48 @@ class GetBotCallbackAnswerQuery final : public Td::ResultHandler {
   }
 };
 
+class GetEphemeralCallbackAnswerQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::callbackQueryAnswer>> promise_;
+  DialogId dialog_id_;
+
+ public:
+  explicit GetEphemeralCallbackAnswerQuery(Promise<td_api::object_ptr<td_api::callbackQueryAnswer>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, EphemeralMessageId ephemeral_message_id, const string &data) {
+    dialog_id_ = dialog_id;
+
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    CHECK(input_peer != nullptr);
+
+    int32 flags = telegram_api::ephemeral_getCallbackAnswer::DATA_MASK;
+    auto net_query = G()->net_query_creator().create(telegram_api::ephemeral_getCallbackAnswer(
+        flags, std::move(input_peer), ephemeral_message_id.get(), BufferSlice(data)));
+    net_query->need_resend_on_503_ = false;
+    send_query(std::move(net_query));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::ephemeral_getCallbackAnswer>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto answer = result_ptr.move_as_ok();
+    promise_.set_value(
+        td_api::make_object<td_api::callbackQueryAnswer>(answer->message_, answer->alert_, answer->url_));
+  }
+
+  void on_error(Status status) final {
+    td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetEphemeralCallbackAnswerQuery");
+    if (status.message() == "BOT_RESPONSE_TIMEOUT") {
+      status = Status::Error(502, "The bot is not responding");
+    }
+    promise_.set_error(std::move(status));
+  }
+};
+
 class SetBotCallbackAnswerQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
@@ -163,9 +206,9 @@ tl_object_ptr<td_api::CallbackQueryPayload> CallbackQueriesManager::get_query_pa
   return nullptr;
 }
 
-void CallbackQueriesManager::on_new_query(int64 callback_query_id, UserId sender_user_id, DialogId dialog_id,
-                                          MessageId message_id, BufferSlice &&data, int64 chat_instance,
-                                          string &&game_short_name) {
+void CallbackQueriesManager::on_new_callback_query(int64 callback_query_id, UserId sender_user_id, DialogId dialog_id,
+                                                   MessageId message_id, BufferSlice &&data, int64 chat_instance,
+                                                   string &&game_short_name) {
   if (!dialog_id.is_valid()) {
     LOG(ERROR) << "Receive new callback query in invalid " << dialog_id;
     return;
@@ -193,12 +236,45 @@ void CallbackQueriesManager::on_new_query(int64 callback_query_id, UserId sender
   td_->dialog_manager_->force_create_dialog(dialog_id, "on_new_callback_query", true);
   send_closure(G()->td(), &Td::send_update,
                td_api::make_object<td_api::updateNewCallbackQuery>(
-                   callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "updateNewCallbackQuery"),
+                   callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "on_new_callback_query"),
                    td_->dialog_manager_->get_chat_id_object(dialog_id, "updateNewCallbackQuery"), message_id.get(),
                    chat_instance, std::move(payload)));
 }
 
-void CallbackQueriesManager::on_new_inline_query(
+void CallbackQueriesManager::on_new_ephemeral_callback_query(
+    int64 callback_query_id, UserId sender_user_id, BufferSlice &&data,
+    telegram_api::object_ptr<telegram_api::ephemeralMessage> &&message) {
+  if (!sender_user_id.is_valid()) {
+    LOG(ERROR) << "Receive new ephemeral callback query from invalid " << sender_user_id;
+    return;
+  }
+  LOG_IF(ERROR, !td_->user_manager_->have_min_user(sender_user_id)) << "Receive unknown " << sender_user_id;
+  if (!td_->auth_manager_->is_bot()) {
+    LOG(ERROR) << "Receive new callback query";
+    return;
+  }
+
+  auto payload = get_query_payload(std::move(data), string());
+  if (payload == nullptr) {
+    return;
+  }
+
+  auto message_full_id = td_->messages_manager_->on_edited_ephemeral_message(std::move(message), true);
+  auto message_id = message_full_id.get_message_id();
+  if (!message_id.is_valid() || !message_id.is_local()) {
+    LOG(ERROR) << "Receive ephemeral callback query from " << message_full_id;
+    return;
+  }
+
+  send_closure(
+      G()->td(), &Td::send_update,
+      td_api::make_object<td_api::updateNewCallbackQuery>(
+          callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "on_new_ephemeral_callback_query"),
+          td_->dialog_manager_->get_chat_id_object(message_full_id.get_dialog_id(), "on_new_ephemeral_callback_query"),
+          message_id.get(), 0, std::move(payload)));
+}
+
+void CallbackQueriesManager::on_new_inline_callback_query(
     int64 callback_query_id, UserId sender_user_id,
     tl_object_ptr<telegram_api::InputBotInlineMessageID> &&inline_message_id, BufferSlice &&data, int64 chat_instance,
     string &&game_short_name) {
@@ -220,16 +296,15 @@ void CallbackQueriesManager::on_new_inline_query(
   send_closure(
       G()->td(), &Td::send_update,
       td_api::make_object<td_api::updateNewInlineCallbackQuery>(
-          callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "updateNewInlineCallbackQuery"),
+          callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "on_new_inline_callback_query"),
           InlineQueriesManager::get_inline_message_id(std::move(inline_message_id)), chat_instance,
           std::move(payload)));
 }
 
-void CallbackQueriesManager::on_new_business_query(int64 callback_query_id, UserId sender_user_id,
-                                                   string &&connection_id,
-                                                   telegram_api::object_ptr<telegram_api::Message> &&message,
-                                                   telegram_api::object_ptr<telegram_api::Message> &&reply_to_message,
-                                                   BufferSlice &&data, int64 chat_instance) {
+void CallbackQueriesManager::on_new_business_callback_query(
+    int64 callback_query_id, UserId sender_user_id, string &&connection_id,
+    telegram_api::object_ptr<telegram_api::Message> &&message,
+    telegram_api::object_ptr<telegram_api::Message> &&reply_to_message, BufferSlice &&data, int64 chat_instance) {
   if (!sender_user_id.is_valid()) {
     LOG(ERROR) << "Receive new callback query from invalid " << sender_user_id;
     return;
@@ -249,7 +324,7 @@ void CallbackQueriesManager::on_new_business_query(int64 callback_query_id, User
   send_closure(
       G()->td(), &Td::send_update,
       td_api::make_object<td_api::updateNewBusinessCallbackQuery>(
-          callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "updateNewInlineCallbackQuery"),
+          callback_query_id, td_->user_manager_->get_user_id_object(sender_user_id, "on_new_business_callback_query"),
           connection_id, std::move(message_object), chat_instance, std::move(payload)));
 }
 
@@ -271,10 +346,20 @@ void CallbackQueriesManager::send_callback_query(MessageFullId message_full_id,
   if (!td_->messages_manager_->have_message_force(message_full_id, "send_callback_query")) {
     return promise.set_error(400, "Message not found");
   }
-  if (message_full_id.get_message_id().is_valid_scheduled()) {
+  auto message_id = message_full_id.get_message_id();
+  if (message_id.is_valid_scheduled()) {
     return promise.set_error(400, "Can't send callback queries from scheduled messages");
   }
-  if (!message_full_id.get_message_id().is_server()) {
+  if (!message_id.is_server()) {
+    if (payload->get_id() == td_api::callbackQueryPayloadData::ID) {
+      auto ephemeral_message_id = td_->messages_manager_->get_ephemeral_message_id_of_message_id(message_full_id);
+      if (ephemeral_message_id.is_valid()) {
+        td_->create_handler<GetEphemeralCallbackAnswerQuery>(std::move(promise))
+            ->send(dialog_id, ephemeral_message_id,
+                   static_cast<td_api::callbackQueryPayloadData *>(payload.get())->data_);
+        return;
+      }
+    }
     return promise.set_error(400, "Wrong message identifier");
   }
 

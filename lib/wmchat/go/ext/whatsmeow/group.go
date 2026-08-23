@@ -7,10 +7,10 @@
 package whatsmeow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/store"
@@ -35,14 +35,12 @@ type ReqCreateGroup struct {
 	Name string
 	// You don't need to include your own JID in the participants array, the WhatsApp servers will add it implicitly.
 	Participants []types.JID
-	// A create key can be provided to deduplicate the group create notification that will be triggered
-	// when the group is created. If provided, the JoinedGroup event will contain the same key.
-	CreateKey types.MessageID
 
 	types.GroupEphemeral
 	types.GroupAnnounce
 	types.GroupLocked
 	types.GroupMembershipApprovalMode
+	MemberAddMode types.GroupMemberAddMode
 	// Set IsParent to true to create a community instead of a normal group.
 	// When creating a community, the linked announcement group will be created automatically by the server.
 	types.GroupParent
@@ -55,10 +53,28 @@ type ReqCreateGroup struct {
 // See ReqCreateGroup for parameters.
 func (cli *Client) CreateGroup(ctx context.Context, req ReqCreateGroup) (*types.GroupInfo, error) {
 	participantNodes := make([]waBinary.Node, len(req.Participants), len(req.Participants)+1)
+	// TODO member_share_group_history_mode
+	participantNodes = append(participantNodes, waBinary.Node{
+		Tag:     "member_add_mode",
+		Content: string(cmp.Or(req.MemberAddMode, types.GroupMemberAddModeAllMember)),
+	})
 	for i, participant := range req.Participants {
+		participant = participant.ToNonAD()
+		var participantPN types.JID
+		if participant.Server == types.HiddenUserServer {
+			var err error
+			participantPN, err = cli.Store.LIDs.GetPNForLID(ctx, participant)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get phone number for participant %s: %v", participant, err)
+			}
+		}
+		participantAttrs := waBinary.Attrs{"jid": participant}
+		if !participantPN.IsEmpty() {
+			participantAttrs["phone_number"] = participantPN
+		}
 		participantNodes[i] = waBinary.Node{
 			Tag:   "participant",
-			Attrs: waBinary.Attrs{"jid": participant},
+			Attrs: participantAttrs,
 		}
 		token, err := cli.ensureTCToken(ctx, participant)
 		if err != nil {
@@ -69,9 +85,6 @@ func (cli *Client) CreateGroup(ctx context.Context, req ReqCreateGroup) (*types.
 				Content: token,
 			}}
 		}
-	}
-	if req.CreateKey == "" {
-		req.CreateKey = cli.GenerateMessageID()
 	}
 	if req.IsParent {
 		if req.DefaultMembershipApprovalMode == "" {
@@ -103,24 +116,30 @@ func (cli *Client) CreateGroup(ctx context.Context, req ReqCreateGroup) (*types.
 				"trigger":    "1", // TODO what's this?
 			},
 		})
-	}
-	if req.IsJoinApprovalRequired {
+	} else {
 		participantNodes = append(participantNodes, waBinary.Node{
-			Tag: "membership_approval_mode",
-			Content: []waBinary.Node{{
-				Tag:   "group_join",
-				Attrs: waBinary.Attrs{"state": "on"},
-			}},
+			Tag:   "ephemeral",
+			Attrs: waBinary.Attrs{"expiration": 0},
 		})
 	}
-	// WhatsApp web doesn't seem to include the static prefix for these
-	key := strings.TrimPrefix(req.CreateKey, "3EB0")
+	approvalState := "off"
+	if req.IsJoinApprovalRequired {
+		approvalState = "on"
+	}
+	participantNodes = append(participantNodes, waBinary.Node{
+		Tag: "membership_approval_mode",
+		Content: []waBinary.Node{{
+			Tag:   "group_join",
+			Attrs: waBinary.Attrs{"state": approvalState},
+		}},
+	})
+	createAttrs := waBinary.Attrs{}
+	if req.Name != "" {
+		createAttrs["subject"] = req.Name
+	}
 	resp, err := cli.sendGroupIQ(ctx, iqSet, types.GroupServerJID, waBinary.Node{
-		Tag: "create",
-		Attrs: waBinary.Attrs{
-			"subject": req.Name,
-			"key":     key,
-		},
+		Tag:     "create",
+		Attrs:   createAttrs,
 		Content: participantNodes,
 	})
 	if err != nil {
@@ -846,6 +865,9 @@ func (cli *Client) parseGroupCreate(parentNode, node *waBinary.Node) (*events.Jo
 	info, err := cli.parseGroupNode(&groupNode)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to parse group info in create notification: %w", err)
+	}
+	if info.AddressingMode == "" {
+		info.AddressingMode = types.AddressingMode(pag.OptionalString("addressing_mode"))
 	}
 	evt.GroupInfo = *info
 	lidPairs, redactedPhones := cli.cacheGroupInfo(info, true)

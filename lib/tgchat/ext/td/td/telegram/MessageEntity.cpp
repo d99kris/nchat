@@ -1909,7 +1909,7 @@ bool is_visible_url(const FormattedText &text, const string &url) {
     return false;
   }
 
-  auto url_size = static_cast<int32>(utf8_utf16_length(url));
+  auto url_size = text_length(url);
   auto cur_offset = 0;
   Slice left_text = text.text;
   for (auto &entity : text.entities) {
@@ -3136,7 +3136,7 @@ FormattedText get_markdown_v3(FormattedText text) {
             result.text += "](";
             result.text += entity->argument;
             result.text += ')';
-            utf16_added += narrow_cast<int32>(3 + entity->argument.size());
+            utf16_added += 3 + text_length(entity->argument);
             break;
           case MessageEntity::Type::Code:
             result.text += '`';
@@ -3207,7 +3207,7 @@ FormattedText get_markdown_v3(FormattedText text) {
               utf16_added += 3;
               if (!text.entities[current_entity].argument.empty()) {
                 result.text += text.entities[current_entity].argument;
-                utf16_added += static_cast<int32>(text.entities[current_entity].argument.size());
+                utf16_added += text_length(text.entities[current_entity].argument);
               }
               if (c != '\n') {
                 result.text += "\n";
@@ -4633,7 +4633,7 @@ void truncate_formatted_text(FormattedText &text, size_t length) {
     return;
   }
   text.text.resize(result_size);
-  auto utf16_length = narrow_cast<int32>(utf8_utf16_length(text.text));
+  auto utf16_length = text_length(text.text);
   for (auto &entity : text.entities) {
     if (entity.offset + entity.length > utf16_length) {
       if (entity.offset >= utf16_length || is_continuous_entity(entity.type)) {

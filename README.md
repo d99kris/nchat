@@ -5,8 +5,8 @@ nchat
 |-----------|---------|
 | [![Linux](https://github.com/d99kris/nchat/workflows/Linux/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3ALinux) | [![macOS](https://github.com/d99kris/nchat/workflows/macOS/badge.svg)](https://github.com/d99kris/nchat/actions?query=workflow%3AmacOS) |
 
-nchat is a multi-protocol terminal-based messaging client for Linux and macOS with support for
-Telegram, WhatsApp and Signal (opt-in).
+nchat is a terminal-based multi-protocol messaging client for Linux and macOS
+with support for Telegram, WhatsApp and Signal.
 
 ![screenshot nchat](/doc/screenshot-nchat.png)
 
@@ -27,12 +27,6 @@ Features
 - Desktop notifications for new messages
 - Toggle textized vs. graphical emojis
 - Customizable [themes](https://github.com/d99kris/nchat/wiki/Themes) and key bindings
-
-
-Optional Features
------------------
-Signal support is disabled by default and requires enabling a
-[feature flag](/doc/SIGNAL.md).
 
 
 Usage
@@ -151,6 +145,32 @@ Arch Linux
 
     yay -S nchat
 
+**Install Pre-built Binary**
+
+    yay -S nchat-bin
+
+
+Install Pre-built Binary
+========================
+Experimental support for Linux (glibc >= 2.28 or musl) x86_64 and arm64, as
+well as macOS arm64.
+
+**Install**
+
+    curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/install.sh | bash
+
+**Uninstall**
+
+    curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/uninstall.sh | bash
+
+**Install Location**
+
+Installs to `~/.local/{bin,share}`. Override via the `NCHAT_PREFIX` environment
+variable, e.g.:
+
+    export NCHAT_PREFIX=/usr/local
+
+
 Build from Source
 =================
 nchat consists of a large code-base (mainly the Telegram library tdlib), so be
@@ -172,6 +192,14 @@ can use the `make.sh` script provided.
 **Build / Install**
 
     ./make.sh build && ./make.sh install
+
+**Install Location**
+
+Installs to a system prefix such as `/usr/local`. Override via the
+`NCHAT_PREFIX` environment variable (a user-writable prefix installs without
+sudo/doas), e.g.:
+
+    export NCHAT_PREFIX=~/.local
 
 Manually
 --------
@@ -223,8 +251,9 @@ By default nchat requires ~3.5GB RAM to build using G++ and ~1.5GB RAM with
 clang++, but it is possible to reduce the memory needed,
 see [Building on Low Memory Systems](/doc/LOWMEMORY.md).
 
-All nchat features are enabled by default, but it's possible to control
-inclusion of some features using cmake flags, see [Feature Flags](/doc/FLAGS.md).
+When building from source, all features except Signal support are enabled by
+default. To enable Signal, see [Signal](/doc/SIGNAL.md); for other feature
+flags, see [Feature Flags](/doc/FLAGS.md).
 
 
 Getting Started
@@ -243,7 +272,7 @@ code. Example:
     2. WhatsAppMd
     3. Signal
     4. Exit setup
-    Select protocol (3): 1
+    Select protocol (4): 1
     Enter phone number (ex. +6511111111): +6511111111
 
     Open Telegram on your phone, go to Settings -> Devices
@@ -463,6 +492,8 @@ This configuration file holds general user interface settings. Default content:
     file_picker_command=
     file_picker_persist_dir=1
     help_enabled=1
+    help_prefix_ctrl=^
+    help_prefix_meta=M-
     home_fetch_all=0
     linefeed_on_enter=1
     link_open_command=
@@ -529,10 +560,11 @@ when the terminal is inactive (assuming `online_status_share=1` and
 
 Specifies a custom command to use to auto-compose message reply. The
 command shall include `%1` which will be replaced by the path of a temporary
-text file with message history. If not specified, the following default
-command is used:
+text file with message history. If not specified, nchat extracts its bundled
+[compose](/src/compose) script to a temporary location and uses the following
+default command:
 
-    (prefix)/libexec/nchat/compose -c '%1'
+    python3 '(tempdir)/compose' -c '%1'
 
 Refer to [Auto-Compose](/doc/AUTOCOMPOSE.md) for details.
 
@@ -664,6 +696,22 @@ last selected file.
 ### help_enabled
 
 Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
+
+### help_prefix_ctrl
+
+Specifies the prefix used in the help bar for control key combinations,
+i.e. `^` results in `^X` being displayed for Ctrl-X. Users on macOS may
+prefer the Apple modifier symbol `⌃` here.
+
+### help_prefix_meta
+
+Specifies the prefix used in the help bar for meta / alt key combinations,
+i.e. `M-` results in `M-/` being displayed for Alt-/. Users on macOS may
+prefer the Apple modifier symbol `⌥` here. Other alternatives include
+`A-` and `Alt-`.
+
+Note that these prefixes are only cosmetic, the actual key bindings are
+configured in `key.conf`.
 
 ### home_fetch_all
 
@@ -1036,6 +1084,7 @@ Available themes:
     espresso
     gruvbox-dark
     gruvbox-dark-hard
+    purple-light
     solarized-dark-higher-contrast
     tokyo-night
     tomorrow-night
@@ -1240,32 +1289,17 @@ If on Linux, try removing any custom default background set up, i.e. set
 
 Project Scope
 =============
-
-Limitations
------------
-There are no plans to support the following features:
-- Telegram secret chats
-- Voice / video calls
-
-Additionally, WhatsApp and Signal are only supported on macOS and glibc-based
-Linux systems. Thus, it is not supported on musl-based operating systems, such
-as Alpine Linux. See [issue #204](https://github.com/d99kris/nchat/issues/204)
-for technical details on this limitation.
-
-Roadmap
--------
-There is currently no concrete roadmap for further feature development of
-nchat. It is not intended to be a full-featured client on par with official
-Telegram / WhatsApp / Signal clients, but rather a light-weight client
-providing essential functionality suitable for the terminal. However, feel
-free to submit feature requests if there's something missing, or help upvote
-[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas),
-if it's useful and low effort it will be considered.
+nchat is feature-complete and in maintenance mode. It is not intended to be a
+full-featured client on par with official Telegram / WhatsApp / Signal
+clients, but rather a light-weight client providing essential functionality
+suitable for the terminal. See [Project Scope](/doc/SCOPE.md) for further
+details.
 
 
 Contributions
 =============
-Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
+Please refer to [Project Scope](/doc/SCOPE.md),
+[Contributing Guidelines](/doc/CONTRIBUTING.md) and
 [Design Notes](/doc/DESIGN.md).
 
 
@@ -1304,19 +1338,19 @@ includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq -
-  [MIT License](/ext/apathy/LICENSE)
+  [MIT License](/lib/ncutil/ext/apathy/LICENSE)
 
 - [cereal](https://github.com/USCiLab/cereal) -
   Copyright 2013 Randolph Voorhies, Shane Grant -
-  [BSD-3 License](/ext/cereal/LICENSE)
+  [BSD-3 License](/lib/ncutil/ext/cereal/LICENSE)
 
 - [clip](https://github.com/dacap/clip) -
   Copyright 2015 David Capello -
-  [MIT License](/ext/clip/LICENSE.txt)
+  [MIT License](/lib/ncutil/ext/clip/LICENSE.txt)
 
 - [QR-Code-generator](https://github.com/nayuki/QR-Code-generator) -
   Copyright 2022 Project Nayuki -
-  [MIT License](/ext/QR-Code-generator/Readme.markdown)
+  [MIT License](/lib/ncutil/ext/QR-Code-generator/Readme.markdown)
 
 - [mautrix-signal](https://github.com/mautrix/signal) -
   Copyright 2020 Tulir Asokan -
@@ -1324,11 +1358,11 @@ includes the source code of the following third-party libraries:
 
 - [stb](https://github.com/nothings/stb) -
   Copyright 2017 Sean Barrett -
-  [MIT License](/ext/stb/LICENSE)
+  [MIT License](/lib/ncutil/ext/stb/LICENSE)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta -
-  [MIT License](/ext/sqlite_modern_cpp/License.txt)
+  [MIT License](/lib/ncutil/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -
@@ -1337,6 +1371,8 @@ includes the source code of the following third-party libraries:
 - [whatsmeow](https://github.com/tulir/whatsmeow) -
   Copyright 2022 Tulir Asokan -
   [MPL License](/lib/wmchat/go/ext/whatsmeow/LICENSE)
+
+Binaries are distributed with a combined THIRD_PARTY_LICENSES file.
 
 The [tdlib](https://github.com/tdlib/td),
 [whatsmeow](https://github.com/tulir/whatsmeow) and
@@ -1352,19 +1388,16 @@ to update to latest (or a specific) version of these libraries. Example usages:
 
     ./utils/signal-update 93da772
 
-Code Formatting
----------------
-Uncrustify is used to maintain consistent source code formatting, example:
-
-    ./make.sh src
-
 
 License
 =======
-nchat is distributed under the MIT license. See LICENSE file.
+Source is distributed under the [MIT license](/LICENSE).
+
+Binaries are distributed under the [GNU AGPL v3 license](/LICENSE.AGPL-3.0),
+or the [GNU GPL v3 license](/LICENSE.GPL-3.0) if Signal support is disabled.
 
 
 Keywords
 ========
 command line, console-based, linux, macos, chat client, ncurses, telegram,
-terminal-based.
+terminal-based, tui.

@@ -123,8 +123,8 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
 void SgNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
 void SgNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);
 void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
-void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FilePath, int p_FileStatus,
-                            int p_Action);
+void SgNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FileId, char* p_FilePath,
+                            int p_FileStatus, int p_Action);
 void SgNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text,
                                 int p_FromMe);
 void SgDeleteChatNotify(int p_ConnId, char* p_ChatId);

@@ -10,6 +10,7 @@
 #include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageFullId.h"
+#include "td/telegram/RichMessage.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -29,24 +30,61 @@ class TranslationManager final : public Actor {
 
   void on_authorization_success();
 
+  static Status check_tone(string &tone);
+
+  static telegram_api::object_ptr<telegram_api::InputAiComposeTone> clone_input_ai_compose_tone(
+      const telegram_api::object_ptr<telegram_api::InputAiComposeTone> &input_tone);
+
   struct InputText {
     FormattedText text_;
     bool skip_bot_commands_ = true;
     int32 max_media_timestamp_ = -1;
   };
 
-  void translate_text(td_api::object_ptr<td_api::formattedText> &&text, const string &to_language_code,
-                      const string &tone, Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
+  void translate_text(td_api::object_ptr<td_api::formattedText> &&text, const string &to_language_code, string tone,
+                      Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
 
-  void translate_text(InputText &&text, MessageFullId message_full_id, const string &to_language_code,
-                      const string &tone, Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
+  void translate_text(InputText &&text, MessageFullId message_full_id, const string &to_language_code, string tone,
+                      Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
+
+  struct InputRichMessage {
+    RichMessage message_;
+    bool skip_bot_commands_ = true;
+  };
+
+  void translate_rich_message(td_api::object_ptr<td_api::inputRichMessage> &&message, const string &to_language_code,
+                              string tone, Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
+
+  void translate_rich_message(InputRichMessage &&input_rich_message, MessageFullId message_full_id,
+                              const string &to_language_code, string tone,
+                              Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
+
+  void do_translate_rich_message(RichMessage &&rich_message, MessageFullId message_full_id,
+                                 const string &to_language_code, string tone,
+                                 Promise<vector<telegram_api::object_ptr<telegram_api::richMessage>>> &&promise);
 
   void compose_message_with_ai(td_api::object_ptr<td_api::formattedText> &&text,
-                               const string &translate_to_language_code, const string &tone, bool emojify,
+                               const string &translate_to_language_code, string tone, bool emojify,
                                Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
+
+  void do_compose_rich_message_with_ai(bool has_message, TranslationManager::InputRichMessage &&message,
+                                       const string &translate_to_language_code,
+                                       telegram_api::object_ptr<telegram_api::InputAiComposeTone> &&input_tone,
+                                       bool emojify, bool proofread,
+                                       Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
+
+  void compose_rich_message_with_ai(td_api::object_ptr<td_api::inputRichMessage> &&message,
+                                    const string &translate_to_language_code, string tone, const string &custom_prompt,
+                                    bool emojify, Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
+
+  void create_rich_message_with_ai(const string &prompt, const string &language_code, bool emojify,
+                                   Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
 
   void proofread_message_with_ai(td_api::object_ptr<td_api::formattedText> &&text,
                                  Promise<td_api::object_ptr<td_api::fixedText>> &&promise);
+
+  void proofread_rich_message_with_ai(td_api::object_ptr<td_api::inputRichMessage> &&message,
+                                      Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
 
   void reload_ai_compose_tones(Promise<Unit> &&promise);
 
@@ -78,9 +116,15 @@ class TranslationManager final : public Actor {
 
   Result<InputText> get_input_text(td_api::object_ptr<td_api::formattedText> &&text) const;
 
+  Result<InputRichMessage> get_input_rich_message(td_api::object_ptr<td_api::inputRichMessage> &&text) const;
+
   void on_get_translated_texts(vector<telegram_api::object_ptr<telegram_api::textWithEntities>> texts,
                                bool skip_bot_commands, int32 max_media_timestamp,
                                Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
+
+  void on_get_translated_rich_messages(vector<telegram_api::object_ptr<telegram_api::richMessage>> rich_messages,
+                                       bool skip_bot_commands,
+                                       Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
 
   void do_create_tone(const string &title, CustomEmojiId custom_emoji_id, const string &prompt, bool show_creator,
                       Promise<td_api::object_ptr<td_api::textCompositionStyle>> &&promise);

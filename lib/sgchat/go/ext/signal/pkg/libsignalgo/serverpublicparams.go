@@ -24,15 +24,16 @@ import "C"
 import (
 	"fmt"
 	"runtime"
-	"unsafe"
 )
 
 type ServerPublicParams = C.SignalServerPublicParams
-type NotarySignature [C.SignalSIGNATURE_LEN]byte
+type NotarySignature = fixedArray64
+
+const ServerPublicParamsLength = 673
 
 func DeserializeServerPublicParams(params []byte) (*ServerPublicParams, error) {
-	if len(params) != C.SignalSERVER_PUBLIC_PARAMS_LEN {
-		return nil, fmt.Errorf("invalid server public params length: %d (expected %d)", len(params), int(C.SignalSERVER_PUBLIC_PARAMS_LEN))
+	if len(params) != ServerPublicParamsLength {
+		return nil, fmt.Errorf("invalid server public params length: %d (expected %d)", len(params), ServerPublicParamsLength)
 	}
 	var out C.SignalMutPointerServerPublicParams
 	signalFfiError := C.signal_server_public_params_deserialize(&out, BytesToBuffer(params[:]))
@@ -47,11 +48,10 @@ func ServerPublicParamsVerifySignature(
 	messageBytes []byte,
 	NotarySignature NotarySignature,
 ) error {
-	c_notarySignature := (*[C.SignalSIGNATURE_LEN]C.uint8_t)(unsafe.Pointer(&NotarySignature[0]))
 	signalFfiError := C.signal_server_public_params_verify_signature(
 		C.SignalConstPointerServerPublicParams{serverPublicParams},
 		BytesToBuffer(messageBytes),
-		c_notarySignature,
+		NotarySignature.cConstFixedArray(),
 	)
 	runtime.KeepAlive(messageBytes)
 	return wrapError(signalFfiError)

@@ -1,2 +1,7 @@
-build
-dbgbuild
+/build
+/build-dist
+/build-static
+/build-static-ext
+/dbgbuild
+/dist
+/.gotools

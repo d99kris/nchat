@@ -194,7 +194,7 @@ private:
     bool AutoCompose();
 
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
-    static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
+    static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo, bool p_AllowRetryFailed = false);
     static void SanitizeEntryStr(std::string& p_Str);
 
   private:
@@ -380,7 +380,7 @@ public:
 
   // Static methods
   static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
-  static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo);
+  static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo, bool p_AllowRetryFailed = false);
 
 private:
   // Encapsulate class data in a nested class using OImpl (Object Implementation, non-opaque

@@ -46,7 +46,9 @@ func NewUUIDAddressFromString(uuidStr string, deviceID uint) (*Address, error) {
 
 func newAddress(name string, deviceID uint) (*Address, error) {
 	var pa C.SignalMutPointerProtocolAddress
-	signalFfiError := C.signal_address_new(&pa, C.CString(name), C.uint(deviceID))
+	nameStr, freeNameStr := GoStringToCString(name)
+	defer freeNameStr()
+	signalFfiError := C.signal_address_new(&pa, nameStr, C.uint(deviceID))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

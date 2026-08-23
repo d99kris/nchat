@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+
+# gen-third-party-licenses
+#
+# Regenerates the committed Go-dependency license fragments:
+#
+#   lib/wmchat/THIRD_PARTY_LICENSES   (WhatsApp / whatsmeow Go module tree)
+#   lib/sgchat/THIRD_PARTY_LICENSES   (Signal / mautrix-signal Go module tree)
+#
+# These fragments are combined at build time (see the top-level CMakeLists.txt)
+# with the hand-maintained fragments (lib/ncutil, lib/tgchat, utils/dist) into
+# the THIRD_PARTY_LICENSES file installed alongside binary distributions.
+#
+# This is a maintainer-only tool, not part of the normal build. Rerun it after
+# bumping the whatsmeow / signal dependencies (the whatsmeow-update and
+# signal-update scripts print a reminder) and commit the regenerated fragment
+# in the same change, so attribution stays in sync with the vendored trees.
+#
+# Requirements: go on PATH. go-licenses is fetched and run on demand via
+# "go run" at a pinned version (see GOLICENSES_VERSION below) — no separate
+# install step, and nothing is written to the developer's ~/go: GOPATH is
+# redirected to a repo-local, gitignored cache (mirroring how the CGo build in
+# CMakeLists.txt sets GOPATH to its build dir). The first run per machine
+# compiles go-licenses; subsequent runs reuse the Go build cache.
+#
+# Output is deterministic: the pinned go-licenses version keeps results stable
+# across developers, modules are listed alphabetically, and only verbatim
+# license texts (no absolute module-cache paths) are emitted, so regenerating
+# from an unchanged dependency set produces a byte-identical file.
+#
+# Usage:
+#   utils/dist/gen-third-party-licenses [wmchat|sgchat|all]   (default: all)
+#
+# nchat is distributed under the MIT license, see LICENSE for details.
+
+set -euo pipefail
+
+usage() {
+  echo "usage: $0 [wmchat|sgchat|all]" >&2
+  exit 1
+}
+
+REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+SUPPLEMENTS_DIR="${REPO_DIR}/utils/licenses/supplements"
+
+# Pinned go-licenses version, run on demand via "go run" (see header). Bump this
+# to intentionally adopt a newer go-licenses; keep it pinned so output stays
+# reproducible across developers.
+GOLICENSES_VERSION="v1.6.0"
+# Repo-local, gitignored GOPATH so the on-demand fetch/build touches neither the
+# developer's ~/go nor the wmchat/sgchat module graphs.
+TOOLGOPATH="${REPO_DIR}/.gotools"
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "$0: go not found on PATH" >&2
+  exit 1
+fi
+
+# go_licenses: run the pinned go-licenses via "go run". The "@version" form
+# resolves go-licenses outside the current module, so it never modifies the
+# wmchat/sgchat go.mod/go.sum, and "go run" (unlike "go install") writes no
+# binary to GOPATH/bin. GOPATH points at the repo-local cache, so the module
+# download (and any implicit toolchain fetch) stays out of the developer's ~/go.
+go_licenses() {
+  env GOPATH="${TOOLGOPATH}" \
+    go run "github.com/google/go-licenses@${GOLICENSES_VERSION}" "$@"
+}
+
+# gen_fragment <go-dir> <output> <title> <local-prefix> <primary-prefix> \
+#              <primary-version> <primary-url>
+#
+# <local-prefix>    import-path prefix of nchat's own (unlicensed) module,
+#                   skipped in the output.
+# <primary-prefix>  import-path prefix of the in-tree replaced upstream module
+#                   (whatsmeow / mautrix-signal); go-licenses cannot resolve a
+#                   version/URL for a local replace, so they are supplied here.
+gen_fragment() {
+  local godir="$1" output="$2" title="$3" local_prefix="$4"
+  local primary_prefix="$5" primary_version="$6" primary_url="$7"
+
+  echo "$0: generating ${output#${REPO_DIR}/}"
+
+  # Tab-separated: name, version, license-name, license-url, license-path.
+  local tmpl='{{range .}}{{.Name}}{{"\t"}}{{.Version}}{{"\t"}}{{.LicenseName}}{{"\t"}}{{.LicenseURL}}{{"\t"}}{{.LicensePath}}{{"\n"}}{{end}}'
+  local report tmplfile
+  report="$(mktemp)"
+  tmplfile="$(mktemp)"
+  printf '%s' "${tmpl}" > "${tmplfile}"
+
+  # The template output (the actual data) goes to stdout and lands in the report.
+  # go-licenses logs diagnostics to stderr via klog; for this module set they are
+  # all expected and handled downstream, so they are noise rather than signal:
+  #   - "Failed to find license for <nchat module>": our own module, skipped below.
+  #   - "Failed to find license for <dep>": module ships no license text; the
+  #     supplement fallback below supplies it (or hard-fails if none is committed),
+  #     which is a better, actionable check than this line.
+  #   - "contains non-Go code ...": cgo/asm files cannot import Go packages, so no
+  #     Go-module dependency is hidden; purely informational.
+  #   - "Error discovering license URL ... whatsmeow": the in-tree local replace
+  #     has no remote to resolve; its URL is supplied via <primary_url> below.
+  # go-licenses exits 0 through all of the above, so treat a non-zero exit as a
+  # real failure (network fetch, build error) and surface it in full; on success,
+  # filter the known-benign lines so only genuinely new warnings reach the user.
+  local errlog
+  errlog="$(mktemp)"
+  if ! ( cd "${godir}" && go_licenses report . --template "${tmplfile}" ) \
+       > "${report}" 2>"${errlog}"; then
+    cat "${errlog}" >&2
+    rm -f "${errlog}" "${tmplfile}"
+    echo "$0: ERROR: go-licenses failed for ${godir#${REPO_DIR}/}" >&2
+    exit 1
+  fi
+  grep -avE \
+    "Failed to find license for|contains non-Go code|Error discovering license URL|^${TOOLGOPATH}/" \
+    "${errlog}" >&2 || true
+  rm -f "${errlog}" "${tmplfile}"
+
+  local out
+  out="$(mktemp)"
+  {
+    printf '%s\n' "================================================================================"
+    printf 'nchat third-party licenses: %s\n' "${title}"
+    printf '%s\n\n' "================================================================================"
+    printf '%s\n' "Auto-generated by utils/dist/gen-third-party-licenses from the Go module"
+    printf '%s\n' "dependency tree of ${godir#${REPO_DIR}/}, using go-licenses. Do not edit by"
+    printf '%s\n' "hand. One verbatim license text is kept per module; each carries that"
+    printf '%s\n' "module's own copyright notice, as MIT/BSD attribution requires."
+    printf '\n'
+  } > "${out}"
+
+  # LC_ALL=C for a stable, locale-independent sort.
+  local name version license url path
+  while IFS=$'\t' read -r name version license url path; do
+    [[ -z "${name}" ]] && continue
+    # Skip nchat's own module (has no license of its own).
+    [[ "${name}" == "${local_prefix}"* ]] && continue
+
+    # The in-tree replaced upstream module: supply version/URL go-licenses
+    # cannot derive from a local replace directive.
+    if [[ -n "${primary_prefix}" && "${name}" == "${primary_prefix}"* ]]; then
+      [[ "${version}" == "Unknown" || -z "${version}" ]] && version="${primary_version}"
+      url="${primary_url}"
+    fi
+
+    # Fall back to a committed supplement when a module ships no license text
+    # (some tagged module zips omit it); fail loudly rather than under-attribute.
+    if [[ -z "${path}" ]]; then
+      local supplement="${SUPPLEMENTS_DIR}/${name}/LICENSE"
+      if [[ -f "${supplement}" ]]; then
+        path="${supplement}"
+        [[ "${url}" == "Unknown" || -z "${url}" ]] && url="https://${name}"
+        # Optional SPDX id sidecar (go-licenses cannot classify a module that
+        # ships no license text, so it reports the type as Unknown).
+        if [[ ( "${license}" == "Unknown" || -z "${license}" ) && -f "${SUPPLEMENTS_DIR}/${name}/SPDX" ]]; then
+          license="$(head -n1 "${SUPPLEMENTS_DIR}/${name}/SPDX")"
+        fi
+      else
+        echo "$0: ERROR: no license text for '${name}' and no supplement at" >&2
+        echo "$0:        ${supplement#${REPO_DIR}/}" >&2
+        echo "$0:        Add the module's verbatim license there and rerun." >&2
+        rm -f "${report}" "${out}"
+        exit 1
+      fi
+    fi
+
+    {
+      printf '%s\n' "--------------------------------------------------------------------------------"
+      printf '%s  %s  (%s)\n' "${name}" "${version}" "${license}"
+      [[ "${url}" != "Unknown" && -n "${url}" ]] && printf '%s\n' "${url}"
+      printf '%s\n' "--------------------------------------------------------------------------------"
+      printf '\n'
+      cat "${path}"
+      printf '\n\n'
+    } >> "${out}"
+  done < <(LC_ALL=C sort "${report}")
+
+  mv "${out}" "${output}"
+  rm -f "${report}"
+}
+
+gen_wmchat() {
+  local version
+  version="$(awk -F'= ' '/^var whatsmeowDate int/ { print $2; exit }' \
+    "${REPO_DIR}/lib/wmchat/go/gowm.go")"
+  gen_fragment \
+    "${REPO_DIR}/lib/wmchat/go" \
+    "${REPO_DIR}/lib/wmchat/THIRD_PARTY_LICENSES" \
+    "WhatsApp (whatsmeow) Go module tree" \
+    "github.com/d99kris/nchat" \
+    "go.mau.fi/whatsmeow" "${version}" "https://github.com/tulir/whatsmeow"
+}
+
+gen_sgchat() {
+  local version
+  version="$(awk -F'= ' '/^var signalDate int/ { print $2; exit }' \
+    "${REPO_DIR}/lib/sgchat/go/gosg.go")"
+  gen_fragment \
+    "${REPO_DIR}/lib/sgchat/go" \
+    "${REPO_DIR}/lib/sgchat/THIRD_PARTY_LICENSES" \
+    "Signal (mautrix-signal / libsignal) Go module tree" \
+    "github.com/d99kris/nchat" \
+    "go.mau.fi/mautrix-signal" "${version}" "https://github.com/mautrix/signal"
+}
+
+case "${1:-all}" in
+  wmchat) gen_wmchat ;;
+  sgchat) gen_sgchat ;;
+  all) gen_wmchat; gen_sgchat ;;
+  -h|--help) usage ;;
+  *) usage ;;
+esac
+
+echo "$0: done"

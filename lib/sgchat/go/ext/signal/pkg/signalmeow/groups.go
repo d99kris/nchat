@@ -641,7 +641,7 @@ func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey t
 		return nil, err
 	}
 	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("fetchGroupByID SendHTTPRequest bad status: %d", response.StatusCode)
+		return nil, fmt.Errorf("unexpected response status: %d", response.StatusCode)
 	}
 	return cli.parseGroupResponse(ctx, response, groupMasterKey)
 }
@@ -1780,7 +1780,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		return nil, err
 	}
 	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("fetchGroupByID SendHTTPRequest bad status: %d", response.StatusCode)
+		return nil, fmt.Errorf("unexpected response status: %d", response.StatusCode)
 	}
 	var encryptedGroupChanges signalpb.GroupChanges
 	groupChangesBytes, err := io.ReadAll(response.Body)

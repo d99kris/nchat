@@ -42,6 +42,7 @@ public:
 
   static void Dump(const char* p_Str);
   static void Callstack(void* const* p_Callstack, int p_Size, const char* p_LogMsg);
+  static void WriteCallstackToFd(int p_Fd, void* const* p_Callstack, int p_Size);
 
 private:
   static void Write(const char* p_Filename, int p_LineNo, const char* p_Level,

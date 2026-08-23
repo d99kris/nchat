@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -32,6 +33,7 @@ enum ProtocolFeature
   FeaturePinChat = (1 << 7),
   FeatureArchiveChat = (1 << 8),
   FeaturePinMessage = (1 << 9),
+  FeaturePresenceRequiresOnline = (1 << 10),
 };
 
 class Protocol

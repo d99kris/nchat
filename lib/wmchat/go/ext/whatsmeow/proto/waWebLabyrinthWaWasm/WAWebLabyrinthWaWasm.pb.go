@@ -274,6 +274,118 @@ func (x *DecryptMessageInput) GetCiphertext() []byte {
 	return nil
 }
 
+type OrfThreadIdInput struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	OrfClientState []byte                 `protobuf:"bytes,1,req,name=orfClientState" json:"orfClientState,omitempty"`
+	ThreadID       *string                `protobuf:"bytes,2,req,name=threadID" json:"threadID,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *OrfThreadIdInput) Reset() {
+	*x = OrfThreadIdInput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrfThreadIdInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrfThreadIdInput) ProtoMessage() {}
+
+func (x *OrfThreadIdInput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrfThreadIdInput.ProtoReflect.Descriptor instead.
+func (*OrfThreadIdInput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *OrfThreadIdInput) GetOrfClientState() []byte {
+	if x != nil {
+		return x.OrfClientState
+	}
+	return nil
+}
+
+func (x *OrfThreadIdInput) GetThreadID() string {
+	if x != nil && x.ThreadID != nil {
+		return *x.ThreadID
+	}
+	return ""
+}
+
+type DeriveMessageKeyInput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EpochRootKey  []byte                 `protobuf:"bytes,1,req,name=epochRootKey" json:"epochRootKey,omitempty"`
+	EpochAnonID   []byte                 `protobuf:"bytes,2,req,name=epochAnonID" json:"epochAnonID,omitempty"`
+	ThreadID      *string                `protobuf:"bytes,3,req,name=threadID" json:"threadID,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeriveMessageKeyInput) Reset() {
+	*x = DeriveMessageKeyInput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeriveMessageKeyInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeriveMessageKeyInput) ProtoMessage() {}
+
+func (x *DeriveMessageKeyInput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeriveMessageKeyInput.ProtoReflect.Descriptor instead.
+func (*DeriveMessageKeyInput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DeriveMessageKeyInput) GetEpochRootKey() []byte {
+	if x != nil {
+		return x.EpochRootKey
+	}
+	return nil
+}
+
+func (x *DeriveMessageKeyInput) GetEpochAnonID() []byte {
+	if x != nil {
+		return x.EpochAnonID
+	}
+	return nil
+}
+
+func (x *DeriveMessageKeyInput) GetThreadID() string {
+	if x != nil && x.ThreadID != nil {
+		return *x.ThreadID
+	}
+	return ""
+}
+
 type DeviceOutput struct {
 	state                       protoimpl.MessageState `protogen:"open.v1"`
 	PublicKey                   []byte                 `protobuf:"bytes,1,req,name=publicKey" json:"publicKey,omitempty"`
@@ -291,7 +403,7 @@ type DeviceOutput struct {
 
 func (x *DeviceOutput) Reset() {
 	*x = DeviceOutput{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[3]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -303,7 +415,7 @@ func (x *DeviceOutput) String() string {
 func (*DeviceOutput) ProtoMessage() {}
 
 func (x *DeviceOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[3]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -316,7 +428,7 @@ func (x *DeviceOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceOutput.ProtoReflect.Descriptor instead.
 func (*DeviceOutput) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{3}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DeviceOutput) GetPublicKey() []byte {
@@ -398,7 +510,7 @@ type EncryptedSecretValuesOutput struct {
 
 func (x *EncryptedSecretValuesOutput) Reset() {
 	*x = EncryptedSecretValuesOutput{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[4]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +522,7 @@ func (x *EncryptedSecretValuesOutput) String() string {
 func (*EncryptedSecretValuesOutput) ProtoMessage() {}
 
 func (x *EncryptedSecretValuesOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[4]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,7 +535,7 @@ func (x *EncryptedSecretValuesOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncryptedSecretValuesOutput.ProtoReflect.Descriptor instead.
 func (*EncryptedSecretValuesOutput) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{4}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EncryptedSecretValuesOutput) GetEncryptedDevicePrivateKey() []byte {
@@ -497,7 +609,7 @@ type VirtualDeviceOutput struct {
 
 func (x *VirtualDeviceOutput) Reset() {
 	*x = VirtualDeviceOutput{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[5]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -509,7 +621,7 @@ func (x *VirtualDeviceOutput) String() string {
 func (*VirtualDeviceOutput) ProtoMessage() {}
 
 func (x *VirtualDeviceOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[5]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -522,7 +634,7 @@ func (x *VirtualDeviceOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VirtualDeviceOutput.ProtoReflect.Descriptor instead.
 func (*VirtualDeviceOutput) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{5}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *VirtualDeviceOutput) GetVdID() []byte {
@@ -589,7 +701,7 @@ type Epoch0Output struct {
 
 func (x *Epoch0Output) Reset() {
 	*x = Epoch0Output{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[6]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +713,7 @@ func (x *Epoch0Output) String() string {
 func (*Epoch0Output) ProtoMessage() {}
 
 func (x *Epoch0Output) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[6]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +726,7 @@ func (x *Epoch0Output) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Epoch0Output.ProtoReflect.Descriptor instead.
 func (*Epoch0Output) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{6}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Epoch0Output) GetEpochFbid() uint64 {
@@ -679,7 +791,7 @@ type CreateBackupOutput struct {
 
 func (x *CreateBackupOutput) Reset() {
 	*x = CreateBackupOutput{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[7]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -691,7 +803,7 @@ func (x *CreateBackupOutput) String() string {
 func (*CreateBackupOutput) ProtoMessage() {}
 
 func (x *CreateBackupOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[7]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -704,7 +816,7 @@ func (x *CreateBackupOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBackupOutput.ProtoReflect.Descriptor instead.
 func (*CreateBackupOutput) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{7}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CreateBackupOutput) GetDevice() *DeviceOutput {
@@ -749,7 +861,6 @@ type EncryptMessageOutput struct {
 	ValueSecretRef     *string                `protobuf:"bytes,3,opt,name=valueSecretRef" json:"valueSecretRef,omitempty"`
 	OfflineThreadingID *uint64                `protobuf:"varint,4,opt,name=offlineThreadingID" json:"offlineThreadingID,omitempty"`
 	TimestampMS        *uint64                `protobuf:"varint,5,opt,name=timestampMS" json:"timestampMS,omitempty"`
-	MessageKey         []byte                 `protobuf:"bytes,6,opt,name=messageKey" json:"messageKey,omitempty"`
 	Error              *string                `protobuf:"bytes,7,opt,name=error" json:"error,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -757,7 +868,7 @@ type EncryptMessageOutput struct {
 
 func (x *EncryptMessageOutput) Reset() {
 	*x = EncryptMessageOutput{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[8]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -769,7 +880,7 @@ func (x *EncryptMessageOutput) String() string {
 func (*EncryptMessageOutput) ProtoMessage() {}
 
 func (x *EncryptMessageOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[8]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -782,7 +893,7 @@ func (x *EncryptMessageOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncryptMessageOutput.ProtoReflect.Descriptor instead.
 func (*EncryptMessageOutput) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{8}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EncryptMessageOutput) GetEncryptedProtobuf() []byte {
@@ -820,13 +931,6 @@ func (x *EncryptMessageOutput) GetTimestampMS() uint64 {
 	return 0
 }
 
-func (x *EncryptMessageOutput) GetMessageKey() []byte {
-	if x != nil {
-		return x.MessageKey
-	}
-	return nil
-}
-
 func (x *EncryptMessageOutput) GetError() string {
 	if x != nil && x.Error != nil {
 		return *x.Error
@@ -844,7 +948,7 @@ type DecryptMessageOutput struct {
 
 func (x *DecryptMessageOutput) Reset() {
 	*x = DecryptMessageOutput{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[9]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -856,7 +960,7 @@ func (x *DecryptMessageOutput) String() string {
 func (*DecryptMessageOutput) ProtoMessage() {}
 
 func (x *DecryptMessageOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[9]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -869,7 +973,7 @@ func (x *DecryptMessageOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DecryptMessageOutput.ProtoReflect.Descriptor instead.
 func (*DecryptMessageOutput) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{9}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DecryptMessageOutput) GetPlaintextPayload() []byte {
@@ -886,6 +990,406 @@ func (x *DecryptMessageOutput) GetError() string {
 	return ""
 }
 
+type OrfThreadIdOutput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrfThreadID   []byte                 `protobuf:"bytes,1,opt,name=orfThreadID" json:"orfThreadID,omitempty"`
+	Error         *string                `protobuf:"bytes,2,opt,name=error" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrfThreadIdOutput) Reset() {
+	*x = OrfThreadIdOutput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrfThreadIdOutput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrfThreadIdOutput) ProtoMessage() {}
+
+func (x *OrfThreadIdOutput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrfThreadIdOutput.ProtoReflect.Descriptor instead.
+func (*OrfThreadIdOutput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *OrfThreadIdOutput) GetOrfThreadID() []byte {
+	if x != nil {
+		return x.OrfThreadID
+	}
+	return nil
+}
+
+func (x *OrfThreadIdOutput) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+type DeriveMessageKeyOutput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MessageKey    []byte                 `protobuf:"bytes,1,opt,name=messageKey" json:"messageKey,omitempty"`
+	Error         *string                `protobuf:"bytes,2,opt,name=error" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeriveMessageKeyOutput) Reset() {
+	*x = DeriveMessageKeyOutput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeriveMessageKeyOutput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeriveMessageKeyOutput) ProtoMessage() {}
+
+func (x *DeriveMessageKeyOutput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeriveMessageKeyOutput.ProtoReflect.Descriptor instead.
+func (*DeriveMessageKeyOutput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DeriveMessageKeyOutput) GetMessageKey() []byte {
+	if x != nil {
+		return x.MessageKey
+	}
+	return nil
+}
+
+func (x *DeriveMessageKeyOutput) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+type RotateEpochMemberInput struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	DeviceID              *uint64                `protobuf:"varint,1,req,name=deviceID" json:"deviceID,omitempty"`
+	EpochStoragePublicKey []byte                 `protobuf:"bytes,2,req,name=epochStoragePublicKey" json:"epochStoragePublicKey,omitempty"`
+	DevicePublicKey       []byte                 `protobuf:"bytes,3,req,name=devicePublicKey" json:"devicePublicKey,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *RotateEpochMemberInput) Reset() {
+	*x = RotateEpochMemberInput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotateEpochMemberInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateEpochMemberInput) ProtoMessage() {}
+
+func (x *RotateEpochMemberInput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateEpochMemberInput.ProtoReflect.Descriptor instead.
+func (*RotateEpochMemberInput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RotateEpochMemberInput) GetDeviceID() uint64 {
+	if x != nil && x.DeviceID != nil {
+		return *x.DeviceID
+	}
+	return 0
+}
+
+func (x *RotateEpochMemberInput) GetEpochStoragePublicKey() []byte {
+	if x != nil {
+		return x.EpochStoragePublicKey
+	}
+	return nil
+}
+
+func (x *RotateEpochMemberInput) GetDevicePublicKey() []byte {
+	if x != nil {
+		return x.DevicePublicKey
+	}
+	return nil
+}
+
+type RotateEpochInput struct {
+	state                  protoimpl.MessageState    `protogen:"open.v1"`
+	CurrentEpochRootKey    []byte                    `protobuf:"bytes,1,req,name=currentEpochRootKey" json:"currentEpochRootKey,omitempty"`
+	CurrentEpochAnonID     *uint64                   `protobuf:"varint,2,req,name=currentEpochAnonID" json:"currentEpochAnonID,omitempty"`
+	CurrentEpochFbid       *uint64                   `protobuf:"varint,3,req,name=currentEpochFbid" json:"currentEpochFbid,omitempty"`
+	NewEpochFbid           *uint64                   `protobuf:"varint,4,req,name=newEpochFbid" json:"newEpochFbid,omitempty"`
+	EpochStoragePrivateKey []byte                    `protobuf:"bytes,5,req,name=epochStoragePrivateKey" json:"epochStoragePrivateKey,omitempty"`
+	Members                []*RotateEpochMemberInput `protobuf:"bytes,6,rep,name=members" json:"members,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *RotateEpochInput) Reset() {
+	*x = RotateEpochInput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotateEpochInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateEpochInput) ProtoMessage() {}
+
+func (x *RotateEpochInput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateEpochInput.ProtoReflect.Descriptor instead.
+func (*RotateEpochInput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RotateEpochInput) GetCurrentEpochRootKey() []byte {
+	if x != nil {
+		return x.CurrentEpochRootKey
+	}
+	return nil
+}
+
+func (x *RotateEpochInput) GetCurrentEpochAnonID() uint64 {
+	if x != nil && x.CurrentEpochAnonID != nil {
+		return *x.CurrentEpochAnonID
+	}
+	return 0
+}
+
+func (x *RotateEpochInput) GetCurrentEpochFbid() uint64 {
+	if x != nil && x.CurrentEpochFbid != nil {
+		return *x.CurrentEpochFbid
+	}
+	return 0
+}
+
+func (x *RotateEpochInput) GetNewEpochFbid() uint64 {
+	if x != nil && x.NewEpochFbid != nil {
+		return *x.NewEpochFbid
+	}
+	return 0
+}
+
+func (x *RotateEpochInput) GetEpochStoragePrivateKey() []byte {
+	if x != nil {
+		return x.EpochStoragePrivateKey
+	}
+	return nil
+}
+
+func (x *RotateEpochInput) GetMembers() []*RotateEpochMemberInput {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+type RotateEpochMemberEdge struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	DeviceID          *uint64                `protobuf:"varint,1,opt,name=deviceID" json:"deviceID,omitempty"`
+	EncryptedEpochKey []byte                 `protobuf:"bytes,2,opt,name=encryptedEpochKey" json:"encryptedEpochKey,omitempty"`
+	DeviceEpochHmac   []byte                 `protobuf:"bytes,3,opt,name=deviceEpochHmac" json:"deviceEpochHmac,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RotateEpochMemberEdge) Reset() {
+	*x = RotateEpochMemberEdge{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotateEpochMemberEdge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateEpochMemberEdge) ProtoMessage() {}
+
+func (x *RotateEpochMemberEdge) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateEpochMemberEdge.ProtoReflect.Descriptor instead.
+func (*RotateEpochMemberEdge) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RotateEpochMemberEdge) GetDeviceID() uint64 {
+	if x != nil && x.DeviceID != nil {
+		return *x.DeviceID
+	}
+	return 0
+}
+
+func (x *RotateEpochMemberEdge) GetEncryptedEpochKey() []byte {
+	if x != nil {
+		return x.EncryptedEpochKey
+	}
+	return nil
+}
+
+func (x *RotateEpochMemberEdge) GetDeviceEpochHmac() []byte {
+	if x != nil {
+		return x.DeviceEpochHmac
+	}
+	return nil
+}
+
+type RotateEpochOutput struct {
+	state                   protoimpl.MessageState   `protogen:"open.v1"`
+	NewEpochRootKey         []byte                   `protobuf:"bytes,1,opt,name=newEpochRootKey" json:"newEpochRootKey,omitempty"`
+	NewEpochAnonID          *uint64                  `protobuf:"varint,2,opt,name=newEpochAnonID" json:"newEpochAnonID,omitempty"`
+	EpochAnonID             []byte                   `protobuf:"bytes,3,opt,name=epochAnonID" json:"epochAnonID,omitempty"`
+	EpochData               []byte                   `protobuf:"bytes,4,opt,name=epochData" json:"epochData,omitempty"`
+	MemberEdges             []*RotateEpochMemberEdge `protobuf:"bytes,5,rep,name=memberEdges" json:"memberEdges,omitempty"`
+	EpochRootKeyFingerprint []byte                   `protobuf:"bytes,6,opt,name=epochRootKeyFingerprint" json:"epochRootKeyFingerprint,omitempty"`
+	Error                   *string                  `protobuf:"bytes,7,opt,name=error" json:"error,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *RotateEpochOutput) Reset() {
+	*x = RotateEpochOutput{}
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotateEpochOutput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateEpochOutput) ProtoMessage() {}
+
+func (x *RotateEpochOutput) ProtoReflect() protoreflect.Message {
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateEpochOutput.ProtoReflect.Descriptor instead.
+func (*RotateEpochOutput) Descriptor() ([]byte, []int) {
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *RotateEpochOutput) GetNewEpochRootKey() []byte {
+	if x != nil {
+		return x.NewEpochRootKey
+	}
+	return nil
+}
+
+func (x *RotateEpochOutput) GetNewEpochAnonID() uint64 {
+	if x != nil && x.NewEpochAnonID != nil {
+		return *x.NewEpochAnonID
+	}
+	return 0
+}
+
+func (x *RotateEpochOutput) GetEpochAnonID() []byte {
+	if x != nil {
+		return x.EpochAnonID
+	}
+	return nil
+}
+
+func (x *RotateEpochOutput) GetEpochData() []byte {
+	if x != nil {
+		return x.EpochData
+	}
+	return nil
+}
+
+func (x *RotateEpochOutput) GetMemberEdges() []*RotateEpochMemberEdge {
+	if x != nil {
+		return x.MemberEdges
+	}
+	return nil
+}
+
+func (x *RotateEpochOutput) GetEpochRootKeyFingerprint() []byte {
+	if x != nil {
+		return x.EpochRootKeyFingerprint
+	}
+	return nil
+}
+
+func (x *RotateEpochOutput) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
 type LabyrinthWaCommand struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to CommandInput:
@@ -893,6 +1397,9 @@ type LabyrinthWaCommand struct {
 	//	*LabyrinthWaCommand_CreateBackupInput
 	//	*LabyrinthWaCommand_EncryptMessageInput
 	//	*LabyrinthWaCommand_DecryptMessageInput
+	//	*LabyrinthWaCommand_OrfThreadIDInput
+	//	*LabyrinthWaCommand_DeriveMessageKeyInput
+	//	*LabyrinthWaCommand_RotateEpochInput
 	CommandInput  isLabyrinthWaCommand_CommandInput `protobuf_oneof:"commandInput"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -900,7 +1407,7 @@ type LabyrinthWaCommand struct {
 
 func (x *LabyrinthWaCommand) Reset() {
 	*x = LabyrinthWaCommand{}
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[10]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -912,7 +1419,7 @@ func (x *LabyrinthWaCommand) String() string {
 func (*LabyrinthWaCommand) ProtoMessage() {}
 
 func (x *LabyrinthWaCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[10]
+	mi := &file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -925,7 +1432,7 @@ func (x *LabyrinthWaCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LabyrinthWaCommand.ProtoReflect.Descriptor instead.
 func (*LabyrinthWaCommand) Descriptor() ([]byte, []int) {
-	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{10}
+	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *LabyrinthWaCommand) GetCommandInput() isLabyrinthWaCommand_CommandInput {
@@ -962,6 +1469,33 @@ func (x *LabyrinthWaCommand) GetDecryptMessageInput() *DecryptMessageInput {
 	return nil
 }
 
+func (x *LabyrinthWaCommand) GetOrfThreadIDInput() *OrfThreadIdInput {
+	if x != nil {
+		if x, ok := x.CommandInput.(*LabyrinthWaCommand_OrfThreadIDInput); ok {
+			return x.OrfThreadIDInput
+		}
+	}
+	return nil
+}
+
+func (x *LabyrinthWaCommand) GetDeriveMessageKeyInput() *DeriveMessageKeyInput {
+	if x != nil {
+		if x, ok := x.CommandInput.(*LabyrinthWaCommand_DeriveMessageKeyInput); ok {
+			return x.DeriveMessageKeyInput
+		}
+	}
+	return nil
+}
+
+func (x *LabyrinthWaCommand) GetRotateEpochInput() *RotateEpochInput {
+	if x != nil {
+		if x, ok := x.CommandInput.(*LabyrinthWaCommand_RotateEpochInput); ok {
+			return x.RotateEpochInput
+		}
+	}
+	return nil
+}
+
 type isLabyrinthWaCommand_CommandInput interface {
 	isLabyrinthWaCommand_CommandInput()
 }
@@ -978,11 +1512,29 @@ type LabyrinthWaCommand_DecryptMessageInput struct {
 	DecryptMessageInput *DecryptMessageInput `protobuf:"bytes,3,opt,name=decryptMessageInput,oneof"`
 }
 
+type LabyrinthWaCommand_OrfThreadIDInput struct {
+	OrfThreadIDInput *OrfThreadIdInput `protobuf:"bytes,4,opt,name=orfThreadIDInput,oneof"`
+}
+
+type LabyrinthWaCommand_DeriveMessageKeyInput struct {
+	DeriveMessageKeyInput *DeriveMessageKeyInput `protobuf:"bytes,5,opt,name=deriveMessageKeyInput,oneof"`
+}
+
+type LabyrinthWaCommand_RotateEpochInput struct {
+	RotateEpochInput *RotateEpochInput `protobuf:"bytes,6,opt,name=rotateEpochInput,oneof"`
+}
+
 func (*LabyrinthWaCommand_CreateBackupInput) isLabyrinthWaCommand_CommandInput() {}
 
 func (*LabyrinthWaCommand_EncryptMessageInput) isLabyrinthWaCommand_CommandInput() {}
 
 func (*LabyrinthWaCommand_DecryptMessageInput) isLabyrinthWaCommand_CommandInput() {}
+
+func (*LabyrinthWaCommand_OrfThreadIDInput) isLabyrinthWaCommand_CommandInput() {}
+
+func (*LabyrinthWaCommand_DeriveMessageKeyInput) isLabyrinthWaCommand_CommandInput() {}
+
+func (*LabyrinthWaCommand_RotateEpochInput) isLabyrinthWaCommand_CommandInput() {}
 
 var File_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto protoreflect.FileDescriptor
 
@@ -1012,7 +1564,14 @@ const file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDesc = "" +
 	"\x11encryptionVersion\x18\x04 \x02(\x05R\x11encryptionVersion\x12\x1e\n" +
 	"\n" +
 	"ciphertext\x18\x05 \x02(\fR\n" +
-	"ciphertext\"\xd6\x03\n" +
+	"ciphertext\"V\n" +
+	"\x10OrfThreadIdInput\x12&\n" +
+	"\x0eorfClientState\x18\x01 \x02(\fR\x0eorfClientState\x12\x1a\n" +
+	"\bthreadID\x18\x02 \x02(\tR\bthreadID\"y\n" +
+	"\x15DeriveMessageKeyInput\x12\"\n" +
+	"\fepochRootKey\x18\x01 \x02(\fR\fepochRootKey\x12 \n" +
+	"\vepochAnonID\x18\x02 \x02(\fR\vepochAnonID\x12\x1a\n" +
+	"\bthreadID\x18\x03 \x02(\tR\bthreadID\"\xd6\x03\n" +
 	"\fDeviceOutput\x12\x1c\n" +
 	"\tpublicKey\x18\x01 \x02(\fR\tpublicKey\x12.\n" +
 	"\x12epochAuthPublicKey\x18\x02 \x02(\fR\x12epochAuthPublicKey\x124\n" +
@@ -1053,24 +1612,55 @@ const file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDesc = "" +
 	"\rvirtualDevice\x18\x02 \x01(\v2).WAWebLabyrinthWaWasm.VirtualDeviceOutputR\rvirtualDevice\x12:\n" +
 	"\x06epoch0\x18\x03 \x01(\v2\".WAWebLabyrinthWaWasm.Epoch0OutputR\x06epoch0\x12&\n" +
 	"\x0emailboxRootKey\x18\x04 \x01(\fR\x0emailboxRootKey\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"\x96\x02\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xf6\x01\n" +
 	"\x14EncryptMessageOutput\x12,\n" +
 	"\x11encryptedProtobuf\x18\x01 \x01(\fR\x11encryptedProtobuf\x12 \n" +
 	"\vorfThreadID\x18\x02 \x01(\fR\vorfThreadID\x12&\n" +
 	"\x0evalueSecretRef\x18\x03 \x01(\tR\x0evalueSecretRef\x12.\n" +
 	"\x12offlineThreadingID\x18\x04 \x01(\x04R\x12offlineThreadingID\x12 \n" +
-	"\vtimestampMS\x18\x05 \x01(\x04R\vtimestampMS\x12\x1e\n" +
-	"\n" +
-	"messageKey\x18\x06 \x01(\fR\n" +
-	"messageKey\x12\x14\n" +
+	"\vtimestampMS\x18\x05 \x01(\x04R\vtimestampMS\x12\x14\n" +
 	"\x05error\x18\a \x01(\tR\x05error\"X\n" +
 	"\x14DecryptMessageOutput\x12*\n" +
 	"\x10plaintextPayload\x18\x01 \x01(\fR\x10plaintextPayload\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"\xbb\x02\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"K\n" +
+	"\x11OrfThreadIdOutput\x12 \n" +
+	"\vorfThreadID\x18\x01 \x01(\fR\vorfThreadID\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"N\n" +
+	"\x16DeriveMessageKeyOutput\x12\x1e\n" +
+	"\n" +
+	"messageKey\x18\x01 \x01(\fR\n" +
+	"messageKey\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x94\x01\n" +
+	"\x16RotateEpochMemberInput\x12\x1a\n" +
+	"\bdeviceID\x18\x01 \x02(\x04R\bdeviceID\x124\n" +
+	"\x15epochStoragePublicKey\x18\x02 \x02(\fR\x15epochStoragePublicKey\x12(\n" +
+	"\x0fdevicePublicKey\x18\x03 \x02(\fR\x0fdevicePublicKey\"\xc4\x02\n" +
+	"\x10RotateEpochInput\x120\n" +
+	"\x13currentEpochRootKey\x18\x01 \x02(\fR\x13currentEpochRootKey\x12.\n" +
+	"\x12currentEpochAnonID\x18\x02 \x02(\x04R\x12currentEpochAnonID\x12*\n" +
+	"\x10currentEpochFbid\x18\x03 \x02(\x04R\x10currentEpochFbid\x12\"\n" +
+	"\fnewEpochFbid\x18\x04 \x02(\x04R\fnewEpochFbid\x126\n" +
+	"\x16epochStoragePrivateKey\x18\x05 \x02(\fR\x16epochStoragePrivateKey\x12F\n" +
+	"\amembers\x18\x06 \x03(\v2,.WAWebLabyrinthWaWasm.RotateEpochMemberInputR\amembers\"\x8b\x01\n" +
+	"\x15RotateEpochMemberEdge\x12\x1a\n" +
+	"\bdeviceID\x18\x01 \x01(\x04R\bdeviceID\x12,\n" +
+	"\x11encryptedEpochKey\x18\x02 \x01(\fR\x11encryptedEpochKey\x12(\n" +
+	"\x0fdeviceEpochHmac\x18\x03 \x01(\fR\x0fdeviceEpochHmac\"\xc4\x02\n" +
+	"\x11RotateEpochOutput\x12(\n" +
+	"\x0fnewEpochRootKey\x18\x01 \x01(\fR\x0fnewEpochRootKey\x12&\n" +
+	"\x0enewEpochAnonID\x18\x02 \x01(\x04R\x0enewEpochAnonID\x12 \n" +
+	"\vepochAnonID\x18\x03 \x01(\fR\vepochAnonID\x12\x1c\n" +
+	"\tepochData\x18\x04 \x01(\fR\tepochData\x12M\n" +
+	"\vmemberEdges\x18\x05 \x03(\v2+.WAWebLabyrinthWaWasm.RotateEpochMemberEdgeR\vmemberEdges\x128\n" +
+	"\x17epochRootKeyFingerprint\x18\x06 \x01(\fR\x17epochRootKeyFingerprint\x12\x14\n" +
+	"\x05error\x18\a \x01(\tR\x05error\"\xcc\x04\n" +
 	"\x12LabyrinthWaCommand\x12W\n" +
 	"\x11createBackupInput\x18\x01 \x01(\v2'.WAWebLabyrinthWaWasm.CreateBackupInputH\x00R\x11createBackupInput\x12]\n" +
 	"\x13encryptMessageInput\x18\x02 \x01(\v2).WAWebLabyrinthWaWasm.EncryptMessageInputH\x00R\x13encryptMessageInput\x12]\n" +
-	"\x13decryptMessageInput\x18\x03 \x01(\v2).WAWebLabyrinthWaWasm.DecryptMessageInputH\x00R\x13decryptMessageInputB\x0e\n" +
+	"\x13decryptMessageInput\x18\x03 \x01(\v2).WAWebLabyrinthWaWasm.DecryptMessageInputH\x00R\x13decryptMessageInput\x12T\n" +
+	"\x10orfThreadIDInput\x18\x04 \x01(\v2&.WAWebLabyrinthWaWasm.OrfThreadIdInputH\x00R\x10orfThreadIDInput\x12c\n" +
+	"\x15deriveMessageKeyInput\x18\x05 \x01(\v2+.WAWebLabyrinthWaWasm.DeriveMessageKeyInputH\x00R\x15deriveMessageKeyInput\x12T\n" +
+	"\x10rotateEpochInput\x18\x06 \x01(\v2&.WAWebLabyrinthWaWasm.RotateEpochInputH\x00R\x10rotateEpochInputB\x0e\n" +
 	"\fcommandInputB0Z.go.mau.fi/whatsmeow/proto/waWebLabyrinthWaWasm"
 
 var (
@@ -1085,33 +1675,46 @@ func file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescGZIP() []byte {
 	return file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDescData
 }
 
-var file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_goTypes = []any{
 	(*CreateBackupInput)(nil),           // 0: WAWebLabyrinthWaWasm.CreateBackupInput
 	(*EncryptMessageInput)(nil),         // 1: WAWebLabyrinthWaWasm.EncryptMessageInput
 	(*DecryptMessageInput)(nil),         // 2: WAWebLabyrinthWaWasm.DecryptMessageInput
-	(*DeviceOutput)(nil),                // 3: WAWebLabyrinthWaWasm.DeviceOutput
-	(*EncryptedSecretValuesOutput)(nil), // 4: WAWebLabyrinthWaWasm.EncryptedSecretValuesOutput
-	(*VirtualDeviceOutput)(nil),         // 5: WAWebLabyrinthWaWasm.VirtualDeviceOutput
-	(*Epoch0Output)(nil),                // 6: WAWebLabyrinthWaWasm.Epoch0Output
-	(*CreateBackupOutput)(nil),          // 7: WAWebLabyrinthWaWasm.CreateBackupOutput
-	(*EncryptMessageOutput)(nil),        // 8: WAWebLabyrinthWaWasm.EncryptMessageOutput
-	(*DecryptMessageOutput)(nil),        // 9: WAWebLabyrinthWaWasm.DecryptMessageOutput
-	(*LabyrinthWaCommand)(nil),          // 10: WAWebLabyrinthWaWasm.LabyrinthWaCommand
+	(*OrfThreadIdInput)(nil),            // 3: WAWebLabyrinthWaWasm.OrfThreadIdInput
+	(*DeriveMessageKeyInput)(nil),       // 4: WAWebLabyrinthWaWasm.DeriveMessageKeyInput
+	(*DeviceOutput)(nil),                // 5: WAWebLabyrinthWaWasm.DeviceOutput
+	(*EncryptedSecretValuesOutput)(nil), // 6: WAWebLabyrinthWaWasm.EncryptedSecretValuesOutput
+	(*VirtualDeviceOutput)(nil),         // 7: WAWebLabyrinthWaWasm.VirtualDeviceOutput
+	(*Epoch0Output)(nil),                // 8: WAWebLabyrinthWaWasm.Epoch0Output
+	(*CreateBackupOutput)(nil),          // 9: WAWebLabyrinthWaWasm.CreateBackupOutput
+	(*EncryptMessageOutput)(nil),        // 10: WAWebLabyrinthWaWasm.EncryptMessageOutput
+	(*DecryptMessageOutput)(nil),        // 11: WAWebLabyrinthWaWasm.DecryptMessageOutput
+	(*OrfThreadIdOutput)(nil),           // 12: WAWebLabyrinthWaWasm.OrfThreadIdOutput
+	(*DeriveMessageKeyOutput)(nil),      // 13: WAWebLabyrinthWaWasm.DeriveMessageKeyOutput
+	(*RotateEpochMemberInput)(nil),      // 14: WAWebLabyrinthWaWasm.RotateEpochMemberInput
+	(*RotateEpochInput)(nil),            // 15: WAWebLabyrinthWaWasm.RotateEpochInput
+	(*RotateEpochMemberEdge)(nil),       // 16: WAWebLabyrinthWaWasm.RotateEpochMemberEdge
+	(*RotateEpochOutput)(nil),           // 17: WAWebLabyrinthWaWasm.RotateEpochOutput
+	(*LabyrinthWaCommand)(nil),          // 18: WAWebLabyrinthWaWasm.LabyrinthWaCommand
 }
 var file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_depIdxs = []int32{
-	4, // 0: WAWebLabyrinthWaWasm.VirtualDeviceOutput.encryptedSecretValues:type_name -> WAWebLabyrinthWaWasm.EncryptedSecretValuesOutput
-	3, // 1: WAWebLabyrinthWaWasm.CreateBackupOutput.device:type_name -> WAWebLabyrinthWaWasm.DeviceOutput
-	5, // 2: WAWebLabyrinthWaWasm.CreateBackupOutput.virtualDevice:type_name -> WAWebLabyrinthWaWasm.VirtualDeviceOutput
-	6, // 3: WAWebLabyrinthWaWasm.CreateBackupOutput.epoch0:type_name -> WAWebLabyrinthWaWasm.Epoch0Output
-	0, // 4: WAWebLabyrinthWaWasm.LabyrinthWaCommand.createBackupInput:type_name -> WAWebLabyrinthWaWasm.CreateBackupInput
-	1, // 5: WAWebLabyrinthWaWasm.LabyrinthWaCommand.encryptMessageInput:type_name -> WAWebLabyrinthWaWasm.EncryptMessageInput
-	2, // 6: WAWebLabyrinthWaWasm.LabyrinthWaCommand.decryptMessageInput:type_name -> WAWebLabyrinthWaWasm.DecryptMessageInput
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	6,  // 0: WAWebLabyrinthWaWasm.VirtualDeviceOutput.encryptedSecretValues:type_name -> WAWebLabyrinthWaWasm.EncryptedSecretValuesOutput
+	5,  // 1: WAWebLabyrinthWaWasm.CreateBackupOutput.device:type_name -> WAWebLabyrinthWaWasm.DeviceOutput
+	7,  // 2: WAWebLabyrinthWaWasm.CreateBackupOutput.virtualDevice:type_name -> WAWebLabyrinthWaWasm.VirtualDeviceOutput
+	8,  // 3: WAWebLabyrinthWaWasm.CreateBackupOutput.epoch0:type_name -> WAWebLabyrinthWaWasm.Epoch0Output
+	14, // 4: WAWebLabyrinthWaWasm.RotateEpochInput.members:type_name -> WAWebLabyrinthWaWasm.RotateEpochMemberInput
+	16, // 5: WAWebLabyrinthWaWasm.RotateEpochOutput.memberEdges:type_name -> WAWebLabyrinthWaWasm.RotateEpochMemberEdge
+	0,  // 6: WAWebLabyrinthWaWasm.LabyrinthWaCommand.createBackupInput:type_name -> WAWebLabyrinthWaWasm.CreateBackupInput
+	1,  // 7: WAWebLabyrinthWaWasm.LabyrinthWaCommand.encryptMessageInput:type_name -> WAWebLabyrinthWaWasm.EncryptMessageInput
+	2,  // 8: WAWebLabyrinthWaWasm.LabyrinthWaCommand.decryptMessageInput:type_name -> WAWebLabyrinthWaWasm.DecryptMessageInput
+	3,  // 9: WAWebLabyrinthWaWasm.LabyrinthWaCommand.orfThreadIDInput:type_name -> WAWebLabyrinthWaWasm.OrfThreadIdInput
+	4,  // 10: WAWebLabyrinthWaWasm.LabyrinthWaCommand.deriveMessageKeyInput:type_name -> WAWebLabyrinthWaWasm.DeriveMessageKeyInput
+	15, // 11: WAWebLabyrinthWaWasm.LabyrinthWaCommand.rotateEpochInput:type_name -> WAWebLabyrinthWaWasm.RotateEpochInput
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_init() }
@@ -1119,10 +1722,13 @@ func file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_init() {
 	if File_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto != nil {
 		return
 	}
-	file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[10].OneofWrappers = []any{
+	file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_msgTypes[18].OneofWrappers = []any{
 		(*LabyrinthWaCommand_CreateBackupInput)(nil),
 		(*LabyrinthWaCommand_EncryptMessageInput)(nil),
 		(*LabyrinthWaCommand_DecryptMessageInput)(nil),
+		(*LabyrinthWaCommand_OrfThreadIDInput)(nil),
+		(*LabyrinthWaCommand_DeriveMessageKeyInput)(nil),
+		(*LabyrinthWaCommand_RotateEpochInput)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1130,7 +1736,7 @@ func file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDesc), len(file_waWebLabyrinthWaWasm_WAWebLabyrinthWaWasm_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

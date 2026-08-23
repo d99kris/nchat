@@ -43,6 +43,7 @@
 #include "td/telegram/ChatId.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/CommonDialogManager.h"
+#include "td/telegram/CommunityManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ConnectionStateManager.h"
 #include "td/telegram/CountryInfoManager.h"
@@ -67,6 +68,7 @@
 #include "td/telegram/EmailVerification.h"
 #include "td/telegram/EmojiGroupType.h"
 #include "td/telegram/EmojiStatus.h"
+#include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/files/FileGcParameters.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileManager.h"
@@ -2198,6 +2200,8 @@ void Requests::on_request(uint64 id, const td_api::getCurrentState &request) {
   td_->connection_state_manager_->get_current_state(updates);
 
   if (td_->auth_manager_->is_authorized()) {
+    td_->community_manager_->get_current_state(updates);
+
     td_->user_manager_->get_current_state(updates);
 
     td_->chat_manager_->get_current_state(updates);
@@ -2845,6 +2849,15 @@ void Requests::on_request(uint64 id, td_api::translateText &request) {
                                             std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::translateRichMessage &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.to_language_code_);
+  CLEAN_INPUT_STRING(request.tone_);
+  CREATE_REQUEST_PROMISE();
+  td_->translation_manager_->translate_rich_message(std::move(request.message_), request.to_language_code_,
+                                                    request.tone_, std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::translateMessageText &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.to_language_code_);
@@ -2852,6 +2865,15 @@ void Requests::on_request(uint64 id, td_api::translateMessageText &request) {
   CREATE_REQUEST_PROMISE();
   td_->messages_manager_->translate_message_text({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                                  request.to_language_code_, request.tone_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::translateMessageRichMessage &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.to_language_code_);
+  CLEAN_INPUT_STRING(request.tone_);
+  CREATE_REQUEST_PROMISE();
+  td_->messages_manager_->translate_message_rich_message({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                                         request.to_language_code_, request.tone_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::summarizeMessage &request) {
@@ -2872,10 +2894,36 @@ void Requests::on_request(uint64 id, td_api::composeTextWithAi &request) {
                                                      request.style_name_, request.add_emojis_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::composeRichMessageWithAi &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.translate_to_language_code_);
+  CLEAN_INPUT_STRING(request.style_name_);
+  CLEAN_INPUT_STRING(request.custom_prompt_);
+  CREATE_REQUEST_PROMISE();
+  td_->translation_manager_->compose_rich_message_with_ai(
+      std::move(request.message_), request.translate_to_language_code_, request.style_name_, request.custom_prompt_,
+      request.add_emojis_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::createRichMessageWithAi &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.language_code_);
+  CLEAN_INPUT_STRING(request.prompt_);
+  CREATE_REQUEST_PROMISE();
+  td_->translation_manager_->create_rich_message_with_ai(request.prompt_, request.language_code_, request.add_emojis_,
+                                                         std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::fixTextWithAi &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->translation_manager_->proofread_message_with_ai(std::move(request.text_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::fixRichMessageWithAi &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->translation_manager_->proofread_rich_message_with_ai(std::move(request.message_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::recognizeSpeech &request) {
@@ -4068,6 +4116,14 @@ void Requests::on_request(uint64 id, const td_api::deleteMessages &request) {
                                           request.revoke_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::deleteEphemeralMessage &request) {
+  CHECK_IS_BOT();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->message_query_manager_->delete_ephemeral_message_on_server(
+      DialogId(request.chat_id_), DialogId(UserId(request.receiver_user_id_)),
+      EphemeralMessageId(request.ephemeral_message_id_), 0, std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::deleteChatMessagesBySender &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
@@ -4198,6 +4254,18 @@ void Requests::on_request(uint64 id, td_api::sendInlineQueryResultMessage &reque
   }
 }
 
+void Requests::on_request(uint64 id, td_api::sendEphemeralMessage &request) {
+  auto r_sent_message = td_->messages_manager_->send_ephemeral_message(
+      DialogId(request.chat_id_), request.topic_id_, UserId(request.receiver_user_id_), request.callback_query_id_,
+      std::move(request.reply_to_), request.sending_id_, request.only_preview_, std::move(request.reply_markup_),
+      std::move(request.input_message_content_));
+  if (r_sent_message.is_error()) {
+    send_closure(td_actor_, &Td::send_error, id, r_sent_message.move_as_error());
+  } else {
+    send_closure(td_actor_, &Td::send_result, id, r_sent_message.move_as_ok());
+  }
+}
+
 void Requests::on_request(uint64 id, td_api::addLocalMessage &request) {
   CHECK_IS_USER();
 
@@ -4285,6 +4353,14 @@ void Requests::on_request(uint64 id, td_api::editInlineMessageReplyMarkup &reque
   CREATE_OK_REQUEST_PROMISE();
   td_->inline_message_manager_->edit_inline_message_reply_markup(request.inline_message_id_,
                                                                  std::move(request.reply_markup_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::editEphemeralMessage &request) {
+  CHECK_IS_BOT();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->message_query_manager_->edit_ephemeral_message(
+      DialogId(request.chat_id_), UserId(request.receiver_user_id_), EphemeralMessageId(request.ephemeral_message_id_),
+      std::move(request.reply_markup_), std::move(request.input_message_content_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::editMessageSchedulingState &request) {
@@ -4810,13 +4886,15 @@ void Requests::on_request(uint64 id, td_api::sendRichMessageDraft &request) {
   CHECK_IS_BOT();
   CREATE_OK_REQUEST_PROMISE();
   DialogId dialog_id(request.chat_id_);
-  TRY_RESULT_PROMISE(promise, rich_message, RichMessage::get_rich_message(td_, dialog_id, std::move(request.message_), true));
+  TRY_RESULT_PROMISE(promise, rich_message,
+                     RichMessage::get_rich_message(td_, dialog_id, std::move(request.message_), true));
   MessageTopic message_topic;
   if (request.forum_topic_id_ != 0) {
     message_topic = MessageTopic::forum(dialog_id, ForumTopicId(request.forum_topic_id_));
   }
   td_->dialog_action_manager_->send_dialog_action(dialog_id, message_topic, BusinessConnectionId(),
-                                                  DialogAction(request.draft_id_, std::move(rich_message)), std::move(promise));
+                                                  DialogAction(request.draft_id_, std::move(rich_message)),
+                                                  std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::forwardMessages &request) {
@@ -6968,11 +7046,8 @@ void Requests::on_request(uint64 id, const td_api::isProfileAudio &request) {
 
 void Requests::on_request(uint64 id, td_api::addProfileAudio &request) {
   CHECK_IS_USER();
-  CLEAN_INPUT_STRING(request.title_);
-  CLEAN_INPUT_STRING(request.performer_);
   CREATE_OK_REQUEST_PROMISE();
-  td_->user_manager_->add_new_saved_music(request.audio_, request.duration_, request.title_, request.performer_,
-                                          std::move(promise));
+  td_->user_manager_->add_new_saved_music(std::move(request.audio_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::setProfileAudioPosition &request) {
@@ -7747,13 +7822,13 @@ void Requests::on_request(uint64 id, const td_api::getStarAdAccountUrl &request)
   td_->star_manager_->get_star_ad_account_url(request.owner_id_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getTonRevenueStatistics &request) {
+void Requests::on_request(uint64 id, const td_api::getGramRevenueStatistics &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->star_manager_->get_ton_revenue_statistics(request.is_dark_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getTonWithdrawalUrl &request) {
+void Requests::on_request(uint64 id, const td_api::getGramWithdrawalUrl &request) {
   CHECK_IS_USER();
   CREATE_HTTP_URL_REQUEST_PROMISE();
   td_->star_manager_->get_ton_withdrawal_url(request.password_, std::move(promise));
@@ -8124,6 +8199,13 @@ void Requests::on_request(uint64 id, td_api::getWebAppUrl &request) {
   td_->inline_queries_manager_->get_simple_web_view_url(UserId(request.bot_user_id_), std::move(request.url_),
                                                         WebAppOpenParameters(std::move(request.parameters_)),
                                                         std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getGuardBotWebAppUrl &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->dialog_participant_manager_->get_chat_join_web_view_url(
+      request.query_id_, WebAppOpenParameters(std::move(request.parameters_)), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::sendWebAppData &request) {

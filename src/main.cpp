@@ -257,11 +257,13 @@ int main(int argc, char* argv[])
   // Init logging
   const std::string& logPath = FileUtil::GetApplicationDir() + std::string("/log.txt");
   Log::Init(logPath);
-  std::string appNameVersion = AppUtil::GetAppName(true /*p_WithVersion*/);
+  std::string appNameVersion = AppUtil::GetAppName(true /*p_WithVersion*/, true /*p_WithBranch*/);
   LOG_INFO("%s", appNameVersion.c_str());
-  std::string osArch = SysUtil::GetOsArch();
+  std::string osArch = SysUtil::GetOsArch(false /*p_Verbose*/);
   LOG_INFO("%s", osArch.c_str());
-  std::string compiler = SysUtil::GetCompiler();
+  std::string buildInfo = SysUtil::GetBuildInfo();
+  LOG_INFO("%s", buildInfo.c_str());
+  std::string compiler = SysUtil::GetCompiler(false /*p_Verbose*/);
   LOG_INFO("%s", compiler.c_str());
   std::string go = SysUtil::GetGo(GO_VERSION);
   LOG_INFO("%s", go.c_str());
@@ -617,8 +619,11 @@ std::shared_ptr<Protocol> SetupProfile()
   else
   {
     std::cout << "Setup failed\n";
-    protocol->Logout();
-    protocol->CloseProfile();
+    if (protocol)
+    {
+      protocol->Logout();
+      protocol->CloseProfile();
+    }
   }
 
   return rv;
@@ -627,7 +632,7 @@ std::shared_ptr<Protocol> SetupProfile()
 void ShowHelp()
 {
   std::cout <<
-    "nchat is a terminal-based telegram / whatsapp client.\n"
+    "nchat is a terminal-based messaging client with Telegram, WhatsApp and Signal support.\n"
     "\n"
     "Usage: nchat [OPTION]\n"
     "\n"
@@ -712,8 +717,10 @@ void ShowVersion()
     "\n"
     "Copyright (c) 2019-2026 Kristofer Berggren\n"
     "\n"
-#ifdef HAS_SIGNAL
+#if defined(HAS_SIGNAL)
     "Combined distribution subject to GNU AGPL v3 license.\n"
+#elif defined(HAS_WHATSAPP)
+    "Combined distribution subject to GNU GPL v3 license.\n"
 #else
     "Combined distribution subject to MIT license.\n"
 #endif

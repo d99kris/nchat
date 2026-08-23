@@ -1,6 +1,6 @@
 // uicontactlistdialog.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -98,7 +98,7 @@ void UiContactListDialog::UpdateList()
       if (name.empty()) continue;
 
       if (m_FilterStr.empty() ||
-          (StrUtil::ToLower(name).find(StrUtil::ToLower(StrUtil::ToString(m_FilterStr))) != std::string::npos))
+          (StrUtil::ToFold(name).find(StrUtil::ToFold(StrUtil::ToString(m_FilterStr))) != std::string::npos))
       {
         std::string displayName = name + m_Model->GetProfileSuffix(profileId);
 

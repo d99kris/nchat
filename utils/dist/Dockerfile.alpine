@@ -1,0 +1,66 @@
+# Dockerfile.alpine
+#
+# Build environment for fully static (musl) nchat Linux binaries.
+# Multi-arch: usable on x86_64 and arm64 hosts (native arch only).
+# See utils/dist/build-linux.sh for usage.
+#
+# nchat is distributed under the MIT license, see LICENSE for details.
+
+FROM alpine:3.24
+
+RUN apk add --no-cache \
+    bash build-base ccache cmake git gperf linux-headers patch pkgconf samurai \
+    ncurses-dev ncurses-static \
+    sqlite-dev sqlite-static \
+    openssl-dev openssl-libs-static \
+    zlib-dev zlib-static \
+    libpng-dev libpng-static \
+    file-dev libmagic-static \
+    libxcb-dev libxcb-static libxau-dev libxdmcp-dev xorgproto
+
+# Go from the official tarball (its binaries are statically linked, so they
+# run on musl), patched with Go PR #69325 so c-archives do not segfault at
+# startup on musl (nchat issue #204; see doc/MUSLGO.md). Pinned to the tag
+# the vendored patch was rebased onto — bump both together. GOTOOLCHAIN=local
+# keeps go from auto-downloading an unpatched toolchain to satisfy go.mod.
+ARG GO_VERSION=1.26.3
+COPY patches/go-pr69325-musl-argv.patch /tmp/go-musl-argv.patch
+RUN set -eu; \
+    case "$(uname -m)" in \
+      aarch64) goarch=arm64 ;; \
+      x86_64)  goarch=amd64 ;; \
+      *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    wget -q "https://go.dev/dl/go${GO_VERSION}.linux-${goarch}.tar.gz" \
+      -O /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    patch -p1 -d /usr/local/go < /tmp/go-musl-argv.patch && \
+    rm /tmp/go.tar.gz /tmp/go-musl-argv.patch && \
+    /usr/local/go/bin/go version
+ENV PATH=/usr/local/go/bin:${PATH} \
+    GOTOOLCHAIN=local
+
+# Alpine ships no libXau.a; build it from source so static libxcb can link
+ARG LIBXAU_VERSION=1.0.12
+RUN wget -q "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.xz" \
+      -O /tmp/libXau.tar.xz && \
+    tar -xf /tmp/libXau.tar.xz -C /tmp && \
+    cd "/tmp/libXau-${LIBXAU_VERSION}" && \
+    ./configure --prefix=/usr --enable-static --disable-shared && \
+    make -j"$(nproc)" && \
+    make install && \
+    rm -rf /tmp/libXau*
+
+# Strip DWARF from the static dependency archives (same rationale as
+# Dockerfile.manylinux). The source-built libXau above compiles at autotools'
+# default "-g -O2" and installs into /usr/lib, so its .a carries full debug info
+# that the static link folds into nchat and `objcopy --only-keep-debug` would
+# then harvest into nchat.debug. Done here as root at image-build time, because
+# the build container (build-in-container.sh) runs as a non-root --user that
+# cannot rewrite these root-owned archives. `--strip-debug` keeps the archive
+# symbol table so the static link is unaffected. Recursing over /usr/lib also
+# covers the toolchain's static libstdc++/libgcc under /usr/lib/gcc that the
+# -static link folds in; Alpine's own *-static packages ship already stripped
+# (no-op). build-base provides GNU binutils strip (not busybox), which
+# understands the ELF .debug_* sections.
+RUN set -eu; find /usr/lib -name '*.a' -exec strip --strip-debug {} +

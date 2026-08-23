@@ -151,7 +151,10 @@ func (s *SignalClient) syncChats(ctx context.Context, cancel context.CancelFunc)
 			groupID := types.GroupIdentifier(base64.StdEncoding.EncodeToString(rawGroupID[:]))
 			groupInfo, err := s.getGroupInfo(ctx, groupID, dest.Group.GetSnapshot().GetVersion(), chat)
 			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to get full group info")
+				zerolog.Ctx(ctx).Err(err).
+					Uint64("recipient_id", recipient.Id).
+					Stringer("group_id", groupID).
+					Msg("Failed to get full group info")
 				continue
 			}
 			resyncEvt.PortalKey = s.makePortalKey(string(groupID))

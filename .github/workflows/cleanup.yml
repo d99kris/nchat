@@ -1,0 +1,56 @@
+# Deletes Actions artifacts older than one day, repo-wide.
+#
+# Why this exists: `retention-days:` does NOT free storage. It only sets
+# expires_at, which stops the artifact being downloadable while GitHub keeps
+# billing it against the 0.5 GB/month Actions storage quota until an internal
+# purge job removes the files -- measured at an unchanged full rate for four
+# days past expires_at. Only an explicit delete stops the meter.
+#
+# Repo-wide and age-based rather than a cleanup job inside release.yml, because
+# that would have to special-case tag runs vs workflow_dispatch dry runs, failed
+# builds, and cancellations -- and would still miss artifacts from other
+# workflows. One threshold covers every case.
+#
+# One day is deliberately generous: it leaves a window to download a dry-run
+# build for hand-testing before tagging, and keeps a wide margin over even the
+# longest build, so the sweep can never delete artifacts out from under an
+# in-flight run. Note the cadence stacks on the threshold -- an artifact created
+# just after a sweep survives until the one after next, so real hold time is
+# 24-48 h. That is ~3% of the monthly quota per run, which is the accepted cost
+# of keeping this simple.
+
+name: Cleanup
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    name: Delete aged artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete artifacts older than one day
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cutoff=$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)
+          echo "deleting artifacts created before ${cutoff}"
+
+          # ISO-8601 UTC timestamps compare correctly as strings.
+          aged=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts" \
+            --jq ".artifacts[]
+                  | select(.created_at < \"${cutoff}\")
+                  | \"\(.id) \(.size_in_bytes) \(.created_at) \(.name)\"")
+
+          [ -n "${aged}" ] || { echo "nothing to sweep"; exit 0; }
+
+          echo "${aged}" | while read -r id size created name; do
+            echo "deleting ${name} (id=${id} size=${size} created=${created})"
+            gh api -X DELETE \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" --silent
+          done

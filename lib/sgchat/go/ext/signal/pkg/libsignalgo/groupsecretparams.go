@@ -31,7 +31,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type Randomness [C.SignalRANDOMNESS_LEN]byte
+const RandomnessLength = 32
+
+type Randomness = fixedArray32
 
 func GenerateRandomness() Randomness {
 	var randomness Randomness
@@ -42,13 +44,38 @@ func GenerateRandomness() Randomness {
 	return randomness
 }
 
-const GroupMasterKeyLength = C.SignalGROUP_MASTER_KEY_LEN
-const GroupIdentifierLength = C.SignalGROUP_IDENTIFIER_LEN
+const GroupMasterKeyLength = 32
+const GroupIdentifierLength = 32
+const GroupSecretParamsLength = 289
 
 type GroupMasterKey [GroupMasterKeyLength]byte
-type GroupSecretParams [C.SignalGROUP_SECRET_PARAMS_LEN]byte
-type GroupPublicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]byte
+type GroupSecretParams [GroupSecretParamsLength]byte
+type GroupPublicParams = fixedArray97
 type GroupIdentifier [GroupIdentifierLength]byte
+
+func (gmk *GroupMasterKey) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
+	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(gmk))
+}
+
+func (gmk *GroupMasterKey) cConstFixedArray() cFixedArray32Compat {
+	return cFixedArray32Compat(gmk.cFixedArray())
+}
+
+func (gsp *GroupSecretParams) cFixedArray() *C.SignalType_FixedArray289_uint8_t {
+	return (*C.SignalType_FixedArray289_uint8_t)(unsafe.Pointer(gsp))
+}
+
+func (gsp *GroupSecretParams) cConstFixedArray() cFixedArray289Compat {
+	return cFixedArray289Compat(gsp.cFixedArray())
+}
+
+func (gid *GroupIdentifier) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
+	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(gid))
+}
+
+func (gid *GroupIdentifier) cConstFixedArray() cFixedArray32Compat {
+	return cFixedArray32Compat(gid.cFixedArray())
+}
 
 func (gid *GroupIdentifier) String() string {
 	if gid == nil {
@@ -57,8 +84,8 @@ func (gid *GroupIdentifier) String() string {
 	return base64.StdEncoding.EncodeToString(gid[:])
 }
 
-type UUIDCiphertext [C.SignalUUID_CIPHERTEXT_LEN]byte
-type ProfileKeyCiphertext [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]byte
+type UUIDCiphertext = fixedArray65
+type ProfileKeyCiphertext = fixedArray65
 
 func GenerateGroupSecretParams() (GroupSecretParams, error) {
 	return GenerateGroupSecretParamsWithRandomness(GenerateRandomness())
@@ -81,51 +108,43 @@ func (gmk GroupMasterKey) SecretParams() (GroupSecretParams, error) {
 }
 
 func GenerateGroupSecretParamsWithRandomness(randomness Randomness) (GroupSecretParams, error) {
-	var params [C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar
-	signalFfiError := C.signal_group_secret_params_generate_deterministic(&params, (*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)))
+	var params GroupSecretParams
+	signalFfiError := C.signal_group_secret_params_generate_deterministic(params.cFixedArray(), randomness.cConstFixedArray())
 	runtime.KeepAlive(randomness)
 	if signalFfiError != nil {
 		return GroupSecretParams{}, wrapError(signalFfiError)
 	}
-	var groupSecretParams GroupSecretParams
-	copy(groupSecretParams[:], C.GoBytes(unsafe.Pointer(&params), C.int(C.SignalGROUP_SECRET_PARAMS_LEN)))
-	return groupSecretParams, nil
+	return params, nil
 }
 
 func DeriveGroupSecretParamsFromMasterKey(groupMasterKey GroupMasterKey) (GroupSecretParams, error) {
-	var params [C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar
-	signalFfiError := C.signal_group_secret_params_derive_from_master_key(&params, (*[C.SignalGROUP_MASTER_KEY_LEN]C.uint8_t)(unsafe.Pointer(&groupMasterKey)))
+	var params GroupSecretParams
+	signalFfiError := C.signal_group_secret_params_derive_from_master_key(params.cFixedArray(), groupMasterKey.cConstFixedArray())
 	runtime.KeepAlive(groupMasterKey)
 	if signalFfiError != nil {
 		return GroupSecretParams{}, wrapError(signalFfiError)
 	}
-	var groupSecretParams GroupSecretParams
-	copy(groupSecretParams[:], C.GoBytes(unsafe.Pointer(&params), C.int(C.SignalGROUP_SECRET_PARAMS_LEN)))
-	return groupSecretParams, nil
+	return params, nil
 }
 
 func (gsp *GroupSecretParams) GetPublicParams() (*GroupPublicParams, error) {
-	var publicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]C.uchar
-	signalFfiError := C.signal_group_secret_params_get_public_params(&publicParams, (*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)))
+	var publicParams GroupPublicParams
+	signalFfiError := C.signal_group_secret_params_get_public_params(publicParams.cFixedArray(), gsp.cConstFixedArray())
 	runtime.KeepAlive(gsp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	var groupPublicParams GroupPublicParams
-	copy(groupPublicParams[:], C.GoBytes(unsafe.Pointer(&publicParams), C.int(C.SignalGROUP_PUBLIC_PARAMS_LEN)))
-	return &groupPublicParams, nil
+	return &publicParams, nil
 }
 
 func GetGroupIdentifier(groupPublicParams GroupPublicParams) (*GroupIdentifier, error) {
-	var groupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]C.uchar
-	signalFfiError := C.signal_group_public_params_get_group_identifier(&groupIdentifier, (*[C.SignalGROUP_PUBLIC_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(&groupPublicParams)))
+	var groupIdentifier GroupIdentifier
+	signalFfiError := C.signal_group_public_params_get_group_identifier(groupIdentifier.cFixedArray(), groupPublicParams.cConstFixedArray())
 	runtime.KeepAlive(groupPublicParams)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	var result GroupIdentifier
-	copy(result[:], C.GoBytes(unsafe.Pointer(&groupIdentifier), C.int(C.SignalGROUP_IDENTIFIER_LEN)))
-	return &result, nil
+	return &groupIdentifier, nil
 }
 
 func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error) {
@@ -133,7 +152,7 @@ func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error
 	borrowedBlob := BytesToBuffer(blob)
 	signalFfiError := C.signal_group_secret_params_decrypt_blob_with_padding(
 		&plaintext,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
+		gsp.cConstFixedArray(),
 		borrowedBlob,
 	)
 	runtime.KeepAlive(gsp)
@@ -149,8 +168,8 @@ func (gsp *GroupSecretParams) EncryptBlobWithPaddingDeterministic(randomness Ran
 	borrowedPlaintext := BytesToBuffer(plaintext)
 	signalFfiError := C.signal_group_secret_params_encrypt_blob_with_padding_deterministic(
 		&ciphertext,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		(*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)),
+		gsp.cConstFixedArray(),
+		randomness.cConstFixedArray(),
 		borrowedPlaintext,
 		(C.uint32_t)(padding_len),
 	)
@@ -165,11 +184,11 @@ func (gsp *GroupSecretParams) EncryptBlobWithPaddingDeterministic(randomness Ran
 }
 
 func (gsp *GroupSecretParams) DecryptServiceID(ciphertextServiceID UUIDCiphertext) (ServiceID, error) {
-	u := C.SignalServiceIdFixedWidthBinaryBytes{}
+	var serviceIDBytes ServiceIDFixedBytes
 	signalFfiError := C.signal_group_secret_params_decrypt_service_id(
-		&u,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		(*[C.SignalUUID_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextServiceID)),
+		serviceIDBytes.cFixedArray(),
+		gsp.cConstFixedArray(),
+		ciphertextServiceID.cConstFixedArray(),
 	)
 	runtime.KeepAlive(gsp)
 	runtime.KeepAlive(ciphertextServiceID)
@@ -177,33 +196,31 @@ func (gsp *GroupSecretParams) DecryptServiceID(ciphertextServiceID UUIDCiphertex
 		return EmptyServiceID, wrapError(signalFfiError)
 	}
 
-	serviceID := ServiceIDFromCFixedBytes(&u)
+	serviceID := ServiceIDFromCFixedBytes(serviceIDBytes.cFixedArray())
 	return serviceID, nil
 }
 
 func (gsp *GroupSecretParams) EncryptServiceID(serviceID ServiceID) (*UUIDCiphertext, error) {
-	var cipherTextServiceID [C.SignalUUID_CIPHERTEXT_LEN]C.uchar
+	var cipherTextServiceID UUIDCiphertext
 	signalFfiError := C.signal_group_secret_params_encrypt_service_id(
-		&cipherTextServiceID,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		serviceID.CFixedBytes(),
+		cipherTextServiceID.cFixedArray(),
+		gsp.cConstFixedArray(),
+		serviceID.cConstFixedArray(),
 	)
 	runtime.KeepAlive(gsp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	var result UUIDCiphertext
-	copy(result[:], C.GoBytes(unsafe.Pointer(&cipherTextServiceID), C.int(C.SignalUUID_CIPHERTEXT_LEN)))
-	return &result, nil
+	return &cipherTextServiceID, nil
 }
 
 func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, u uuid.UUID) (*ProfileKey, error) {
-	profileKey := [C.SignalPROFILE_KEY_LEN]C.uchar{}
+	var profileKey ProfileKey
 	signalFfiError := C.signal_group_secret_params_decrypt_profile_key(
-		&profileKey,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		(*[C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextProfileKey)),
-		NewACIServiceID(u).CFixedBytes(),
+		profileKey.cFixedArray(),
+		gsp.cConstFixedArray(),
+		ciphertextProfileKey.cConstFixedArray(),
+		NewACIServiceID(u).cConstFixedArray(),
 	)
 	runtime.KeepAlive(gsp)
 	runtime.KeepAlive(ciphertextProfileKey)
@@ -211,27 +228,23 @@ func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyC
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	var result ProfileKey
-	copy(result[:], C.GoBytes(unsafe.Pointer(&profileKey), C.int(C.SignalPROFILE_KEY_LEN)))
-	return &result, nil
+	return &profileKey, nil
 }
 
 func (gsp *GroupSecretParams) EncryptProfileKey(profileKey ProfileKey, u uuid.UUID) (*ProfileKeyCiphertext, error) {
-	ciphertextProfileKey := [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uchar{}
+	var ciphertextProfileKey ProfileKeyCiphertext
 	signalFfiError := C.signal_group_secret_params_encrypt_profile_key(
-		&ciphertextProfileKey,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		(*[C.SignalPROFILE_KEY_LEN]C.uint8_t)(unsafe.Pointer(&profileKey)),
-		NewACIServiceID(u).CFixedBytes(),
+		ciphertextProfileKey.cFixedArray(),
+		gsp.cConstFixedArray(),
+		profileKey.cConstFixedArray(),
+		NewACIServiceID(u).cConstFixedArray(),
 	)
 	runtime.KeepAlive(gsp)
 	runtime.KeepAlive(profileKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	var result ProfileKeyCiphertext
-	copy(result[:], C.GoBytes(unsafe.Pointer(&ciphertextProfileKey), C.int(C.SignalPROFILE_KEY_CIPHERTEXT_LEN)))
-	return &result, nil
+	return &ciphertextProfileKey, nil
 }
 
 func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp *ServerPublicParams, credential ExpiringProfileKeyCredential) (*ProfileKeyCredentialPresentation, error) {
@@ -240,9 +253,9 @@ func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp
 	signalFfiError := C.signal_server_public_params_create_expiring_profile_key_credential_presentation_deterministic(
 		&out,
 		C.SignalConstPointerServerPublicParams{spp},
-		(*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)),
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(gsp)),
-		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar)(unsafe.Pointer(&credential)),
+		randomness.cConstFixedArray(),
+		gsp.cConstFixedArray(),
+		credential.cConstFixedArray(),
 	)
 	runtime.KeepAlive(gsp)
 	runtime.KeepAlive(credential)
@@ -256,16 +269,14 @@ func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp
 }
 
 func (gsp *GroupSecretParams) GetMasterKey() (*GroupMasterKey, error) {
-	masterKeyBytes := [C.SignalGROUP_MASTER_KEY_LEN]C.uchar{}
+	var masterKey GroupMasterKey
 	signalFfiError := C.signal_group_secret_params_get_master_key(
-		&masterKeyBytes,
-		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(gsp)),
+		masterKey.cFixedArray(),
+		gsp.cConstFixedArray(),
 	)
 	runtime.KeepAlive(gsp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	var groupMasterKey GroupMasterKey
-	copy(groupMasterKey[:], C.GoBytes(unsafe.Pointer(&masterKeyBytes), C.int(C.SignalGROUP_MASTER_KEY_LEN)))
-	return &groupMasterKey, nil
+	return &masterKey, nil
 }

@@ -404,17 +404,17 @@ func (parser *HTMLParser) tagToString(node *html.Node, ctx Context) *EntityStrin
 		return NewEntityString("---")
 	case "pre":
 		var preStr *EntityString
-		//var language string
+		var language string
 		if node.FirstChild != nil && node.FirstChild.Type == html.ElementNode && node.FirstChild.Data == "code" {
-			//class := parser.getAttribute(node.FirstChild, "class")
-			//if strings.HasPrefix(class, "language-") {
-			//	language = class[len("language-"):]
-			//}
+			class := parser.getAttribute(node.FirstChild, "class")
+			if strings.HasPrefix(class, "language-") {
+				language = class[len("language-"):]
+			}
 			preStr = parser.nodeToString(node.FirstChild.FirstChild, ctx.WithWhitespace())
 		} else {
 			preStr = parser.nodeToString(node.FirstChild, ctx.WithWhitespace())
 		}
-		return preStr.Format(signalfmt.StyleMonospace)
+		return NewEntityString(fmt.Sprintf("```%s\n", language)).Append(preStr).AppendString("\n```")
 	default:
 		return parser.nodeToTagAwareString(node.FirstChild, ctx)
 	}

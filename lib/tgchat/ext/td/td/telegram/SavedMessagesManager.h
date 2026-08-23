@@ -101,6 +101,9 @@ class SavedMessagesManager final : public Actor {
   void get_monoforum_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
                            Promise<td_api::object_ptr<td_api::directMessagesChatTopic>> &&promise);
 
+  void reload_monoforum_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+                              Promise<td_api::object_ptr<td_api::directMessagesChatTopic>> &&promise);
+
   void get_monoforum_topic_history(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
                                    MessageId from_message_id, int32 offset, int32 limit,
                                    Promise<td_api::object_ptr<td_api::messages>> &&promise);
@@ -299,9 +302,6 @@ class SavedMessagesManager final : public Actor {
                             MessageId from_message_id, int32 offset, int32 limit, int32 left_tries,
                             Result<MessagesInfo> &&r_info, Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
-  void reload_monoforum_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
-                              Promise<td_api::object_ptr<td_api::directMessagesChatTopic>> &&promise);
-
   void repair_topic_unread_count(const SavedMessagesTopic *topic);
 
   void read_topic_messages(SavedMessagesTopic *topic, MessageId read_inbox_max_message_id, int32 hint_unread_count);
@@ -319,8 +319,8 @@ class SavedMessagesManager final : public Actor {
 
   void do_set_topic_unread_reaction_count(SavedMessagesTopic *topic, int32 unread_reaction_count);
 
-  void do_set_topic_draft_message(SavedMessagesTopic *topic, unique_ptr<DraftMessage> &&draft_message,
-                                  bool from_update);
+  void do_set_topic_draft_message(SavedMessagesTopic *topic, unique_ptr<DraftMessage> &&draft_message, bool from_update,
+                                  bool need_delete_files);
 
   void load_topics(TopicList *topic_list, int32 limit, Promise<Unit> &&promise);
 
