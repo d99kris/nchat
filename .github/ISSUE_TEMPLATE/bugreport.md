@@ -12,3 +12,10 @@ assignees: d99kris
 **Environment**:
 - Version:
 - OS / distro:
+
+**Log**:
+<!--
+Please attach a copy of `~/.config/nchat/log.txt` after reviewing and removing
+any sensitive information from it, see
+https://github.com/d99kris/nchat/blob/master/doc/DEBUGGING.md
+-->

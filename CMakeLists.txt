@@ -737,6 +737,14 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
 
 endif()
 
+# Tests
+option(HAS_TESTS "Build tests" ON)
+message(STATUS "Tests: ${HAS_TESTS}")
+if(HAS_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
+
 # Common Go dependency check
 #
 # A fully static build merges the WhatsApp and Signal Go modules into one

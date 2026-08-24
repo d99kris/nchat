@@ -1289,32 +1289,17 @@ If on Linux, try removing any custom default background set up, i.e. set
 
 Project Scope
 =============
-
-Limitations
------------
-There are no plans to support the following features:
-- Telegram secret chats
-- Voice / video calls
-
-Additionally, WhatsApp and Signal are only supported on macOS and glibc-based
-Linux systems. Thus, it is not supported on musl-based operating systems, such
-as Alpine Linux. See [issue #204](https://github.com/d99kris/nchat/issues/204)
-for technical details on this limitation.
-
-Roadmap
--------
-There is currently no concrete roadmap for further feature development of
-nchat. It is not intended to be a full-featured client on par with official
-Telegram / WhatsApp / Signal clients, but rather a light-weight client
-providing essential functionality suitable for the terminal. However, feel
-free to submit feature requests if there's something missing, or help upvote
-[existing feature requests](https://github.com/d99kris/nchat/discussions/categories/ideas?discussions_q=is%3Aopen+category%3AIdeas),
-if it's useful and low effort it will be considered.
+nchat is feature-complete and in maintenance mode. It is not intended to be a
+full-featured client on par with official Telegram / WhatsApp / Signal
+clients, but rather a light-weight client providing essential functionality
+suitable for the terminal. See [Project Scope](/doc/SCOPE.md) for further
+details.
 
 
 Contributions
 =============
-Please refer to [Contributing Guidelines](/doc/CONTRIBUTING.md) and
+Please refer to [Project Scope](/doc/SCOPE.md),
+[Contributing Guidelines](/doc/CONTRIBUTING.md) and
 [Design Notes](/doc/DESIGN.md).
 
 
@@ -1353,19 +1338,19 @@ includes the source code of the following third-party libraries:
 
 - [apathy](https://github.com/dlecocq/apathy) -
   Copyright 2013 Dan Lecocq -
-  [MIT License](/ext/apathy/LICENSE)
+  [MIT License](/lib/ncutil/ext/apathy/LICENSE)
 
 - [cereal](https://github.com/USCiLab/cereal) -
   Copyright 2013 Randolph Voorhies, Shane Grant -
-  [BSD-3 License](/ext/cereal/LICENSE)
+  [BSD-3 License](/lib/ncutil/ext/cereal/LICENSE)
 
 - [clip](https://github.com/dacap/clip) -
   Copyright 2015 David Capello -
-  [MIT License](/ext/clip/LICENSE.txt)
+  [MIT License](/lib/ncutil/ext/clip/LICENSE.txt)
 
 - [QR-Code-generator](https://github.com/nayuki/QR-Code-generator) -
   Copyright 2022 Project Nayuki -
-  [MIT License](/ext/QR-Code-generator/Readme.markdown)
+  [MIT License](/lib/ncutil/ext/QR-Code-generator/Readme.markdown)
 
 - [mautrix-signal](https://github.com/mautrix/signal) -
   Copyright 2020 Tulir Asokan -
@@ -1373,11 +1358,11 @@ includes the source code of the following third-party libraries:
 
 - [stb](https://github.com/nothings/stb) -
   Copyright 2017 Sean Barrett -
-  [MIT License](/ext/stb/LICENSE)
+  [MIT License](/lib/ncutil/ext/stb/LICENSE)
 
 - [sqlite_modern_cpp](https://github.com/SqliteModernCpp/sqlite_modern_cpp) -
   Copyright 2017 aminroosta -
-  [MIT License](/ext/sqlite_modern_cpp/License.txt)
+  [MIT License](/lib/ncutil/ext/sqlite_modern_cpp/License.txt)
 
 - [tdlib](https://github.com/tdlib/td) -
   Copyright 2014 Aliaksei Levin, Arseny Smirnov -
@@ -1402,12 +1387,6 @@ to update to latest (or a specific) version of these libraries. Example usages:
     ./utils/whatsmeow-update 7aedaa1
 
     ./utils/signal-update 93da772
-
-Code Formatting
----------------
-Uncrustify is used to maintain consistent source code formatting, example:
-
-    ./make.sh src
 
 
 License

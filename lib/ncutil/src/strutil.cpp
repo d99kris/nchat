@@ -683,8 +683,8 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           wchar_t wc = linePart[i];
           unsigned char_width = std::max(wcwidth(wc), 1);
 
-          // Track the most recent space for wrapping
-          if (wc == L' ')
+          // Track the most recent space for wrapping, ignoring spaces in the quote prefix
+          if ((wc == L' ') && (i >= quotePrefixLen))
           {
             last_space = i;
           }
@@ -700,11 +700,11 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
             }
             else
             {
-              // No space found, hard wrap at current character (single width char) or
-              // previous (double width char)
-              const int lenOffset = (char_width == 1) ? 1 : 0;
-              lines.push_back(linePart.substr(0, i + lenOffset));
-              linePart = linePart.substr(i + lenOffset);
+              // No space found, hard wrap after current character (single width char) or
+              // before it (double width char). At least one char, to ensure progress.
+              const size_t splitPos = std::max<size_t>(((char_width == 1) ? (i + 1) : i), 1);
+              lines.push_back(linePart.substr(0, splitPos));
+              linePart = linePart.substr(splitPos);
             }
 
             // Reset for the next segment of the same original line

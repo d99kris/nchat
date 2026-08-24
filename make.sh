@@ -240,6 +240,7 @@ if [[ "${SRC}" == "1" ]]; then
              lib/sgchat/src/*.{cpp,h} \
              lib/tgchat/src/*.{cpp,h} \
              lib/wmchat/src/*.{cpp,h} \
+             tests/*.{cpp,h} \
     || exiterr "unrustify failed, exiting."
 fi
 
@@ -368,7 +369,7 @@ fi
 
 # tests
 if [[ "${TESTS}" == "1" ]]; then
-  true || exiterr "tests failed, exiting."
+  cd build && ctest --output-on-failure && cd .. || exiterr "tests failed, exiting."
 fi
 
 # doc
