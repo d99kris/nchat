@@ -243,7 +243,7 @@ class AddContactQuery final : public Td::ResultHandler {
   void on_error(Status status) final {
     promise_.set_error(std::move(status));
     td_->user_manager_->reload_contacts(true);
-    td_->messages_manager_->reget_dialog_action_bar(DialogId(user_id_), "AddContactQuery");
+    td_->messages_manager_->reload_dialog_action_bar(DialogId(user_id_), "AddContactQuery");
   }
 };
 
@@ -346,7 +346,7 @@ class AcceptContactQuery final : public Td::ResultHandler {
   void on_error(Status status) final {
     promise_.set_error(std::move(status));
     td_->user_manager_->reload_contacts(true);
-    td_->messages_manager_->reget_dialog_action_bar(DialogId(user_id_), "AcceptContactQuery");
+    td_->messages_manager_->reload_dialog_action_bar(DialogId(user_id_), "AcceptContactQuery");
   }
 };
 
@@ -3766,6 +3766,20 @@ void UserManager::on_update_user_profile_colors(User *u, UserId user_id, AccentC
   }
 }
 
+void UserManager::on_update_user_linked_community_id(UserId user_id, CommunityId linked_community_id) {
+  User *u = get_user_force(user_id, "on_update_user_linked_community_id");
+  if (u != nullptr) {
+    on_update_user_linked_community_id(u, user_id, linked_community_id);
+    update_user(u, user_id);
+
+    auto user_full = get_user_full_force(user_id, "on_update_user_linked_community_id");
+    if (user_full != nullptr) {
+      on_update_user_full_linked_community_id(user_full, linked_community_id);
+      update_user_full(user_full, user_id, "on_update_user_linked_community_id");
+    }
+  }
+}
+
 void UserManager::on_update_user_linked_community_id(User *u, UserId user_id, CommunityId linked_community_id) {
   if (!linked_community_id.is_valid() || !is_user_bot(u)) {
     linked_community_id = CommunityId();
@@ -5600,7 +5614,7 @@ RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const
     return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          true, false, false, true, false, ChannelType::Unknown);
+                          true, false, false, true, true, ChannelType::Unknown);
 }
 
 RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId secret_chat_id) const {
@@ -5609,7 +5623,7 @@ RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId s
     return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          false, false, false, false, false, ChannelType::Unknown);
+                          false, false, false, false, true, ChannelType::Unknown);
 }
 
 td_api::object_ptr<td_api::emojiStatus> UserManager::get_user_emoji_status_object(UserId user_id) const {
@@ -6047,7 +6061,8 @@ void UserManager::set_profile_photo_impl(UserId user_id, const td_api::object_pt
 
   auto file_type = is_animation ? FileType::Animation : FileType::Photo;
   TRY_RESULT_PROMISE(promise, file_id,
-                     td_->file_manager_->get_input_file_id(file_type, *input_file, DialogId(user_id), false, false));
+                     td_->file_manager_->get_input_file_id(file_type, *input_file, DialogId(user_id), false, false,
+                                                           false, false, false, true));
 
   upload_profile_photo(user_id, {file_id, FileManager::get_internal_upload_id()}, is_fallback, only_suggest,
                        is_animation, main_frame_timestamp, std::move(promise));
@@ -6134,7 +6149,7 @@ void UserManager::on_upload_profile_photo(FileUploadId file_upload_id,
       return promise.set_error(400, "Failed to reupload the file");
     }
 
-    // delete file reference and forcely reupload the file
+    // delete file reference and forcibly reupload the file
     if (is_animation) {
       CHECK(file_view.get_type() == FileType::Animation);
       LOG_CHECK(main_remote_location->is_common()) << *main_remote_location;
