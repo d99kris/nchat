@@ -660,6 +660,53 @@ func ProcessBackupFormattedText(connId int, text string, bodyRanges []*backuppb.
 	return text
 }
 
+func FormatContactCards(contacts []*signalpb.DataMessage_Contact) string {
+	var sb strings.Builder
+	multiple := len(contacts) > 1
+	if multiple {
+		sb.WriteString("[Multiple Contact Cards]")
+	}
+
+	for _, contact := range contacts {
+		name := strings.TrimSpace(contact.GetName().GetGivenName() + " " + contact.GetName().GetFamilyName())
+		if name == "" {
+			name = contact.GetName().GetNickname()
+		}
+
+		var phones []string
+		for _, phone := range contact.GetNumber() {
+			if val := phone.GetValue(); val != "" {
+				phones = append(phones, val)
+			}
+		}
+
+		var emails []string
+		for _, email := range contact.GetEmail() {
+			if val := email.GetValue(); val != "" {
+				emails = append(emails, val)
+			}
+		}
+
+		if name == "" && len(phones) == 0 && len(emails) == 0 {
+			continue
+		}
+
+		if multiple {
+			sb.WriteString(fmt.Sprintf("\n\n%s", name))
+		} else {
+			sb.WriteString(fmt.Sprintf("[Contact Card] %s", name))
+		}
+		if len(phones) > 0 {
+			sb.WriteString(fmt.Sprintf("\nPhone: %s", strings.Join(phones, ", ")))
+		}
+		if len(emails) > 0 {
+			sb.WriteString(fmt.Sprintf("\nEmail: %s", strings.Join(emails, ", ")))
+		}
+	}
+
+	return sb.String()
+}
+
 func ParseMarkdown(text string) (string, []*signalpb.BodyRange) {
 	type markerPair struct {
 		openByte  int
@@ -1163,7 +1210,7 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 			placeholder = "[Sticker]"
 		}
 	} else if len(msg.GetContact()) > 0 {
-		placeholder = "[Contact]"
+		placeholder = FormatContactCards(msg.GetContact())
 	} else if msg.GetPayment() != nil {
 		placeholder = "[Payment]"
 	} else if msg.GetGiftBadge() != nil {
