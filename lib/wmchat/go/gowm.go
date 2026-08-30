@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -1574,6 +1573,85 @@ func GetContacts(connId int) {
 	CWmClearStatus(connId, FlagFetching)
 }
 
+// ContactCard holds the contact details displayed for a shared contact.
+type ContactCard struct {
+	Name   string
+	Phones []string
+	Emails []string
+}
+
+// FormatContactCards formats one or more contact cards as a "[Contact]" tag on its own line,
+// followed by "Field: value" lines per contact, with contacts separated by a blank line.
+func FormatContactCards(cards []ContactCard) string {
+	var blocks []string
+	for _, card := range cards {
+		var lines []string
+		if card.Name != "" {
+			lines = append(lines, "Name: "+card.Name)
+		}
+		if len(card.Phones) > 0 {
+			lines = append(lines, "Phone: "+strings.Join(card.Phones, ", "))
+		}
+		if len(card.Emails) > 0 {
+			lines = append(lines, "Email: "+strings.Join(card.Emails, ", "))
+		}
+
+		if len(lines) > 0 {
+			blocks = append(blocks, strings.Join(lines, "\n"))
+		}
+	}
+
+	if len(blocks) == 0 {
+		return "[Contact]"
+	}
+
+	return "[Contact]\n" + strings.Join(blocks, "\n\n")
+}
+
+// GetVcardValues gets the values of a vCard field (ex: "TEL", "EMAIL"), ignoring any item group
+// prefix and type params, i.e. "item1.EMAIL;type=INTERNET:a@b.c" is field "EMAIL" with value "a@b.c".
+func GetVcardValues(vcard string, field string) []string {
+	var values []string
+	for _, line := range strings.Split(vcard, "\n") {
+		colonPos := strings.Index(line, ":")
+		if colonPos == -1 {
+			continue
+		}
+
+		name := line[:colonPos]
+		if semiPos := strings.Index(name, ";"); semiPos != -1 {
+			name = name[:semiPos]
+		}
+		if dotPos := strings.Index(name, "."); dotPos != -1 {
+			name = name[dotPos+1:]
+		}
+
+		if !strings.EqualFold(strings.TrimSpace(name), field) {
+			continue
+		}
+
+		if value := strings.TrimSpace(line[colonPos+1:]); value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
+func GetContactCards(contacts []*waE2E.ContactMessage) []ContactCard {
+	var cards []ContactCard
+	for _, contact := range contacts {
+		vcard := contact.GetVcard()
+		cards = append(cards, ContactCard{
+			Name:   strings.TrimSpace(contact.GetDisplayName()),
+			Phones: GetVcardValues(vcard, "TEL"),
+			Emails: GetVcardValues(vcard, "EMAIL"),
+		})
+	}
+
+	return cards
+}
+
 func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
@@ -1606,92 +1684,16 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 	case msg.PinInChatMessage != nil:
 		handler.HandlePinInChatMessage(messageInfo, msg)
 
-	case msg.ContactMessage != nil:
-		displayName := msg.ContactMessage.GetDisplayName()
-		vcard := msg.ContactMessage.GetVcard()
-
-		reTel := regexp.MustCompile(`(?i)TEL[^:]*:(.+)`)
-		telMatches := reTel.FindAllStringSubmatch(vcard, -1)
-
-		var phones []string
-		for _, match := range telMatches {
-			if len(match) > 1 {
-				// Clean up any carriage returns or spaces
-				phones = append(phones, strings.TrimSpace(match[1]))
-			}
+	case msg.ContactMessage != nil, msg.ContactsArrayMessage != nil:
+		contacts := msg.ContactsArrayMessage.GetContacts()
+		if msg.ContactMessage != nil {
+			contacts = []*waE2E.ContactMessage{msg.ContactMessage}
 		}
 
-		reEmail := regexp.MustCompile(`(?i)EMAIL[^:]*:(.+)`)
-		emailMatches := reEmail.FindAllStringSubmatch(vcard, -1)
-
-		var emails []string
-		for _, match := range emailMatches {
-			if len(match) > 1 {
-				emails = append(emails, strings.TrimSpace(match[1]))
-			}
-		}
-
-		// Construct the text display layout for nchat
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("[Contact Card] %s", displayName))
-		
-		if len(phones) > 0 {
-			sb.WriteString(fmt.Sprintf("\nPhone: %s", strings.Join(phones, ", ")))
-		}
-		if len(emails) > 0 {
-			sb.WriteString(fmt.Sprintf("\nEmail: %s", strings.Join(emails, ", ")))
-		}
-
-		contactText := sb.String()
+		contactText := FormatContactCards(GetContactCards(contacts))
 		msg.Conversation = &contactText
 		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
 
-	case msg.ContactsArrayMessage != nil:
-		var sb strings.Builder
-		sb.WriteString("[Multiple Contact Cards]")
-
-		// Loop through every contact in the array
-		for _, contact := range msg.ContactsArrayMessage.Contacts {
-			displayName := contact.GetDisplayName()
-			vcard := contact.GetVcard()
-
-			if displayName == "" && vcard == "" {
-				continue
-			}
-
-			// Parse phone numbers from this specific contact's vcard
-			reTel := regexp.MustCompile(`(?i)TEL[^:]*:(.+)`)
-			telMatches := reTel.FindAllStringSubmatch(vcard, -1)
-			var phones []string
-			for _, match := range telMatches {
-				if len(match) > 1 {
-					phones = append(phones, strings.TrimSpace(match[1]))
-				}
-			}
-
-			// Parse emails from this specific contact's vcard
-			reEmail := regexp.MustCompile(`(?i)EMAIL[^:]*:(.+)`)
-			emailMatches := reEmail.FindAllStringSubmatch(vcard, -1)
-			var emails []string
-			for _, match := range emailMatches {
-				if len(match) > 1 {
-					emails = append(emails, strings.TrimSpace(match[1]))
-				}
-			}
-
-			// Format this individual contact entry
-			sb.WriteString(fmt.Sprintf("\n\n%s", displayName))
-			if len(phones) > 0 {
-				sb.WriteString(fmt.Sprintf("\nPhone: %s", strings.Join(phones, ", ")))
-			}
-			if len(emails) > 0 {
-				sb.WriteString(fmt.Sprintf("\nEmail: %s", strings.Join(emails, ", ")))
-			}
-		}
-
-		contactText := sb.String()
-		msg.Conversation = &contactText
-		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
 	}

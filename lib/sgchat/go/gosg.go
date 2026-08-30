@@ -660,51 +660,67 @@ func ProcessBackupFormattedText(connId int, text string, bodyRanges []*backuppb.
 	return text
 }
 
-func FormatContactCards(contacts []*signalpb.DataMessage_Contact) string {
-	var sb strings.Builder
-	multiple := len(contacts) > 1
-	if multiple {
-		sb.WriteString("[Multiple Contact Cards]")
+// ContactCard holds the contact details displayed for a shared contact.
+type ContactCard struct {
+	Name   string
+	Phones []string
+	Emails []string
+}
+
+// FormatContactCards formats one or more contact cards as a "[Contact]" tag on its own line,
+// followed by "Field: value" lines per contact, with contacts separated by a blank line.
+func FormatContactCards(cards []ContactCard) string {
+	var blocks []string
+	for _, card := range cards {
+		var lines []string
+		if card.Name != "" {
+			lines = append(lines, "Name: "+card.Name)
+		}
+		if len(card.Phones) > 0 {
+			lines = append(lines, "Phone: "+strings.Join(card.Phones, ", "))
+		}
+		if len(card.Emails) > 0 {
+			lines = append(lines, "Email: "+strings.Join(card.Emails, ", "))
+		}
+
+		if len(lines) > 0 {
+			blocks = append(blocks, strings.Join(lines, "\n"))
+		}
 	}
 
+	if len(blocks) == 0 {
+		return "[Contact]"
+	}
+
+	return "[Contact]\n" + strings.Join(blocks, "\n\n")
+}
+
+func GetContactCards(contacts []*signalpb.DataMessage_Contact) []ContactCard {
+	var cards []ContactCard
 	for _, contact := range contacts {
 		name := strings.TrimSpace(contact.GetName().GetGivenName() + " " + contact.GetName().GetFamilyName())
 		if name == "" {
-			name = contact.GetName().GetNickname()
+			name = strings.TrimSpace(contact.GetName().GetNickname())
 		}
 
 		var phones []string
 		for _, phone := range contact.GetNumber() {
-			if val := phone.GetValue(); val != "" {
-				phones = append(phones, val)
+			if value := strings.TrimSpace(phone.GetValue()); value != "" {
+				phones = append(phones, value)
 			}
 		}
 
 		var emails []string
 		for _, email := range contact.GetEmail() {
-			if val := email.GetValue(); val != "" {
-				emails = append(emails, val)
+			if value := strings.TrimSpace(email.GetValue()); value != "" {
+				emails = append(emails, value)
 			}
 		}
 
-		if name == "" && len(phones) == 0 && len(emails) == 0 {
-			continue
-		}
-
-		if multiple {
-			sb.WriteString(fmt.Sprintf("\n\n%s", name))
-		} else {
-			sb.WriteString(fmt.Sprintf("[Contact Card] %s", name))
-		}
-		if len(phones) > 0 {
-			sb.WriteString(fmt.Sprintf("\nPhone: %s", strings.Join(phones, ", ")))
-		}
-		if len(emails) > 0 {
-			sb.WriteString(fmt.Sprintf("\nEmail: %s", strings.Join(emails, ", ")))
-		}
+		cards = append(cards, ContactCard{Name: name, Phones: phones, Emails: emails})
 	}
 
-	return sb.String()
+	return cards
 }
 
 func ParseMarkdown(text string) (string, []*signalpb.BodyRange) {
@@ -1210,7 +1226,7 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 			placeholder = "[Sticker]"
 		}
 	} else if len(msg.GetContact()) > 0 {
-		placeholder = FormatContactCards(msg.GetContact())
+		placeholder = FormatContactCards(GetContactCards(msg.GetContact()))
 	} else if msg.GetPayment() != nil {
 		placeholder = "[Payment]"
 	} else if msg.GetGiftBadge() != nil {
