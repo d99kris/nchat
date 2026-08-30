@@ -660,6 +660,69 @@ func ProcessBackupFormattedText(connId int, text string, bodyRanges []*backuppb.
 	return text
 }
 
+// ContactCard holds the contact details displayed for a shared contact.
+type ContactCard struct {
+	Name   string
+	Phones []string
+	Emails []string
+}
+
+// FormatContactCards formats one or more contact cards as a "[Contact]" tag on its own line,
+// followed by "Field: value" lines per contact, with contacts separated by a blank line.
+func FormatContactCards(cards []ContactCard) string {
+	var blocks []string
+	for _, card := range cards {
+		var lines []string
+		if card.Name != "" {
+			lines = append(lines, "Name: "+card.Name)
+		}
+		if len(card.Phones) > 0 {
+			lines = append(lines, "Phone: "+strings.Join(card.Phones, ", "))
+		}
+		if len(card.Emails) > 0 {
+			lines = append(lines, "Email: "+strings.Join(card.Emails, ", "))
+		}
+
+		if len(lines) > 0 {
+			blocks = append(blocks, strings.Join(lines, "\n"))
+		}
+	}
+
+	if len(blocks) == 0 {
+		return "[Contact]"
+	}
+
+	return "[Contact]\n" + strings.Join(blocks, "\n\n")
+}
+
+func GetContactCards(contacts []*signalpb.DataMessage_Contact) []ContactCard {
+	var cards []ContactCard
+	for _, contact := range contacts {
+		name := strings.TrimSpace(contact.GetName().GetGivenName() + " " + contact.GetName().GetFamilyName())
+		if name == "" {
+			name = strings.TrimSpace(contact.GetName().GetNickname())
+		}
+
+		var phones []string
+		for _, phone := range contact.GetNumber() {
+			if value := strings.TrimSpace(phone.GetValue()); value != "" {
+				phones = append(phones, value)
+			}
+		}
+
+		var emails []string
+		for _, email := range contact.GetEmail() {
+			if value := strings.TrimSpace(email.GetValue()); value != "" {
+				emails = append(emails, value)
+			}
+		}
+
+		cards = append(cards, ContactCard{Name: name, Phones: phones, Emails: emails})
+	}
+
+	return cards
+}
+
 func ParseMarkdown(text string) (string, []*signalpb.BodyRange) {
 	type markerPair struct {
 		openByte  int
@@ -1163,7 +1226,7 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 			placeholder = "[Sticker]"
 		}
 	} else if len(msg.GetContact()) > 0 {
-		placeholder = "[Contact]"
+		placeholder = FormatContactCards(GetContactCards(msg.GetContact()))
 	} else if msg.GetPayment() != nil {
 		placeholder = "[Payment]"
 	} else if msg.GetGiftBadge() != nil {
