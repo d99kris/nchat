@@ -185,11 +185,22 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
 	msg.EditTarget.EditCount++
 	if prevID != msg.EditTarget.ID {
-		err = s.Main.Bridge.DB.Message.Update(ctx, msg.EditTarget)
+		err = s.Main.Bridge.DB.DoTxn(ctx, nil, func(ctx context.Context) error {
+			err = s.Main.Bridge.DB.Message.Update(ctx, msg.EditTarget)
+			if err != nil {
+				return err
+			}
+			err = saveEditStub(ctx, s.Main.Bridge, prevID, msg.EditTarget)
+			if err != nil {
+				return fmt.Errorf("failed to save edit stub: %w", err)
+			}
+			return nil
+		})
 		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to save message after editing")
-		} else {
-			saveEditStub(ctx, s.Main.Bridge, prevID, msg.EditTarget)
+			zerolog.Ctx(ctx).Err(err).
+				Str("prev_message_id", string(prevID)).
+				Str("message_id", string(msg.EditTarget.ID)).
+				Msg("Failed to save message after editing")
 		}
 	}
 	return nil
@@ -198,7 +209,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 // saveEditStub saves a placeholder message row pointing at the pre-edit ID of a message, such that
 // duplicate checks on incoming edits find it and are dropped. This is necessary because the first
 // time we see an edit it modifies the ID in place.
-func saveEditStub(ctx context.Context, bridge *bridgev2.Bridge, prevID networkid.MessageID, target *database.Message) {
+func saveEditStub(ctx context.Context, bridge *bridgev2.Bridge, prevID networkid.MessageID, target *database.Message) error {
 	stub := &database.Message{
 		ID:         prevID,
 		PartID:     editStubPartID,
@@ -208,13 +219,7 @@ func saveEditStub(ctx context.Context, bridge *bridgev2.Bridge, prevID networkid
 		Timestamp:  target.Timestamp,
 	}
 	stub.SetFakeMXID()
-	err := bridge.DB.Message.Insert(ctx, stub)
-	if err != nil {
-		zerolog.Ctx(ctx).Warn().Err(err).
-			Str("prev_message_id", string(prevID)).
-			Str("message_id", string(target.ID)).
-			Msg("Failed to save stub row for pre-edit message ID")
-	}
+	return bridge.DB.Message.Insert(ctx, stub)
 }
 
 func (s *SignalClient) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {

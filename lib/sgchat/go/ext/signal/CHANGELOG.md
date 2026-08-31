@@ -1,3 +1,10 @@
+# v26.08
+
+* Updated libsignal to v0.100.0
+* Added support for handling own profile key changes.
+* Changed attachment bridging behavior to match Signal Desktop.
+* Fixed edited messages being bridged twice if certain race conditions occurred.
+
 # v26.07
 
 * Updated Docker image to Alpine 3.24.

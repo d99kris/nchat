@@ -52,6 +52,7 @@ void HttpConnectionBase::start_up() {
   live_event();
   yield();
 }
+
 void HttpConnectionBase::tear_down() {
   Scheduler::unsubscribe_before_close(fd_.get_poll_info().get_pollable_fd_ref());
   fd_.close();
@@ -61,6 +62,7 @@ void HttpConnectionBase::write_next_noflush(BufferSlice buffer) {
   CHECK(state_ == State::Write);
   write_buffer_.append(std::move(buffer));
 }
+
 void HttpConnectionBase::write_next(BufferSlice buffer) {
   write_next_noflush(std::move(buffer));
   loop();
@@ -92,21 +94,25 @@ void HttpConnectionBase::timeout_expired() {
 
   stop();
 }
+
 void HttpConnectionBase::loop() {
   if (ssl_stream_) {
     //ssl_stream_.read_byte_flow().set_need_size(0);
     ssl_stream_.write_byte_flow().reset_need_size();
   }
   sync_with_poll(fd_);
-  if (can_read_local(fd_)) {
+  bool need_read_more = false;
+  if (state_ == State::Read && can_read_local(fd_)) {
     LOG(DEBUG) << "Can read from the connection";
-    auto r = fd_.flush_read();
+    auto r = fd_.flush_read(MAX_READ_SIZE);
     if (r.is_error()) {
       if (!begins_with(r.error().message(), "SSL error {336134278")) {  // if error is not yet outputted
         LOG(INFO) << "Receive flush_read error: " << r.error();
       }
       on_error(Status::Error(r.error().public_message()));
       return stop();
+    } else if (r.ok() == MAX_READ_SIZE) {
+      need_read_more = true;
     }
   }
   read_source_.wakeup();
@@ -194,6 +200,11 @@ void HttpConnectionBase::loop() {
       LOG(INFO) << "Close connection while reading request/response";
     }
     return stop();
+  }
+
+  if (need_read_more) {
+    // reading was suspended because of MAX_READ_SIZE, but there can be more data available
+    yield();
   }
 }
 

@@ -50,7 +50,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260714;
+static const int s_TdlibDate = 20260824;
 
 namespace detail
 {
@@ -3553,6 +3553,90 @@ std::string TgChat::Impl::GetRichMessageText(const td::td_api::richMessage& p_Ri
   return result;
 }
 
+static std::string TrimVcardStr(const std::string& p_Str)
+{
+  static const std::string whitespace = " \t\r\n";
+  const size_t begin = p_Str.find_first_not_of(whitespace);
+  if (begin == std::string::npos) return std::string();
+
+  const size_t end = p_Str.find_last_not_of(whitespace);
+  return p_Str.substr(begin, end - begin + 1);
+}
+
+// Get values of a vCard field (ex: "TEL", "EMAIL"), ignoring any item group prefix and type params,
+// i.e. "item1.EMAIL;type=INTERNET:a@b.c" is treated as field "EMAIL" with value "a@b.c".
+static std::vector<std::string> GetVcardValues(const std::string& p_Vcard, const std::string& p_Field)
+{
+  std::vector<std::string> values;
+  const std::vector<std::string> lines = StrUtil::Split(p_Vcard, '\n');
+  for (const auto& line : lines)
+  {
+    const size_t colonPos = line.find(':');
+    if (colonPos == std::string::npos) continue;
+
+    std::string field = line.substr(0, colonPos);
+    const size_t semiPos = field.find(';');
+    if (semiPos != std::string::npos)
+    {
+      field = field.substr(0, semiPos);
+    }
+
+    const size_t dotPos = field.find('.');
+    if (dotPos != std::string::npos)
+    {
+      field = field.substr(dotPos + 1);
+    }
+
+    if (StrUtil::ToLower(TrimVcardStr(field)) != StrUtil::ToLower(p_Field)) continue;
+
+    const std::string value = TrimVcardStr(line.substr(colonPos + 1));
+    if (value.empty()) continue;
+
+    values.push_back(value);
+  }
+
+  return values;
+}
+
+// Format a contact card as "[Contact]" tag on its own line, followed by "Field: value" lines.
+static std::string GetContactText(const td::td_api::contact& p_Contact)
+{
+  std::vector<std::string> lines;
+
+  std::string name = p_Contact.first_name_;
+  if (!p_Contact.last_name_.empty())
+  {
+    if (!name.empty())
+    {
+      name += " ";
+    }
+
+    name += p_Contact.last_name_;
+  }
+
+  name = TrimVcardStr(name);
+  if (!name.empty())
+  {
+    lines.push_back("Name: " + name);
+  }
+
+  const std::string phone = TrimVcardStr(p_Contact.phone_number_);
+  if (!phone.empty())
+  {
+    lines.push_back("Phone: " + phone);
+  }
+
+  const std::vector<std::string> emails = GetVcardValues(p_Contact.vcard_, "EMAIL");
+  if (!emails.empty())
+  {
+    lines.push_back("Email: " + StrUtil::Join(emails, ", "));
+  }
+
+  if (lines.empty()) return "[Contact]";
+
+  return "[Contact]\n" + StrUtil::Join(lines, "\n");
+}
+
 void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                            std::string& p_Text, std::string& p_FileInfo)
 {
@@ -3620,7 +3704,8 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageContact::ID)
   {
-    p_Text = "[Contact]";
+    auto& messageContact = static_cast<td::td_api::messageContact&>(p_TdMessageContent);
+    p_Text = GetContactText(*messageContact.contact_);
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageLocation::ID)
   {

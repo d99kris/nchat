@@ -49,7 +49,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-var whatsmeowDate int = 20260814
+var whatsmeowDate int = 20260821
 
 type JSONMessage []json.RawMessage
 type JSONMessageType string
@@ -1084,11 +1084,14 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 		return
 	}
 	chatId := GetChatId(client, &groupInfo.JID, nil)
-	userId := GetUserId(client, &groupInfo.JID, groupInfo.Sender)
 
+	// sender is optional (parsed from an optional "participant" attribute), and is
+	// legitimately nil for group changes not attributed to a participant
 	senderJidStr := ""
-	if userId != chatId {
-		senderJidStr = userId
+	if groupInfo.Sender != nil {
+		if userId := GetUserId(client, &groupInfo.JID, groupInfo.Sender); userId != chatId {
+			senderJidStr = userId
+		}
 	}
 
 	// text
@@ -1570,6 +1573,85 @@ func GetContacts(connId int) {
 	CWmClearStatus(connId, FlagFetching)
 }
 
+// ContactCard holds the contact details displayed for a shared contact.
+type ContactCard struct {
+	Name   string
+	Phones []string
+	Emails []string
+}
+
+// FormatContactCards formats one or more contact cards as a "[Contact]" tag on its own line,
+// followed by "Field: value" lines per contact, with contacts separated by a blank line.
+func FormatContactCards(cards []ContactCard) string {
+	var blocks []string
+	for _, card := range cards {
+		var lines []string
+		if card.Name != "" {
+			lines = append(lines, "Name: "+card.Name)
+		}
+		if len(card.Phones) > 0 {
+			lines = append(lines, "Phone: "+strings.Join(card.Phones, ", "))
+		}
+		if len(card.Emails) > 0 {
+			lines = append(lines, "Email: "+strings.Join(card.Emails, ", "))
+		}
+
+		if len(lines) > 0 {
+			blocks = append(blocks, strings.Join(lines, "\n"))
+		}
+	}
+
+	if len(blocks) == 0 {
+		return "[Contact]"
+	}
+
+	return "[Contact]\n" + strings.Join(blocks, "\n\n")
+}
+
+// GetVcardValues gets the values of a vCard field (ex: "TEL", "EMAIL"), ignoring any item group
+// prefix and type params, i.e. "item1.EMAIL;type=INTERNET:a@b.c" is field "EMAIL" with value "a@b.c".
+func GetVcardValues(vcard string, field string) []string {
+	var values []string
+	for _, line := range strings.Split(vcard, "\n") {
+		colonPos := strings.Index(line, ":")
+		if colonPos == -1 {
+			continue
+		}
+
+		name := line[:colonPos]
+		if semiPos := strings.Index(name, ";"); semiPos != -1 {
+			name = name[:semiPos]
+		}
+		if dotPos := strings.Index(name, "."); dotPos != -1 {
+			name = name[dotPos+1:]
+		}
+
+		if !strings.EqualFold(strings.TrimSpace(name), field) {
+			continue
+		}
+
+		if value := strings.TrimSpace(line[colonPos+1:]); value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
+func GetContactCards(contacts []*waE2E.ContactMessage) []ContactCard {
+	var cards []ContactCard
+	for _, contact := range contacts {
+		vcard := contact.GetVcard()
+		cards = append(cards, ContactCard{
+			Name:   strings.TrimSpace(contact.GetDisplayName()),
+			Phones: GetVcardValues(vcard, "TEL"),
+			Emails: GetVcardValues(vcard, "EMAIL"),
+		})
+	}
+
+	return cards
+}
+
 func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
@@ -1601,6 +1683,16 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 	case msg.PinInChatMessage != nil:
 		handler.HandlePinInChatMessage(messageInfo, msg)
+
+	case msg.ContactMessage != nil, msg.ContactsArrayMessage != nil:
+		contacts := msg.ContactsArrayMessage.GetContacts()
+		if msg.ContactMessage != nil {
+			contacts = []*waE2E.ContactMessage{msg.ContactMessage}
+		}
+
+		contactText := FormatContactCards(GetContactCards(contacts))
+		msg.Conversation = &contactText
+		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
 
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
