@@ -50,6 +50,8 @@ void UiColorConfig::Init()
     { "list_attr_selected", "reverse" },
     { "list_color_bg", "" },
     { "list_color_fg", "" },
+    { "list_color_selected_bg", "" },
+    { "list_color_selected_fg", "" },
     { "list_color_unread_fg", "" },
     { "list_color_unread_bg", "" },
     { "listborder_attr", "" },
@@ -58,6 +60,8 @@ void UiColorConfig::Init()
 
     { "history_text_attr", "" },
     { "history_text_attr_selected", "reverse" },
+    { "history_text_color_selected_bg", "" },
+    { "history_text_color_selected_fg", "" },
     { "history_text_sent_color_bg", "" },
     { "history_text_sent_color_fg", defaultSentColor },
     { "history_text_reaction_color_bg", "" },
@@ -73,6 +77,8 @@ void UiColorConfig::Init()
 
     { "history_name_attr", "bold" },
     { "history_name_attr_selected", "reverse" },
+    { "history_name_color_selected_bg", "" },
+    { "history_name_color_selected_fg", "" },
     { "history_name_sent_color_bg", "" },
     { "history_name_sent_color_fg", defaultSentColor },
     { "history_name_recv_color_bg", "" },
@@ -84,6 +90,8 @@ void UiColorConfig::Init()
     { "dialog_attr_selected", "reverse" },
     { "dialog_color_bg", "" },
     { "dialog_color_fg", "" },
+    { "dialog_color_selected_bg", "" },
+    { "dialog_color_selected_fg", "" },
     { "dialog_shaded_color_bg", "" },
     { "dialog_shaded_color_fg", defaultShadedColor },
 
@@ -126,6 +134,11 @@ int UiColorConfig::GetColorPair(const std::string& p_Param)
 
   colorPairs[p_Param] = COLOR_PAIR(id);
   return colorPairs[p_Param];
+}
+
+bool UiColorConfig::HasColor(const std::string& p_Param)
+{
+  return !m_Config.Get(p_Param + "_fg").empty() || !m_Config.Get(p_Param + "_bg").empty();
 }
 
 int UiColorConfig::GetUserColorPair(const std::string& p_Param, const std::string& p_UserId)
