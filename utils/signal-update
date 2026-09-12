@@ -92,7 +92,7 @@ ${SEDCMD} -E -i -e "s/^var signalDate int.*$/var signalDate int = ${NEWVERSION}/
 
 # Update LIBSIGNAL_BUILD_REF in libsignal.cmake
 echo "Determine libsignal build ref"
-LIBSIGNAL_VERSION=$(grep 'const Version' "${REPOTARGET}/pkg/libsignalgo/version.go" | cut -d'"' -f2)
+LIBSIGNAL_VERSION=$(grep 'const Version' "${REPOTARGET}/pkg/libsignalgo/signalversion/version.go" | cut -d'"' -f2)
 if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
   echo "libsignal version needed: ${LIBSIGNAL_VERSION}"
   BUILDREPO_API="https://mau.dev/api/v4/projects/tulir%2Fgomuks-build-docker"
@@ -117,7 +117,7 @@ if [[ -n "${LIBSIGNAL_VERSION}" ]]; then
     echo "Warning: Could not query GitLab API for build pipelines"
   fi
 else
-  echo "Warning: Could not determine libsignal version from version.go"
+  echo "Warning: Could not determine libsignal version from signalversion/version.go"
 fi
 
 # Perform go mod tidy

@@ -111,8 +111,8 @@ endif()
 
 if(NOT LIBSIGNAL_USE_DOWNLOAD)
   # Build libsignal_ffi from source
-  # Determine required version from version.go
-  file(STRINGS "${SIGNAL_GO_DIR}/ext/signal/pkg/libsignalgo/version.go" LIBSIGNAL_VERSION_LINE REGEX "const Version")
+  # Determine required version from signalversion/version.go
+  file(STRINGS "${SIGNAL_GO_DIR}/ext/signal/pkg/libsignalgo/signalversion/version.go" LIBSIGNAL_VERSION_LINE REGEX "const Version")
   string(REGEX REPLACE ".*\"(.*)\".*" "\\1" LIBSIGNAL_REQUIRED_VERSION "${LIBSIGNAL_VERSION_LINE}")
 
   # Invalidate cached libsignal_ffi.a if version has changed

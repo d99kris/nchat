@@ -34,9 +34,9 @@ fi
 
 mkdir -p "${OUTPUT_DIR}"
 
-# Determine required libsignal version from version.go
+# Determine required libsignal version from signalversion/version.go
 SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
-VERSION_FILE="${SCRIPT_DIR}/ext/signal/pkg/libsignalgo/version.go"
+VERSION_FILE="${SCRIPT_DIR}/ext/signal/pkg/libsignalgo/signalversion/version.go"
 if [ ! -f "${VERSION_FILE}" ]; then
   echo "Error: ${VERSION_FILE} not found"
   exit 1
