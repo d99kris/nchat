@@ -17,20 +17,6 @@
 #include "log.h"
 #include "strutil.h"
 
-Config::Config()
-{
-}
-
-Config::Config(const std::string& p_Path, const std::map<std::string, std::string>& p_Default)
-  : m_Map(p_Default)
-{
-  Load(p_Path);
-}
-
-Config::~Config()
-{
-}
-
 static int64_t GetFileModTimeMs(const std::string& p_Path)
 {
   struct stat st { };
@@ -43,6 +29,20 @@ static int64_t GetFileModTimeMs(const std::string& p_Path)
 #endif
 
   return ((int64_t)ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+}
+
+Config::Config()
+{
+}
+
+Config::Config(const std::string& p_Path, const std::map<std::string, std::string>& p_Default)
+  : m_Map(p_Default)
+{
+  Load(p_Path);
+}
+
+Config::~Config()
+{
 }
 
 void Config::Load(const std::string& p_Path)
