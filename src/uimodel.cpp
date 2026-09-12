@@ -4939,6 +4939,12 @@ void UiModel::SetTerminalActive(bool p_TerminalActive)
   GetImpl().SetTerminalActive(p_TerminalActive);
 }
 
+bool UiModel::GetChatInfoIsGroupLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatInfoIsGroup(p_ProfileId, p_ChatId);
+}
+
 bool UiModel::GetChatIsUnreadLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   nc_assert(m_ModelMutex.owns_lock());

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <set>
+#include <vector>
 
 #include "uilistdialog.h"
 #include "fileutil.h"
@@ -27,10 +28,11 @@ protected:
   virtual bool OnTimer();
 
   void UpdateList();
+  void SortDirEntrys();
 
 private:
   std::string m_CurrentDir;
-  std::set<DirEntry, DirEntryCompare> m_DirEntrys;
-  std::set<DirEntry, DirEntryCompare> m_CurrentDirEntrys;
+  std::vector<DirEntry> m_DirEntrys;
+  std::vector<DirEntry> m_CurrentDirEntrys;
   std::string m_SelectedPath;
 };
