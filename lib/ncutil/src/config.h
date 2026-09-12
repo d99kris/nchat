@@ -1,12 +1,13 @@
 // config.h
 //
-// Copyright (c) 2020-2023 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <string>
 
@@ -29,4 +30,5 @@ public:
 private:
   std::map<std::string, std::string> m_Map;
   std::string m_Path;
+  mutable int64_t m_FileModTimeMs = -1;
 };

@@ -1120,6 +1120,10 @@ General
 Deleting a configuration entry line (while nchat is not running) and starting
 nchat will populate the configuration file with the default entry.
 
+Configuration files are rewritten when nchat exits. If a file has been
+modified externally while nchat is running, it is left untouched, and any
+settings changed in the user interface during that session are discarded.
+
 
 Protocol-Specific Configuration
 ===============================

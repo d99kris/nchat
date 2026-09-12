@@ -1,6 +1,6 @@
 // config.cpp
 //
-// Copyright (c) 2020-2024 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -16,6 +16,20 @@
 
 #include "log.h"
 #include "strutil.h"
+
+static int64_t GetFileModTimeMs(const std::string& p_Path)
+{
+  struct stat st { };
+  if (stat(p_Path.c_str(), &st) != 0) return -1;
+
+#if defined(__APPLE__)
+  const struct timespec& ts = st.st_mtimespec;
+#else
+  const struct timespec& ts = st.st_mtim;
+#endif
+
+  return ((int64_t)ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+}
 
 Config::Config()
 {
@@ -34,6 +48,8 @@ Config::~Config()
 void Config::Load(const std::string& p_Path)
 {
   m_Path = p_Path;
+
+  m_FileModTimeMs = GetFileModTimeMs(p_Path);
 
   std::ifstream stream;
   stream.open(p_Path, std::ios::binary);
@@ -78,6 +94,18 @@ void Config::Save() const
 
 void Config::Save(const std::string& p_Path) const
 {
+  // the tracked modification time refers to m_Path only
+  const bool isOwnPath = (p_Path == m_Path);
+
+  if (isOwnPath && (m_FileModTimeMs != -1))
+  {
+    if (GetFileModTimeMs(p_Path) != m_FileModTimeMs)
+    {
+      LOG_WARNING("skip save, \"%s\" modified externally", p_Path.c_str());
+      return;
+    }
+  }
+
   std::ofstream stream;
   stream.open(p_Path, std::ios::binary);
   if (stream.fail())
@@ -88,6 +116,13 @@ void Config::Save(const std::string& p_Path) const
   for (auto const& item : m_Map)
   {
     stream << item.first << "=" << item.second << std::endl;
+  }
+
+  stream.close();
+
+  if (isOwnPath)
+  {
+    m_FileModTimeMs = GetFileModTimeMs(p_Path);
   }
 }
 
