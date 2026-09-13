@@ -29,7 +29,7 @@ option(DOWNLOAD_LIBSIGNAL "Download pre-built libsignal_ffi (falls back to build
 # libsignal_ffi.a in the build tree (runtime crash in signal_encrypt_message).
 # This also means the ref cannot be overridden from the command line with
 # -DLIBSIGNAL_BUILD_REF=...; edit this line directly (or use utils/signal-update).
-set(LIBSIGNAL_BUILD_REF "d42d77a95e0392a1b8925284c91f5df6841cf3db")
+set(LIBSIGNAL_BUILD_REF "ad90458f26b66f6b385e01b32d207147ef1cbdd3")
 
 set(LIBSIGNAL_FFI_DIR ${CMAKE_CURRENT_BINARY_DIR}/libsignal)
 set(LIBSIGNAL_FFI_FILE ${LIBSIGNAL_FFI_DIR}/libsignal_ffi.a)
@@ -111,8 +111,8 @@ endif()
 
 if(NOT LIBSIGNAL_USE_DOWNLOAD)
   # Build libsignal_ffi from source
-  # Determine required version from version.go
-  file(STRINGS "${SIGNAL_GO_DIR}/ext/signal/pkg/libsignalgo/version.go" LIBSIGNAL_VERSION_LINE REGEX "const Version")
+  # Determine required version from signalversion/version.go
+  file(STRINGS "${SIGNAL_GO_DIR}/ext/signal/pkg/libsignalgo/signalversion/version.go" LIBSIGNAL_VERSION_LINE REGEX "const Version")
   string(REGEX REPLACE ".*\"(.*)\".*" "\\1" LIBSIGNAL_REQUIRED_VERSION "${LIBSIGNAL_VERSION_LINE}")
 
   # Invalidate cached libsignal_ffi.a if version has changed

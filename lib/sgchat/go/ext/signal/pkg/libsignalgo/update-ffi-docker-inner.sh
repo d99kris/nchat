@@ -7,4 +7,4 @@ cargo build -p libsignal-ffi --release
 cd ..
 mv libsignal/target/release/libsignal_ffi.a .
 cp libsignal/swift/Sources/SignalFfi/signal_ffi.h libsignal-ffi.h
-chown 1000:1000 libsignal_ffi.a libsignal-ffi.h version.go
+chown 1000:1000 libsignal_ffi.a libsignal-ffi.h
