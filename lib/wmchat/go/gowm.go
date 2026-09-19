@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -143,6 +144,28 @@ func GetSendersStorePath(connPath string) string {
 	return connPath + "/senders.dat"
 }
 
+func GetExpirationsStorePath(connPath string) string {
+	return connPath + "/expirations.dat"
+}
+
+func LoadExpirations(path string) map[string]uint32 {
+	m := make(map[string]uint32)
+	if f, err := os.Open(path); err == nil {
+		defer f.Close()
+		gob.NewDecoder(f).Decode(&m)
+	}
+	return m
+}
+
+func SaveExpirations(path string, m map[string]uint32) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return gob.NewEncoder(f).Encode(m)
+}
+
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
 	var connId int = nextConnId
@@ -153,7 +176,7 @@ func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	senders[connId], _ = LoadMap(GetSendersStorePath(path))
 	states[connId] = None
 	timeReads[connId] = make(map[string]time.Time)
-	expirations[connId] = make(map[string]uint32)
+	expirations[connId] = LoadExpirations(GetExpirationsStorePath(path))
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
 	namesSynced[connId] = false
@@ -342,11 +365,37 @@ func GetExpiration(connId int, chatId string) uint32 {
 
 func SetExpiration(connId int, chatId string, expiration uint32) {
 	mx.Lock()
-	if expirations[connId] == nil {
-		expirations[connId] = make(map[string]uint32)
+	defer mx.Unlock()
+	chatExpirations, ok := expirations[connId]
+	if !ok || chatExpirations[chatId] == expiration {
+		return
 	}
-	expirations[connId][chatId] = expiration
-	mx.Unlock()
+	LOG_TRACE(fmt.Sprintf("set expiration %s %d", chatId, expiration))
+	chatExpirations[chatId] = expiration
+	// saved on every change so a timer learned once survives restarts and crashes
+	if err := SaveExpirations(GetExpirationsStorePath(paths[connId]), chatExpirations); err != nil {
+		LOG_WARNING(fmt.Sprintf("save expirations failed %#v", err))
+	}
+}
+
+// GetMessageExpiration returns the disappearing timer in a message's context
+// info, if the sender included one. Expects an already unwrapped message.
+func GetMessageExpiration(msg *waE2E.Message) (uint32, bool) {
+	var expiration uint32
+	found := false
+	msg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		if fd.Kind() != protoreflect.MessageKind || fd.IsList() || fd.IsMap() {
+			return true
+		}
+		content, ok := v.Message().Interface().(interface{ GetContextInfo() *waE2E.ContextInfo })
+		if !ok || content.GetContextInfo() == nil || content.GetContextInfo().Expiration == nil {
+			return true
+		}
+		expiration = content.GetContextInfo().GetExpiration()
+		found = true
+		return false
+	})
+	return expiration, found
 }
 
 // download info
@@ -1034,6 +1083,11 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		}
 
 		chatId := GetChatId(client, &chatJid, nil)
+
+		if conversation.EphemeralExpiration != nil {
+			SetExpiration(handler.connId, chatId, conversation.GetEphemeralExpiration())
+		}
+
 		if hasMessages {
 			isMuted := false
 			isPinned := false
@@ -1084,6 +1138,10 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 		return
 	}
 	chatId := GetChatId(client, &groupInfo.JID, nil)
+
+	if groupInfo.Ephemeral != nil {
+		SetExpiration(connId, chatId, groupInfo.Ephemeral.DisappearingTimer)
+	}
 
 	// sender is optional (parsed from an optional "participant" attribute), and is
 	// legitimately nil for group changes not attributed to a participant
@@ -1538,9 +1596,7 @@ func GetContacts(connId int) {
 			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, isSelf, isAlias, notify)
 			AddContactName(connId, groupId, groupName)
 
-			if group.GroupEphemeral.IsEphemeral {
-				SetExpiration(connId, groupId, group.GroupEphemeral.DisappearingTimer)
-			}
+			SetExpiration(connId, groupId, group.GroupEphemeral.DisappearingTimer)
 		}
 	}
 
@@ -1653,6 +1709,12 @@ func GetContactCards(contacts []*waE2E.ContactMessage) []ContactCard {
 }
 
 func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+	if expiration, found := GetMessageExpiration(msg); found {
+		if client := GetClient(handler.connId); client != nil {
+			SetExpiration(handler.connId, GetChatId(client, &messageInfo.Chat, &messageInfo.Sender), expiration)
+		}
+	}
+
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
 		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
@@ -2252,6 +2314,16 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
 		}
+	} else if protocol.GetType() == waE2E.ProtocolMessage_EPHEMERAL_SETTING {
+		// handle disappearing messages timer change
+		connId := handler.connId
+		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
+		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
+		SetExpiration(connId, chatId, protocol.GetEphemeralExpiration())
 	} else if protocol.GetType() == waE2E.ProtocolMessage_REVOKE {
 		// handle message revoke
 		connId := handler.connId
