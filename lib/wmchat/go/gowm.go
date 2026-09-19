@@ -1709,12 +1709,6 @@ func GetContactCards(contacts []*waE2E.ContactMessage) []ContactCard {
 }
 
 func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
-	if expiration, found := GetMessageExpiration(msg); found {
-		if client := GetClient(handler.connId); client != nil {
-			SetExpiration(handler.connId, GetChatId(client, &messageInfo.Chat, &messageInfo.Sender), expiration)
-		}
-	}
-
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
 		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
@@ -1758,6 +1752,13 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
+	}
+
+	// after the message is handled, so a failure here cannot lose it
+	if expiration, found := GetMessageExpiration(msg); found {
+		if client := GetClient(handler.connId); client != nil {
+			SetExpiration(handler.connId, GetChatId(client, &messageInfo.Chat, &messageInfo.Sender), expiration)
+		}
 	}
 }
 
