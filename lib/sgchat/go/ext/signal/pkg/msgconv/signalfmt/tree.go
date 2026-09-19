@@ -22,7 +22,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 )
 
 type BodyRange struct {

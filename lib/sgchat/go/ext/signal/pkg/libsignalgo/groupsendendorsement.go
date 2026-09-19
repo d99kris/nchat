@@ -206,7 +206,13 @@ func (gser GroupSendEndorsementsResponse) ReceiveWithServiceIDs(
 			memberEndorsements[member] = endorsements[i]
 		}
 	}
-	combined, err := GroupSendEndorsementCombine(endorsements...)
+	nonEmptyEndorsements := make([]GroupSendEndorsement, 0, len(endorsements))
+	for _, endorsement := range endorsements {
+		if len(endorsement) > 0 {
+			nonEmptyEndorsements = append(nonEmptyEndorsements, endorsement)
+		}
+	}
+	combined, err := GroupSendEndorsementCombine(nonEmptyEndorsements...)
 	if err != nil {
 		return nil, memberEndorsements, err
 	}

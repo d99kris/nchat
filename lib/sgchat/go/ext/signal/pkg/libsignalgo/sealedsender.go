@@ -169,6 +169,19 @@ const (
 	UnidentifiedSenderMessageContentHintImplicit   UnidentifiedSenderMessageContentHint = 2
 )
 
+func (hint UnidentifiedSenderMessageContentHint) String() string {
+	switch hint {
+	case UnidentifiedSenderMessageContentHintDefault:
+		return "Default"
+	case UnidentifiedSenderMessageContentHintResendable:
+		return "Resendable"
+	case UnidentifiedSenderMessageContentHintImplicit:
+		return "Implicit"
+	default:
+		return fmt.Sprintf("Unknown(%d)", hint)
+	}
+}
+
 type UnidentifiedSenderMessageContent struct {
 	nc  noCopy
 	ptr *C.SignalUnidentifiedSenderMessageContent

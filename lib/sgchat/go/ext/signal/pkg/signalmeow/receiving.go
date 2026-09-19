@@ -34,7 +34,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
@@ -84,6 +84,10 @@ func (cli *Client) startWebsocketsInternal(
 	loopCtx context.Context, loopCancel context.CancelFunc,
 	err error,
 ) {
+	cli.GRPC, err = web.NewGRPCClient(cli.Store.BasicAuthCreds())
+	if err != nil {
+		return
+	}
 	loopCtx, loopCancel = context.WithCancel(ctx)
 	unauthChan, err = cli.connectUnauthedWS(loopCtx)
 	if err != nil {
@@ -129,7 +133,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				callbackCount = 0
 			case nextTS := <-cbc:
 				if callbackCount >= 4 && time.Since(writeCallbackTimer) > 1*time.Minute {
-					err := cli.Store.EventBuffer.DeleteBufferedEventsOlderThan(ctx, writeCallbackTimer)
+					err := cli.Store.EventBuffer.DeleteBufferedEventsOlderThan(loopCtx, writeCallbackTimer)
 					if err != nil {
 						log.Err(err).Msg("Failed to delete old buffered event hashes")
 					}
@@ -240,8 +244,12 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			}
 			if statusToSend.Event != 0 && statusToSend.Event != cli.lastConnectionStatus.Event {
 				log.Info().Any("status_to_send", statusToSend).Msg("Sending connection status")
-				statusChan <- statusToSend
-				cli.lastConnectionStatus = statusToSend
+				select {
+				case <-loopCtx.Done():
+					return
+				case statusChan <- statusToSend:
+					cli.lastConnectionStatus = statusToSend
+				}
 			}
 		}
 	}()
@@ -255,18 +263,15 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			return
 		case <-initialConnectChan:
 			log.Info().Msg("Both websockets connected, sending contacts sync request")
-			err = cli.RegisterCapabilities(ctx)
+			err = cli.RegisterCapabilities(loopCtx)
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
 			} else {
 				zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
 			}
-			// Start loop to check for and upload more prekeys
-			cli.loopWg.Add(1)
-			go func() {
-				defer cli.loopWg.Done()
-				cli.keyCheckLoop(loopCtx)
-			}()
+			// Start loop to check for and upload more prekeys. Not included in loopWg
+			// as it may call StopReceiveLoops which waits for the wait group.
+			go cli.keyCheckLoop(loopCtx)
 			// TODO hacky
 			if cli.SyncContactsOnConnect {
 				cli.SendContactSyncRequest(loopCtx)
@@ -283,26 +288,23 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 func (cli *Client) ForceReconnect() {
 	cli.AuthedWS.ForceReconnect()
 	cli.UnauthedWS.ForceReconnect()
+	cli.GRPC.ResetConnectBackoff()
 }
 
 func (cli *Client) StopReceiveLoops() error {
 	defer func() {
 		cli.AuthedWS = nil
 		cli.UnauthedWS = nil
+		cli.GRPC = nil
 	}()
 	authErr := cli.AuthedWS.Close()
 	unauthErr := cli.UnauthedWS.Close()
+	grpcErr := cli.GRPC.Close()
 	if cli.loopCancel != nil {
 		cli.loopCancel()
 		cli.loopWg.Wait()
 	}
-	if authErr != nil {
-		return authErr
-	}
-	if unauthErr != nil {
-		return unauthErr
-	}
-	return nil
+	return errors.Join(authErr, unauthErr, grpcErr)
 }
 
 func (cli *Client) LastConnectionStatus() SignalConnectionStatus {
@@ -318,13 +320,7 @@ func (cli *Client) ClearKeysAndDisconnect(ctx context.Context) error {
 	clearErr2 := cli.Store.ClearPassword(ctx)
 	stopLoopErr := cli.StopReceiveLoops()
 
-	if clearErr != nil {
-		return clearErr
-	}
-	if clearErr2 != nil {
-		return clearErr2
-	}
-	return stopLoopErr
+	return errors.Join(clearErr, clearErr2, stopLoopErr)
 }
 
 func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
@@ -484,7 +480,7 @@ func (cli *Client) handleDecryptedResult(
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
 		if envelope.GetUrgent() &&
-			result.ContentHint != signalpb.UnidentifiedSenderMessage_Message_IMPLICIT &&
+			result.ContentHint != libsignalgo.UnidentifiedSenderMessageContentHintImplicit &&
 			!strings.Contains(result.Err.Error(), "message with old counter") {
 			handlerSuccess = cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,

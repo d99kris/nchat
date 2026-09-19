@@ -82,6 +82,7 @@ func (aes *AES256_GCM_SIV) Decrypt(ciphertext, nonce, associatedData []byte) ([]
 		BytesToBuffer(nonce),
 		BytesToBuffer(associatedData),
 	)
+	runtime.KeepAlive(aes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

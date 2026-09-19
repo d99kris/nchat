@@ -35,7 +35,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 )
 
 const StickerSourceID = "signal"
@@ -158,18 +158,24 @@ func (mc *MessageConverter) DownloadImagePack(ctx context.Context, url string) (
 		imagesByID[stickerID] = mxc
 		return mxc, nil
 	}
+	duplicateCounter := make(map[string]int)
 	for _, sticker := range manifest.Stickers {
 		mxc, err := uploadImage(sticker)
 		if err != nil {
 			return nil, err
 		}
 		shortcode := emojishortcodes.Get(sticker.GetEmoji())
-		realShortcode := shortcode
-		i := 2
-		for _, alreadyExists := content.Images[realShortcode]; alreadyExists; i++ {
-			realShortcode = fmt.Sprintf("%s_%d", shortcode, i)
+		if _, alreadyExists := content.Images[shortcode]; alreadyExists {
+			counter, ok := duplicateCounter[shortcode]
+			if !ok {
+				counter = 2
+			} else {
+				counter++
+			}
+			duplicateCounter[shortcode] = counter
+			shortcode = fmt.Sprintf("%s_%d", shortcode, counter)
 		}
-		content.Images[realShortcode] = &event.ImagePackImage{
+		content.Images[shortcode] = &event.ImagePackImage{
 			URL:  mxc,
 			Body: sticker.GetEmoji(),
 			Info: &event.FileInfo{

@@ -52,6 +52,8 @@ func NewFingerprint(iterations, version FingerprintVersion, localIdentifier []by
 		BytesToBuffer(remoteIdentifier),
 		remoteKey.constPtr(),
 	)
+	runtime.KeepAlive(localKey)
+	runtime.KeepAlive(remoteKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

@@ -30,7 +30,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -55,6 +55,7 @@ type Client struct {
 
 	AuthedWS             *web.SignalWebsocket
 	UnauthedWS           *web.SignalWebsocket
+	GRPC                 *web.GRPCClient
 	lastConnectionStatus SignalConnectionStatus
 
 	loopCancel context.CancelFunc

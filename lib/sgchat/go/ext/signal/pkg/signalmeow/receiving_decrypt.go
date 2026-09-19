@@ -29,7 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
 
@@ -37,7 +37,7 @@ type DecryptionResult struct {
 	SenderAddress  *libsignalgo.Address
 	CiphertextHash *[32]byte
 	Content        *signalpb.Content
-	ContentHint    signalpb.UnidentifiedSenderMessage_Message_ContentHint
+	ContentHint    libsignalgo.UnidentifiedSenderMessageContentHint
 	Err            error
 	GroupID        *libsignalgo.GroupIdentifier
 	Unencrypted    bool
@@ -344,7 +344,7 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	if err != nil {
 		return result, fmt.Errorf("failed to get group ID: %w", err)
 	}
-	result.ContentHint = signalpb.UnidentifiedSenderMessage_Message_ContentHint(contentHint)
+	result.ContentHint = contentHint
 	senderUUID, err := senderCertificate.GetSenderUUID()
 	if err != nil {
 		return result, fmt.Errorf("failed to get sender UUID: %w", err)
@@ -410,7 +410,7 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 		return result, fmt.Errorf("unsupported sealed sender message type %d", messageType)
 	}
 	if err != nil {
-		result.Retriable = result.ContentHint == signalpb.UnidentifiedSenderMessage_Message_RESENDABLE
+		result.Retriable = result.ContentHint == libsignalgo.UnidentifiedSenderMessageContentHintResendable
 		return result, err
 	}
 	resultPtr.GroupID = result.GroupID

@@ -31,9 +31,10 @@ import (
 // type AuthCredential [181]byte
 // type AuthCredentialResponse [361]byte
 const AuthCredentialWithPniLength = 265
+const AuthCredentialWithPniResponseLength = 425
 
 type AuthCredentialWithPni [AuthCredentialWithPniLength]byte
-type AuthCredentialWithPniResponse [425]byte
+type AuthCredentialWithPniResponse [AuthCredentialWithPniResponseLength]byte
 type AuthCredentialPresentation []byte
 
 func (ac *AuthCredentialWithPni) Slice() []byte {
@@ -68,6 +69,9 @@ func ReceiveAuthCredentialWithPni(
 }
 
 func NewAuthCredentialWithPniResponse(b []byte) (*AuthCredentialWithPniResponse, error) {
+	if len(b) != AuthCredentialWithPniResponseLength {
+		return nil, fmt.Errorf("invalid auth credential with pni response length %d (expected %d)", len(b), AuthCredentialWithPniResponseLength)
+	}
 	borrowedBuffer := BytesToBuffer(b)
 	signalFfiError := C.signal_auth_credential_with_pni_response_check_valid_contents(borrowedBuffer)
 	if signalFfiError != nil {
