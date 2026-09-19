@@ -59,6 +59,7 @@ read_go_modules("${SG_GO_MOD}" SG)
 # pseudo-version and the release it precedes - are the same API and build fine
 # combined. The exception is v0.0.0, the base version of an untagged module,
 # which carries no API information at all; there the commits are compared.
+set(MISMATCH FALSE)
 foreach(MODULE IN LISTS WM_MODULES)
   if(DEFINED SG_${MODULE})
     shorten_version(WM_VERSION "${WM_${MODULE}}")
@@ -70,6 +71,11 @@ foreach(MODULE IN LISTS WM_MODULES)
     if(NOT "${WM_VERSION}" STREQUAL "${SG_VERSION}")
       message(STATUS "Common go dependency mismatch ${MODULE}: "
               "wmchat ${WM_VERSION} != sgchat ${SG_VERSION}")
+      set(MISMATCH TRUE)
     endif()
   endif()
 endforeach()
+
+if(NOT MISMATCH)
+  message(STATUS "Common go dependencies match")
+endif()
