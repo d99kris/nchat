@@ -71,7 +71,7 @@ EOF
 cat > "$STAGE/go.mod" <<EOF
 module $MODULE
 
-go 1.25.0
+go 1.26.0
 
 replace go.mau.fi/whatsmeow => $WM_DIR/ext/whatsmeow
 replace go.mau.fi/mautrix-signal => $SG_DIR/ext/signal
