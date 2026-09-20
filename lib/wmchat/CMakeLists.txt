@@ -36,6 +36,12 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   FIND_LIBRARY(CARBON_LIBRARY CoreFoundation)
   FIND_LIBRARY(CARBON_LIBRARY Security)
   target_link_libraries(wmchat PUBLIC "-framework CoreFoundation" "-framework Security" resolv)
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  # Go's cgo resolver calls res_search, which glibc < 2.34 (the manylinux dist
+  # image) keeps in libresolv rather than libc. Go declares the -lresolv it
+  # needs in a #cgo directive, but a c-archive does not propagate those to the
+  # final link, so spell it out here.
+  target_link_libraries(wmchat PUBLIC resolv)
 endif()
 
 # Headers
