@@ -1,0 +1,406 @@
+/*
+ * Copyright 2023 Signal Messenger, LLC
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package org.signal.chat.profile;
+
+import "google/protobuf/empty.proto";
+
+import "org/signal/chat/common.proto";
+import "org/signal/chat/errors.proto";
+import "org/signal/chat/require.proto";
+import "org/signal/chat/tag.proto";
+
+// Provides methods for working with profiles and profile-related data.
+service Profile {
+  option (require.auth) = AUTH_ONLY_AUTHENTICATED;
+
+  // Sets profile data and, if needed, returns credentials used by clients to upload a v1 avatar.
+  rpc SetProfile(SetProfileRequest) returns (SetProfileResponse) {}
+
+  // Retrieves profile data. Callers with an unidentified access key for the account
+  // should use the version of this method in `ProfileAnonymous` instead.
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse) {}
+
+  // Returns anonymous credentials that may be presented with avatar operations in ProfilesAnonymous
+  //
+  // Note: `Accounts.SetZkCredentialKey` is a pre-requisite for this RPC
+  rpc GetAvatarCredentials(GetAvatarCredentialsRequest) returns (GetAvatarCredentialsResponse) {}
+}
+
+// Provides methods for working with profiles and profile-related data using "unidentified access"
+// credentials. Callers must not submit any self-identifying credentials
+// when calling methods in this service and must instead present the targeted account's
+// unidentified access key as an anonymous authentication mechanism. Callers
+// without an unidentified access key should use the equivalent, authenticated
+// methods in `Profile` instead.
+service ProfileAnonymous {
+  option (require.auth) = AUTH_ONLY_ANONYMOUS;
+
+  // Retrieves profile data.
+  rpc GetProfile(GetProfileAnonymousRequest) returns (GetProfileAnonymousResponse) {}
+
+  // Retrieves a profile key credential.
+  rpc GetExpiringProfileKeyCredential(GetExpiringProfileKeyCredentialAnonymousRequest) returns (GetExpiringProfileKeyCredentialAnonymousResponse) {}
+
+  // Returns credentials to upload a v2 avatar. After uploading the avatar, the client
+  // must call SetProfile with the new avatar URL in the encrypted `data`.
+  //
+  // Because avatars are uploaded anonymously, they have an expiration equal to the
+  // idle account expiration. Clients must periodically (recommended: every 90 days)
+  // call ExtendAvatarTTL to extend the TTl.
+  //
+  // Note: any existing avatar associated with these credentials will be deleted immediately
+  rpc GetAvatarUploadForm(GetAvatarUploadFormRequest) returns (GetAvatarUploadFormResponse) {}
+
+  // Extends the TTL of the avatar currently associated with the request’s avatar auth credential
+  rpc ExtendAvatarTTL(ExtendAvatarTTLRequest) returns (ExtendAvatarTTLResponse) {}
+
+  // Deletes the avatar currently associated with the request’s avatar auth credential.
+  //
+  // Clients must also call SetProfile to remove the avatar from the encrypted `data`.
+  rpc DeleteAvatar(DeleteAvatarRequest) returns (DeleteAvatarResponse) {}
+}
+
+message SetProfileV1Request {
+  enum AvatarChange {
+    AVATAR_CHANGE_UNCHANGED = 0;
+    AVATAR_CHANGE_CLEAR = 1;
+    AVATAR_CHANGE_UPDATE = 2;
+  }
+
+  // The ciphertext of a name that users must set on the profile.
+  bytes name = 1 [(require.exactlySize) = 81, (require.exactlySize) = 285];
+
+  // An enum to indicate what change, if any, is made to the avatar with this request.
+  AvatarChange avatar_change = 2;
+
+  // The ciphertext of an emoji that users can set on their profile.
+  bytes about_emoji = 3 [(require.exactlySize) = 0, (require.exactlySize) = 60];
+
+  // The ciphertext of a description that users can set on their profile.
+  bytes about = 4 [(require.exactlySize) = 0, (require.exactlySize) = 156, (require.exactlySize) = 282, (require.exactlySize) = 540];
+
+  // The ciphertext of the phone-number sharing setting on the profile. 29-byte encrypted boolean.
+  bytes phone_number_sharing = 6 [(require.exactlySize) = 29];
+}
+
+message SetProfileRequest {
+
+  // The profile version. Required.
+  bytes version = 1 [(require.exactlySize) = 32];
+
+  // The ciphertext of a serialized Profile protobuf. Required.
+  // 937 max length = 909 plaintext serialization + 28 bytes encryption overhead
+  bytes data = 2 [(require.nonEmpty) = true, (require.size).max = 937];
+
+  // The SHA-256 hash of the Profile ciphertext being replaced.
+  // This is used an optimistic lock against concurrent changes.
+  //
+  // Optional, if this is the initial request to create a version.
+  bytes expected_current_data_hash = 3 [(require.exactlySize) = 0, (require.exactlySize) = 32];
+
+  // The current profile version being updated.
+  // This is used as an optimistic lock against concurrent changes.
+  //
+  // Optional, if there is no current profile version for the account.
+  bytes expected_current_version = 4 [(require.exactlySize) = 0, (require.exactlySize) = 32];
+
+  // The ciphertext of the MobileCoin wallet ID on the profile.
+  bytes payment_address = 5 [(require.exactlySize) = 0, (require.exactlySize) = 582];
+
+  // A list of badge IDs associated with the profile.
+  repeated string badge_ids = 6;
+
+  // The profile key commitment. Used to issue a profile key credential response.
+  //
+  // Required during the v1 -> v2 migration period. Afterwards will be optional, if this is an update to an existing version.
+  bytes commitment = 7 [(require.exactlySize) = 0, (require.exactlySize) = 97];
+
+  // An embedded v1 request. Required during the v1 -> v2 migration period.
+  //
+  // Because this is a temporary field during the migration, it has the highest
+  // field number without serialization overhead. This is purely aesthetic.
+  SetProfileV1Request v1Request = 15 [(require.present) = true];
+
+  // next: 8
+}
+
+// Indicates that the account is not permitted to set a payment address,
+// due to a disallowed country prefix on the account's phone number.
+message PaymentsForbiddenInRegion {}
+
+// Indicates that the account does not have the Profiles v2 capability, which
+// is required to call Profiles.SetProfile
+message ProfilesV2CapabilityRequired {}
+
+
+message SetProfileResult {
+  // If the request included a v1 avatar change, this field contains the policy
+  // and credential used by clients to upload an avatar to the CDN.
+  //
+  // Because this is a temporary field during the migration, it has the highest
+  // field number without serialization overhead. This is purely aesthetic.
+  optional common.S3UploadForm v1_avatar_upload_form = 15;
+
+  // next: 1
+}
+
+message SetProfileResponse {
+  oneof response {
+    SetProfileResult result = 1;
+    // The current data hash did not match the request's expectation, indicating
+    // another device on the account may have written an update the caller does not know about.
+    errors.FailedPrecondition expected_data_write_conflict = 2 [(tag.reason) = "expected_data_write_conflict"];
+    // Payments are not permitted in the account's region, based on its phone
+    // number or the caller's IP address if the account does not have a phone
+    // number. The request should be retried without `payment_address.
+    PaymentsForbiddenInRegion payments_forbidden_in_region = 3 [(tag.reason) = "payments_forbidden_in_region"];
+    // The current version did not match the request's expectation, indicating
+    // another device on the account may have created a new version the caller does not know about.
+    errors.FailedPrecondition expected_version_write_conflict = 4 [(tag.reason) = "expected_version_write_conflict"];
+
+    // Because this is a temporary field during the migration, it has the highest
+    // field number without serialization overhead. This is purely aesthetic.
+    ProfilesV2CapabilityRequired profiles_v2_capability_required = 15 [(tag.reason) = "profiles_v2_capability_required"];
+
+    // next: 4
+  }
+}
+
+message GetProfileRequest {
+  // The ACI of the account for which to get profile data.
+  common.ServiceIdentifier account_identifier = 1 [(require.present) = true, (require.identityType) = IDENTITY_TYPE_ACI];
+  // The profile version to retrieve.
+  bytes version = 2 [(require.exactlySize) = 32];
+
+  // The `etag` from the previous request for this Profile version. If
+  // unchanged, the response will omit `profile` and `etag_matched` will be
+  // `true`.
+  bytes etag = 3 [(require.exactlySize) = 0, (require.exactlySize) = 10];
+}
+
+message GetProfileAnonymousRequest {
+  // Contains the data necessary to request a profile.
+  GetProfileRequest request = 1 [(require.present) = true];
+  oneof authentication {
+    // The unidentified access key for the targeted account.
+    bytes unidentified_access_key = 2 [(require.exactlySize) = 16];
+
+    // A group send endorsement token for the targeted account.
+    bytes group_send_token = 3 [(require.nonEmpty) = true];
+  }
+}
+
+message AccountInfo {
+  // The account identity key of the targeted account.
+  bytes identity_key = 1;
+
+  // A checksum of the unidentified access key for the targeted account.
+  bytes unidentified_access_key_fingerprint = 2;
+
+  // Whether the account has enabled sealed sender from anyone.
+  bool unrestricted_unidentified_access = 3;
+
+  // A list of the badges ids associated with the account. Metadata to display
+  // badges may be obtained by cross-referencing badge ids with
+  // RemoteConfiguration.GetBadges.
+  repeated string badge_ids = 4;
+}
+
+message ProfileResult {
+  // The ciphertext of the requested version of the profile
+  bytes data = 1;
+
+  // The ciphertext of the MobileCoin wallet ID on the profile.
+  bytes payment_address = 2;
+
+  // Information about the targeted account
+  AccountInfo account_info = 3;
+
+  // An entity tag for the profile. This may be used in subsequent requests
+  // for this profile version to optimize bandwidth.
+  //
+  // Note that this hash will not match the expected_data_hash used on
+  // SetProfile for concurrency control.
+  //
+  // Clients may validate that the value has been correctly calculated by
+  // calculating a 10-byte truncated TupleHash256 as follows:
+  //
+  // ```
+  // TupleHash256(S = "ProfileETag/v1", L = 80 bits, tuple = [
+  //     data,
+  //     payment_address,
+  //     account_info.identity_key,
+  //     account_info.unidentified_access_key_fingerprint,
+  //     account_info.unrestricted_unidentified_access ? 0x01 : 0x00,
+  //     uint32BE(count(account_info.badge_ids)),
+  //     utf8(id) for each id in sortLexAscendingByUtf8Bytes(account_info.badge_ids),
+  // ])
+  //```
+  //
+  // Absent/empty fields contribute an empty element (not zero bytes omitted):
+  // a missing payment_address is still a present, zero-length tuple element.
+  //
+  // This etag will always exclusively cover the documented fields. If fields
+  // are added in the future, a new etag field must be introduced.
+  bytes etag = 4;
+}
+
+message LegacyProfileResult {
+
+  // The ciphertext of the name on the profile.
+  bytes name = 1;
+  // The ciphertext of the description on the profile.
+  bytes about = 2;
+  // The ciphertext of the emoji on the profile.
+  bytes about_emoji = 3;
+  // The cdn0 path of the avatar on the profile.
+  string avatar = 4;
+  // The ciphertext of the phone-number sharing setting on the profile.
+  bytes phone_number_sharing = 5;
+  // The ciphertext of the MobileCoin wallet ID on the profile.
+  bytes payment_address = 6;
+  // Information about the targeted account
+  AccountInfo account_info = 7;
+}
+
+
+message GetProfileResponse {
+  oneof response {
+    // The full profile data. The current profile did not match the provided
+    // etag (or no etag was provided).
+    ProfileResult profile = 1;
+
+    // The current profile matched the provided etag. If present, this will always be true.
+    bool etag_matched = 2 [(tag.reason) = "etag_match"];
+
+    errors.NotFound not_found = 3 [(tag.reason) = "not_found"];
+
+    // Will be present if there is no v2 Profile data for this version.
+    //
+    // Because this is a temporary field during the migration, it has the highest
+    // field number without serialization overhead. This is purely aesthetic.
+    LegacyProfileResult legacy_profile = 15 [(tag.reason) = "legacy_profile"];
+  }
+  // next: 4
+}
+
+message GetProfileAnonymousResponse {
+  oneof response {
+    // The full profile data. The current profile did not match the provided
+    // etag (or no etag was provided).
+    ProfileResult profile = 1;
+
+    // The current profile matched the provided etag. If present, this will always be true.
+    bool etag_matched = 2 [(tag.reason) = "etag_match"];
+
+    errors.NotFound not_found = 3 [(tag.reason) = "not_found"];
+    errors.FailedUnidentifiedAuthorization failed_unidentified_authorization = 4 [(tag.reason) = "failed_unidentified_authorization"];
+
+    // Will be present if there is no v2 Profile data for this version.
+    //
+    // Because this is a temporary field during the migration, it has the highest
+    // field number without serialization overhead. This is purely aesthetic.
+    LegacyProfileResult profile_v1 = 15 [(tag.reason) = "profile_v1"];
+  }
+  // next: 5
+}
+
+message GetExpiringProfileKeyCredentialRequest {
+  // The ACI of the account for which to get a profile key credential.
+  common.ServiceIdentifier account_identifier = 1 [(require.present) = true, (require.identityType) = IDENTITY_TYPE_ACI];
+  // A zkgroup request for a profile key credential.
+  bytes credential_request = 2 [(require.nonEmpty) = true];
+  // The type of credential being requested.
+  CredentialType credential_type = 3 [(require.specified) = true];
+  // The profile version for which to generate a profile key credential.
+  bytes version = 4 [(require.exactlySize) = 32];
+}
+
+message GetExpiringProfileKeyCredentialAnonymousRequest {
+  // Contains the data necessary to request an expiring profile key credential.
+  GetExpiringProfileKeyCredentialRequest request = 1 [(require.present) = true];
+  // The unidentified access key for the targeted account.
+  bytes unidentified_access_key = 2 [(require.exactlySize) = 16];
+}
+
+message GetExpiringProfileKeyCredentialResult {
+  // A zkgroup credential used by a client to prove that it has the profile key
+  // of a targeted account.
+  bytes profile_key_credential = 1;
+}
+
+message GetExpiringProfileKeyCredentialAnonymousResponse {
+  oneof response {
+    GetExpiringProfileKeyCredentialResult result = 1;
+    errors.NotFound not_found = 2 [(tag.reason) = "not_found"];
+    errors.FailedUnidentifiedAuthorization failed_unidentified_authorization = 3 [(tag.reason) = "failed_unidentified_authorization"];
+  }
+}
+
+enum CredentialType {
+  CREDENTIAL_TYPE_UNSPECIFIED = 0;
+  CREDENTIAL_TYPE_EXPIRING_PROFILE_KEY = 1;
+}
+
+// avatar auth
+
+message GetAvatarCredentialsRequest {
+  bytes avatar_credentials_request = 1;
+}
+
+message GetAvatarCredentialsResponse {
+  oneof response {
+    bytes avatar_credentials = 1;
+
+    // the client must call Accounts.SetZkCredentialKey to call this method
+    errors.FailedPrecondition missing_zk_credential_key = 2 [(tag.reason) = "missing_zk_credential_key"];
+  }
+}
+
+message GetAvatarUploadFormRequest {
+  bytes avatar_credentials_presentation = 1;
+
+  // The length of the attachment for the requested upload form. Uploads
+  // performed with this form will be limited to the provided length.
+  uint32 upload_length = 2 [(require.range) = {min: 1, max: 10485760 /* 10 MiB */}];
+}
+
+message GetAvatarUploadFormResponse {
+  oneof response {
+    common.S3UploadForm avatar_upload_form = 1;
+
+    errors.FailedZkAuthentication invalid_credentials_presentation = 2 [(tag.reason) = "invalid_credentials_presentation"];
+  }
+}
+
+message ExtendAvatarTTLRequest {
+  bytes avatar_credentials_presentation = 1;
+}
+
+message ExtendAvatarTTLResponse {
+  oneof response {
+    // The avatar that was extended. May be used as a check against state de-synchronization.
+    string path = 1;
+    errors.FailedZkAuthentication invalid_credentials_presentation = 2 [(tag.reason) = "invalid_credentials_presentation"];
+    // the identity does not have an active avatar
+    errors.NotFound not_found = 3 [(tag.reason) = "no_active_avatar"];
+  }
+}
+
+message DeleteAvatarRequest {
+  bytes avatar_credentials_presentation = 1;
+}
+
+message DeleteAvatarResponse {
+  oneof response {
+    google.protobuf.Empty success = 1;
+    errors.FailedZkAuthentication invalid_credentials_presentation = 2 [(tag.reason) = "invalid_credentials_presentation"];
+  }
+}

@@ -482,6 +482,55 @@ func (AccountData_AutoDownloadSettings_AutoDownloadOption) EnumDescriptor() ([]b
 	return file_backuppb_Backup_proto_rawDescGZIP(), []int{2, 1, 0}
 }
 
+type AccountData_AccountSettings_UnreadBadgeType int32
+
+const (
+	AccountData_AccountSettings_UNKNOWN_BADGE_TYPE AccountData_AccountSettings_UnreadBadgeType = 0 // Interpret as "Unread messages"
+	AccountData_AccountSettings_UNREAD_MESSAGES    AccountData_AccountSettings_UnreadBadgeType = 1
+	AccountData_AccountSettings_UNREAD_CHATS       AccountData_AccountSettings_UnreadBadgeType = 2
+)
+
+// Enum value maps for AccountData_AccountSettings_UnreadBadgeType.
+var (
+	AccountData_AccountSettings_UnreadBadgeType_name = map[int32]string{
+		0: "UNKNOWN_BADGE_TYPE",
+		1: "UNREAD_MESSAGES",
+		2: "UNREAD_CHATS",
+	}
+	AccountData_AccountSettings_UnreadBadgeType_value = map[string]int32{
+		"UNKNOWN_BADGE_TYPE": 0,
+		"UNREAD_MESSAGES":    1,
+		"UNREAD_CHATS":       2,
+	}
+)
+
+func (x AccountData_AccountSettings_UnreadBadgeType) Enum() *AccountData_AccountSettings_UnreadBadgeType {
+	p := new(AccountData_AccountSettings_UnreadBadgeType)
+	*p = x
+	return p
+}
+
+func (x AccountData_AccountSettings_UnreadBadgeType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountData_AccountSettings_UnreadBadgeType) Descriptor() protoreflect.EnumDescriptor {
+	return file_backuppb_Backup_proto_enumTypes[8].Descriptor()
+}
+
+func (AccountData_AccountSettings_UnreadBadgeType) Type() protoreflect.EnumType {
+	return &file_backuppb_Backup_proto_enumTypes[8]
+}
+
+func (x AccountData_AccountSettings_UnreadBadgeType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountData_AccountSettings_UnreadBadgeType.Descriptor instead.
+func (AccountData_AccountSettings_UnreadBadgeType) EnumDescriptor() ([]byte, []int) {
+	return file_backuppb_Backup_proto_rawDescGZIP(), []int{2, 2, 0}
+}
+
 type AccountData_AndroidSpecificSettings_NavigationBarSize int32
 
 const (
@@ -515,11 +564,11 @@ func (x AccountData_AndroidSpecificSettings_NavigationBarSize) String() string {
 }
 
 func (AccountData_AndroidSpecificSettings_NavigationBarSize) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[8].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[9].Descriptor()
 }
 
 func (AccountData_AndroidSpecificSettings_NavigationBarSize) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[8]
+	return &file_backuppb_Backup_proto_enumTypes[9]
 }
 
 func (x AccountData_AndroidSpecificSettings_NavigationBarSize) Number() protoreflect.EnumNumber {
@@ -564,11 +613,11 @@ func (x Contact_IdentityState) String() string {
 }
 
 func (Contact_IdentityState) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[9].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[10].Descriptor()
 }
 
 func (Contact_IdentityState) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[9]
+	return &file_backuppb_Backup_proto_enumTypes[10]
 }
 
 func (x Contact_IdentityState) Number() protoreflect.EnumNumber {
@@ -613,11 +662,11 @@ func (x Contact_Visibility) String() string {
 }
 
 func (Contact_Visibility) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[10].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[11].Descriptor()
 }
 
 func (Contact_Visibility) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[10]
+	return &file_backuppb_Backup_proto_enumTypes[11]
 }
 
 func (x Contact_Visibility) Number() protoreflect.EnumNumber {
@@ -662,11 +711,11 @@ func (x Group_StorySendMode) String() string {
 }
 
 func (Group_StorySendMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[11].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[12].Descriptor()
 }
 
 func (Group_StorySendMode) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[11]
+	return &file_backuppb_Backup_proto_enumTypes[12]
 }
 
 func (x Group_StorySendMode) Number() protoreflect.EnumNumber {
@@ -711,11 +760,11 @@ func (x Group_Member_Role) String() string {
 }
 
 func (Group_Member_Role) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[12].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[13].Descriptor()
 }
 
 func (Group_Member_Role) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[12]
+	return &file_backuppb_Backup_proto_enumTypes[13]
 }
 
 func (x Group_Member_Role) Number() protoreflect.EnumNumber {
@@ -766,11 +815,11 @@ func (x Group_AccessControl_AccessRequired) String() string {
 }
 
 func (Group_AccessControl_AccessRequired) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[13].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[14].Descriptor()
 }
 
 func (Group_AccessControl_AccessRequired) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[13]
+	return &file_backuppb_Backup_proto_enumTypes[14]
 }
 
 func (x Group_AccessControl_AccessRequired) Number() protoreflect.EnumNumber {
@@ -815,11 +864,11 @@ func (x CallLink_Restrictions) String() string {
 }
 
 func (CallLink_Restrictions) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[14].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[15].Descriptor()
 }
 
 func (CallLink_Restrictions) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[14]
+	return &file_backuppb_Backup_proto_enumTypes[15]
 }
 
 func (x CallLink_Restrictions) Number() protoreflect.EnumNumber {
@@ -861,11 +910,11 @@ func (x AdHocCall_State) String() string {
 }
 
 func (AdHocCall_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[15].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[16].Descriptor()
 }
 
 func (AdHocCall_State) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[15]
+	return &file_backuppb_Backup_proto_enumTypes[16]
 }
 
 func (x AdHocCall_State) Number() protoreflect.EnumNumber {
@@ -913,11 +962,11 @@ func (x DistributionList_PrivacyMode) String() string {
 }
 
 func (DistributionList_PrivacyMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[16].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[17].Descriptor()
 }
 
 func (DistributionList_PrivacyMode) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[16]
+	return &file_backuppb_Backup_proto_enumTypes[17]
 }
 
 func (x DistributionList_PrivacyMode) Number() protoreflect.EnumNumber {
@@ -962,11 +1011,11 @@ func (x SendStatus_Failed_FailureReason) String() string {
 }
 
 func (SendStatus_Failed_FailureReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[17].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[18].Descriptor()
 }
 
 func (SendStatus_Failed_FailureReason) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[17]
+	return &file_backuppb_Backup_proto_enumTypes[18]
 }
 
 func (x SendStatus_Failed_FailureReason) Number() protoreflect.EnumNumber {
@@ -1011,11 +1060,11 @@ func (x PaymentNotification_TransactionDetails_FailedTransaction_FailureReason) 
 }
 
 func (PaymentNotification_TransactionDetails_FailedTransaction_FailureReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[18].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[19].Descriptor()
 }
 
 func (PaymentNotification_TransactionDetails_FailedTransaction_FailureReason) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[18]
+	return &file_backuppb_Backup_proto_enumTypes[19]
 }
 
 func (x PaymentNotification_TransactionDetails_FailedTransaction_FailureReason) Number() protoreflect.EnumNumber {
@@ -1060,11 +1109,11 @@ func (x PaymentNotification_TransactionDetails_Transaction_Status) String() stri
 }
 
 func (PaymentNotification_TransactionDetails_Transaction_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[19].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[20].Descriptor()
 }
 
 func (PaymentNotification_TransactionDetails_Transaction_Status) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[19]
+	return &file_backuppb_Backup_proto_enumTypes[20]
 }
 
 func (x PaymentNotification_TransactionDetails_Transaction_Status) Number() protoreflect.EnumNumber {
@@ -1112,11 +1161,11 @@ func (x GiftBadge_State) String() string {
 }
 
 func (GiftBadge_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[20].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[21].Descriptor()
 }
 
 func (GiftBadge_State) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[20]
+	return &file_backuppb_Backup_proto_enumTypes[21]
 }
 
 func (x GiftBadge_State) Number() protoreflect.EnumNumber {
@@ -1167,11 +1216,11 @@ func (x ContactAttachment_Phone_Type) String() string {
 }
 
 func (ContactAttachment_Phone_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[21].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[22].Descriptor()
 }
 
 func (ContactAttachment_Phone_Type) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[21]
+	return &file_backuppb_Backup_proto_enumTypes[22]
 }
 
 func (x ContactAttachment_Phone_Type) Number() protoreflect.EnumNumber {
@@ -1222,11 +1271,11 @@ func (x ContactAttachment_Email_Type) String() string {
 }
 
 func (ContactAttachment_Email_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[22].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[23].Descriptor()
 }
 
 func (ContactAttachment_Email_Type) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[22]
+	return &file_backuppb_Backup_proto_enumTypes[23]
 }
 
 func (x ContactAttachment_Email_Type) Number() protoreflect.EnumNumber {
@@ -1274,11 +1323,11 @@ func (x ContactAttachment_PostalAddress_Type) String() string {
 }
 
 func (ContactAttachment_PostalAddress_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[23].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[24].Descriptor()
 }
 
 func (ContactAttachment_PostalAddress_Type) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[23]
+	return &file_backuppb_Backup_proto_enumTypes[24]
 }
 
 func (x ContactAttachment_PostalAddress_Type) Number() protoreflect.EnumNumber {
@@ -1329,11 +1378,11 @@ func (x MessageAttachment_Flag) String() string {
 }
 
 func (MessageAttachment_Flag) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[24].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[25].Descriptor()
 }
 
 func (MessageAttachment_Flag) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[24]
+	return &file_backuppb_Backup_proto_enumTypes[25]
 }
 
 func (x MessageAttachment_Flag) Number() protoreflect.EnumNumber {
@@ -1384,11 +1433,11 @@ func (x Quote_Type) String() string {
 }
 
 func (Quote_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[25].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[26].Descriptor()
 }
 
 func (Quote_Type) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[25]
+	return &file_backuppb_Backup_proto_enumTypes[26]
 }
 
 func (x Quote_Type) Number() protoreflect.EnumNumber {
@@ -1442,11 +1491,11 @@ func (x BodyRange_Style) String() string {
 }
 
 func (BodyRange_Style) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[26].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[27].Descriptor()
 }
 
 func (BodyRange_Style) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[26]
+	return &file_backuppb_Backup_proto_enumTypes[27]
 }
 
 func (x BodyRange_Style) Number() protoreflect.EnumNumber {
@@ -1491,11 +1540,11 @@ func (x IndividualCall_Type) String() string {
 }
 
 func (IndividualCall_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[27].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[28].Descriptor()
 }
 
 func (IndividualCall_Type) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[27]
+	return &file_backuppb_Backup_proto_enumTypes[28]
 }
 
 func (x IndividualCall_Type) Number() protoreflect.EnumNumber {
@@ -1540,11 +1589,11 @@ func (x IndividualCall_Direction) String() string {
 }
 
 func (IndividualCall_Direction) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[28].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[29].Descriptor()
 }
 
 func (IndividualCall_Direction) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[28]
+	return &file_backuppb_Backup_proto_enumTypes[29]
 }
 
 func (x IndividualCall_Direction) Number() protoreflect.EnumNumber {
@@ -1599,11 +1648,11 @@ func (x IndividualCall_State) String() string {
 }
 
 func (IndividualCall_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[29].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[30].Descriptor()
 }
 
 func (IndividualCall_State) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[29]
+	return &file_backuppb_Backup_proto_enumTypes[30]
 }
 
 func (x IndividualCall_State) Number() protoreflect.EnumNumber {
@@ -1675,11 +1724,11 @@ func (x GroupCall_State) String() string {
 }
 
 func (GroupCall_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[30].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[31].Descriptor()
 }
 
 func (GroupCall_State) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[30]
+	return &file_backuppb_Backup_proto_enumTypes[31]
 }
 
 func (x GroupCall_State) Number() protoreflect.EnumNumber {
@@ -1766,11 +1815,11 @@ func (x SimpleChatUpdate_Type) String() string {
 }
 
 func (SimpleChatUpdate_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[31].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[32].Descriptor()
 }
 
 func (SimpleChatUpdate_Type) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[31]
+	return &file_backuppb_Backup_proto_enumTypes[32]
 }
 
 func (x SimpleChatUpdate_Type) Number() protoreflect.EnumNumber {
@@ -1872,11 +1921,11 @@ func (x ChatStyle_WallpaperPreset) String() string {
 }
 
 func (ChatStyle_WallpaperPreset) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[32].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[33].Descriptor()
 }
 
 func (ChatStyle_WallpaperPreset) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[32]
+	return &file_backuppb_Backup_proto_enumTypes[33]
 }
 
 func (x ChatStyle_WallpaperPreset) Number() protoreflect.EnumNumber {
@@ -1981,11 +2030,11 @@ func (x ChatStyle_BubbleColorPreset) String() string {
 }
 
 func (ChatStyle_BubbleColorPreset) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[33].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[34].Descriptor()
 }
 
 func (ChatStyle_BubbleColorPreset) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[33]
+	return &file_backuppb_Backup_proto_enumTypes[34]
 }
 
 func (x ChatStyle_BubbleColorPreset) Number() protoreflect.EnumNumber {
@@ -2045,11 +2094,11 @@ func (x NotificationProfile_DayOfWeek) String() string {
 }
 
 func (NotificationProfile_DayOfWeek) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[34].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[35].Descriptor()
 }
 
 func (NotificationProfile_DayOfWeek) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[34]
+	return &file_backuppb_Backup_proto_enumTypes[35]
 }
 
 func (x NotificationProfile_DayOfWeek) Number() protoreflect.EnumNumber {
@@ -2095,11 +2144,11 @@ func (x ChatFolder_FolderType) String() string {
 }
 
 func (ChatFolder_FolderType) Descriptor() protoreflect.EnumDescriptor {
-	return file_backuppb_Backup_proto_enumTypes[35].Descriptor()
+	return file_backuppb_Backup_proto_enumTypes[36].Descriptor()
 }
 
 func (ChatFolder_FolderType) Type() protoreflect.EnumType {
-	return &file_backuppb_Backup_proto_enumTypes[35]
+	return &file_backuppb_Backup_proto_enumTypes[36]
 }
 
 func (x ChatFolder_FolderType) Number() protoreflect.EnumNumber {
@@ -2716,6 +2765,7 @@ type Contact struct {
 	SystemNickname      string                 `protobuf:"bytes,20,opt,name=systemNickname,proto3" json:"systemNickname,omitempty"`
 	AvatarColor         *AvatarColor           `protobuf:"varint,21,opt,name=avatarColor,proto3,enum=signal.backup.AvatarColor,oneof" json:"avatarColor,omitempty"`
 	KeyTransparencyData []byte                 `protobuf:"bytes,22,opt,name=keyTransparencyData,proto3,oneof" json:"keyTransparencyData,omitempty"`
+	BlockedAtTimestamp  uint64                 `protobuf:"varint,23,opt,name=blockedAtTimestamp,proto3" json:"blockedAtTimestamp,omitempty"` // if `blocked` is true, 0 means unknown block time
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -2915,6 +2965,13 @@ func (x *Contact) GetKeyTransparencyData() []byte {
 	return nil
 }
 
+func (x *Contact) GetBlockedAtTimestamp() uint64 {
+	if x != nil {
+		return x.BlockedAtTimestamp
+	}
+	return 0
+}
+
 type isContact_Registration interface {
 	isContact_Registration()
 }
@@ -2932,16 +2989,17 @@ func (*Contact_Registered_) isContact_Registration() {}
 func (*Contact_NotRegistered_) isContact_Registration() {}
 
 type Group struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MasterKey     []byte                 `protobuf:"bytes,1,opt,name=masterKey,proto3" json:"masterKey,omitempty"`
-	Whitelisted   bool                   `protobuf:"varint,2,opt,name=whitelisted,proto3" json:"whitelisted,omitempty"`
-	HideStory     bool                   `protobuf:"varint,3,opt,name=hideStory,proto3" json:"hideStory,omitempty"`
-	StorySendMode Group_StorySendMode    `protobuf:"varint,4,opt,name=storySendMode,proto3,enum=signal.backup.Group_StorySendMode" json:"storySendMode,omitempty"`
-	Snapshot      *Group_GroupSnapshot   `protobuf:"bytes,5,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
-	Blocked       bool                   `protobuf:"varint,6,opt,name=blocked,proto3" json:"blocked,omitempty"`
-	AvatarColor   *AvatarColor           `protobuf:"varint,7,opt,name=avatarColor,proto3,enum=signal.backup.AvatarColor,oneof" json:"avatarColor,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	MasterKey          []byte                 `protobuf:"bytes,1,opt,name=masterKey,proto3" json:"masterKey,omitempty"`
+	Whitelisted        bool                   `protobuf:"varint,2,opt,name=whitelisted,proto3" json:"whitelisted,omitempty"`
+	HideStory          bool                   `protobuf:"varint,3,opt,name=hideStory,proto3" json:"hideStory,omitempty"`
+	StorySendMode      Group_StorySendMode    `protobuf:"varint,4,opt,name=storySendMode,proto3,enum=signal.backup.Group_StorySendMode" json:"storySendMode,omitempty"`
+	Snapshot           *Group_GroupSnapshot   `protobuf:"bytes,5,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Blocked            bool                   `protobuf:"varint,6,opt,name=blocked,proto3" json:"blocked,omitempty"`
+	AvatarColor        *AvatarColor           `protobuf:"varint,7,opt,name=avatarColor,proto3,enum=signal.backup.AvatarColor,oneof" json:"avatarColor,omitempty"`
+	BlockedAtTimestamp uint64                 `protobuf:"varint,8,opt,name=blockedAtTimestamp,proto3" json:"blockedAtTimestamp,omitempty"` // if `blocked` is true, 0 means unknown block time
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Group) Reset() {
@@ -3021,6 +3079,13 @@ func (x *Group) GetAvatarColor() AvatarColor {
 		return *x.AvatarColor
 	}
 	return AvatarColor_A100
+}
+
+func (x *Group) GetBlockedAtTimestamp() uint64 {
+	if x != nil {
+		return x.BlockedAtTimestamp
+	}
+	return 0
 }
 
 type Self struct {
@@ -3112,9 +3177,13 @@ type Chat struct {
 	ExpirationTimerMs            *uint64                `protobuf:"varint,5,opt,name=expirationTimerMs,proto3,oneof" json:"expirationTimerMs,omitempty"`
 	MuteUntilMs                  *uint64                `protobuf:"varint,6,opt,name=muteUntilMs,proto3,oneof" json:"muteUntilMs,omitempty"` // INT64_MAX (2^63 - 1) = "always muted".
 	MarkedUnread                 bool                   `protobuf:"varint,7,opt,name=markedUnread,proto3" json:"markedUnread,omitempty"`
-	DontNotifyForMentionsIfMuted bool                   `protobuf:"varint,8,opt,name=dontNotifyForMentionsIfMuted,proto3" json:"dontNotifyForMentionsIfMuted,omitempty"`
+	DontNotifyForMentionsIfMuted bool                   `protobuf:"varint,8,opt,name=dontNotifyForMentionsIfMuted,proto3" json:"dontNotifyForMentionsIfMuted,omitempty"` // will be deprecated in favor of [notifyForMentionsIfMuted]
 	Style                        *ChatStyle             `protobuf:"bytes,9,opt,name=style,proto3" json:"style,omitempty"`
 	ExpireTimerVersion           uint32                 `protobuf:"varint,10,opt,name=expireTimerVersion,proto3" json:"expireTimerVersion,omitempty"`
+	NotifyForCallsIfMuted        *bool                  `protobuf:"varint,11,opt,name=notifyForCallsIfMuted,proto3,oneof" json:"notifyForCallsIfMuted,omitempty"`       // If unset, use default global settings
+	NotifyForMentionsIfMuted     *bool                  `protobuf:"varint,12,opt,name=notifyForMentionsIfMuted,proto3,oneof" json:"notifyForMentionsIfMuted,omitempty"` // If unset, use default global settings. Only for groups. If [dontNotifyForMentionsIfMuted] is true, this should be initialized to false.
+	NotifyForRepliesIfMuted      *bool                  `protobuf:"varint,13,opt,name=notifyForRepliesIfMuted,proto3,oneof" json:"notifyForRepliesIfMuted,omitempty"`   // If unset, use default global settings. Only for groups.
+	ShowUnreadReminders          *bool                  `protobuf:"varint,14,opt,name=showUnreadReminders,proto3,oneof" json:"showUnreadReminders,omitempty"`           // If unset, use default global settings
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -3217,6 +3286,34 @@ func (x *Chat) GetExpireTimerVersion() uint32 {
 		return x.ExpireTimerVersion
 	}
 	return 0
+}
+
+func (x *Chat) GetNotifyForCallsIfMuted() bool {
+	if x != nil && x.NotifyForCallsIfMuted != nil {
+		return *x.NotifyForCallsIfMuted
+	}
+	return false
+}
+
+func (x *Chat) GetNotifyForMentionsIfMuted() bool {
+	if x != nil && x.NotifyForMentionsIfMuted != nil {
+		return *x.NotifyForMentionsIfMuted
+	}
+	return false
+}
+
+func (x *Chat) GetNotifyForRepliesIfMuted() bool {
+	if x != nil && x.NotifyForRepliesIfMuted != nil {
+		return *x.NotifyForRepliesIfMuted
+	}
+	return false
+}
+
+func (x *Chat) GetShowUnreadReminders() bool {
+	if x != nil && x.ShowUnreadReminders != nil {
+		return *x.ShowUnreadReminders
+	}
+	return false
 }
 
 // *
@@ -8656,16 +8753,24 @@ type AccountData_AccountSettings struct {
 	CustomChatColors                []*ChatStyle_CustomChatColor       `protobuf:"bytes,19,rep,name=customChatColors,proto3" json:"customChatColors,omitempty"`
 	OptimizeOnDeviceStorage         bool                               `protobuf:"varint,20,opt,name=optimizeOnDeviceStorage,proto3" json:"optimizeOnDeviceStorage,omitempty"`
 	// See zkgroup for integer particular values. Unset if backups are not enabled.
-	BackupTier                        *uint64                             `protobuf:"varint,21,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"`
-	DefaultSentMediaQuality           AccountData_SentMediaQuality        `protobuf:"varint,23,opt,name=defaultSentMediaQuality,proto3,enum=signal.backup.AccountData_SentMediaQuality" json:"defaultSentMediaQuality,omitempty"`
-	AutoDownloadSettings              *AccountData_AutoDownloadSettings   `protobuf:"bytes,24,opt,name=autoDownloadSettings,proto3" json:"autoDownloadSettings,omitempty"`
-	ScreenLockTimeoutMinutes          *uint32                             `protobuf:"varint,26,opt,name=screenLockTimeoutMinutes,proto3,oneof" json:"screenLockTimeoutMinutes,omitempty"`                                                // If unset, consider screen lock to be disabled.
-	PinReminders                      *bool                               `protobuf:"varint,27,opt,name=pinReminders,proto3,oneof" json:"pinReminders,omitempty"`                                                                        // If unset, consider pin reminders to be enabled.
-	AppTheme                          AccountData_AppTheme                `protobuf:"varint,28,opt,name=appTheme,proto3,enum=signal.backup.AccountData_AppTheme" json:"appTheme,omitempty"`                                              // If unset, treat the same as "Unknown" case
-	CallsUseLessDataSetting           AccountData_CallsUseLessDataSetting `protobuf:"varint,29,opt,name=callsUseLessDataSetting,proto3,enum=signal.backup.AccountData_CallsUseLessDataSetting" json:"callsUseLessDataSetting,omitempty"` // If unset, treat the same as "Unknown" case
-	AllowSealedSenderFromAnyone       bool                                `protobuf:"varint,30,opt,name=allowSealedSenderFromAnyone,proto3" json:"allowSealedSenderFromAnyone,omitempty"`
-	AllowAutomaticKeyVerification     bool                                `protobuf:"varint,31,opt,name=allowAutomaticKeyVerification,proto3" json:"allowAutomaticKeyVerification,omitempty"`
-	HasSeenAdminDeleteEducationDialog bool                                `protobuf:"varint,32,opt,name=hasSeenAdminDeleteEducationDialog,proto3" json:"hasSeenAdminDeleteEducationDialog,omitempty"`
+	BackupTier                        *uint64                                     `protobuf:"varint,21,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"`
+	DefaultSentMediaQuality           AccountData_SentMediaQuality                `protobuf:"varint,23,opt,name=defaultSentMediaQuality,proto3,enum=signal.backup.AccountData_SentMediaQuality" json:"defaultSentMediaQuality,omitempty"`
+	AutoDownloadSettings              *AccountData_AutoDownloadSettings           `protobuf:"bytes,24,opt,name=autoDownloadSettings,proto3" json:"autoDownloadSettings,omitempty"`
+	ScreenLockTimeoutMinutes          *uint32                                     `protobuf:"varint,26,opt,name=screenLockTimeoutMinutes,proto3,oneof" json:"screenLockTimeoutMinutes,omitempty"`                                                // If unset, consider screen lock to be disabled.
+	PinReminders                      *bool                                       `protobuf:"varint,27,opt,name=pinReminders,proto3,oneof" json:"pinReminders,omitempty"`                                                                        // If unset, consider pin reminders to be enabled.
+	AppTheme                          AccountData_AppTheme                        `protobuf:"varint,28,opt,name=appTheme,proto3,enum=signal.backup.AccountData_AppTheme" json:"appTheme,omitempty"`                                              // If unset, treat the same as "Unknown" case
+	CallsUseLessDataSetting           AccountData_CallsUseLessDataSetting         `protobuf:"varint,29,opt,name=callsUseLessDataSetting,proto3,enum=signal.backup.AccountData_CallsUseLessDataSetting" json:"callsUseLessDataSetting,omitempty"` // If unset, treat the same as "Unknown" case
+	AllowSealedSenderFromAnyone       bool                                        `protobuf:"varint,30,opt,name=allowSealedSenderFromAnyone,proto3" json:"allowSealedSenderFromAnyone,omitempty"`
+	AllowAutomaticKeyVerification     bool                                        `protobuf:"varint,31,opt,name=allowAutomaticKeyVerification,proto3" json:"allowAutomaticKeyVerification,omitempty"`
+	HasSeenAdminDeleteEducationDialog bool                                        `protobuf:"varint,32,opt,name=hasSeenAdminDeleteEducationDialog,proto3" json:"hasSeenAdminDeleteEducationDialog,omitempty"`
+	UnreadBadgeType                   AccountData_AccountSettings_UnreadBadgeType `protobuf:"varint,33,opt,name=unreadBadgeType,proto3,enum=signal.backup.AccountData_AccountSettings_UnreadBadgeType" json:"unreadBadgeType,omitempty"` // Only used in ios/desktop
+	IncludeMutedChatsInBadge          *bool                                       `protobuf:"varint,34,opt,name=includeMutedChatsInBadge,proto3,oneof" json:"includeMutedChatsInBadge,omitempty"`                                        // Only used in ios/desktop. If unset, consider this disabled
+	ReactionNotifications             *bool                                       `protobuf:"varint,35,opt,name=reactionNotifications,proto3,oneof" json:"reactionNotifications,omitempty"`                                              // If unset, consider this enabled
+	NotifyForCallsIfMuted             *bool                                       `protobuf:"varint,36,opt,name=notifyForCallsIfMuted,proto3,oneof" json:"notifyForCallsIfMuted,omitempty"`                                              // If unset, consider this disabled
+	NotifyForMentionsIfMuted          *bool                                       `protobuf:"varint,37,opt,name=notifyForMentionsIfMuted,proto3,oneof" json:"notifyForMentionsIfMuted,omitempty"`                                        // If unset, consider this enabled
+	NotifyForRepliesIfMuted           *bool                                       `protobuf:"varint,38,opt,name=notifyForRepliesIfMuted,proto3,oneof" json:"notifyForRepliesIfMuted,omitempty"`                                          // If unset, consider this enabled
+	ShowUnreadReminders               *bool                                       `protobuf:"varint,39,opt,name=showUnreadReminders,proto3,oneof" json:"showUnreadReminders,omitempty"`                                                  // If unset, consider this enabled
+	NotifyWhenContactJoins            *bool                                       `protobuf:"varint,40,opt,name=notifyWhenContactJoins,proto3,oneof" json:"notifyWhenContactJoins,omitempty"`                                            // If unset, consider this disabled
 	unknownFields                     protoimpl.UnknownFields
 	sizeCache                         protoimpl.SizeCache
 }
@@ -8906,6 +9011,62 @@ func (x *AccountData_AccountSettings) GetAllowAutomaticKeyVerification() bool {
 func (x *AccountData_AccountSettings) GetHasSeenAdminDeleteEducationDialog() bool {
 	if x != nil {
 		return x.HasSeenAdminDeleteEducationDialog
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetUnreadBadgeType() AccountData_AccountSettings_UnreadBadgeType {
+	if x != nil {
+		return x.UnreadBadgeType
+	}
+	return AccountData_AccountSettings_UNKNOWN_BADGE_TYPE
+}
+
+func (x *AccountData_AccountSettings) GetIncludeMutedChatsInBadge() bool {
+	if x != nil && x.IncludeMutedChatsInBadge != nil {
+		return *x.IncludeMutedChatsInBadge
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetReactionNotifications() bool {
+	if x != nil && x.ReactionNotifications != nil {
+		return *x.ReactionNotifications
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetNotifyForCallsIfMuted() bool {
+	if x != nil && x.NotifyForCallsIfMuted != nil {
+		return *x.NotifyForCallsIfMuted
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetNotifyForMentionsIfMuted() bool {
+	if x != nil && x.NotifyForMentionsIfMuted != nil {
+		return *x.NotifyForMentionsIfMuted
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetNotifyForRepliesIfMuted() bool {
+	if x != nil && x.NotifyForRepliesIfMuted != nil {
+		return *x.NotifyForRepliesIfMuted
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetShowUnreadReminders() bool {
+	if x != nil && x.ShowUnreadReminders != nil {
+		return *x.ShowUnreadReminders
+	}
+	return false
+}
+
+func (x *AccountData_AccountSettings) GetNotifyWhenContactJoins() bool {
+	if x != nil && x.NotifyWhenContactJoins != nil {
+		return *x.NotifyWhenContactJoins
 	}
 	return false
 }
@@ -12256,7 +12417,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\n" +
 	"chatFolder\x18\b \x01(\v2\x19.signal.backup.ChatFolderH\x00R\n" +
 	"chatFolderB\x06\n" +
-	"\x04item\"\xfe\"\n" +
+	"\x04item\"\x9e)\n" +
 	"\vAccountData\x12\x1e\n" +
 	"\n" +
 	"profileKey\x18\x01 \x01(\fR\n" +
@@ -12301,7 +12462,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\t\n" +
 	"\x05NEVER\x10\x01\x12\b\n" +
 	"\x04WIFI\x10\x02\x12\x15\n" +
-	"\x11WIFI_AND_CELLULAR\x10\x03\x1a\x97\x10\n" +
+	"\x11WIFI_AND_CELLULAR\x10\x03\x1a\xb7\x16\n" +
 	"\x0fAccountSettings\x12\"\n" +
 	"\freadReceipts\x18\x01 \x01(\bR\freadReceipts\x126\n" +
 	"\x16sealedSenderIndicators\x18\x02 \x01(\bR\x16sealedSenderIndicators\x12*\n" +
@@ -12335,11 +12496,31 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x17callsUseLessDataSetting\x18\x1d \x01(\x0e22.signal.backup.AccountData.CallsUseLessDataSettingR\x17callsUseLessDataSetting\x12@\n" +
 	"\x1ballowSealedSenderFromAnyone\x18\x1e \x01(\bR\x1ballowSealedSenderFromAnyone\x12D\n" +
 	"\x1dallowAutomaticKeyVerification\x18\x1f \x01(\bR\x1dallowAutomaticKeyVerification\x12L\n" +
-	"!hasSeenAdminDeleteEducationDialog\x18  \x01(\bR!hasSeenAdminDeleteEducationDialogB\x1b\n" +
+	"!hasSeenAdminDeleteEducationDialog\x18  \x01(\bR!hasSeenAdminDeleteEducationDialog\x12d\n" +
+	"\x0funreadBadgeType\x18! \x01(\x0e2:.signal.backup.AccountData.AccountSettings.UnreadBadgeTypeR\x0funreadBadgeType\x12?\n" +
+	"\x18includeMutedChatsInBadge\x18\" \x01(\bH\x04R\x18includeMutedChatsInBadge\x88\x01\x01\x129\n" +
+	"\x15reactionNotifications\x18# \x01(\bH\x05R\x15reactionNotifications\x88\x01\x01\x129\n" +
+	"\x15notifyForCallsIfMuted\x18$ \x01(\bH\x06R\x15notifyForCallsIfMuted\x88\x01\x01\x12?\n" +
+	"\x18notifyForMentionsIfMuted\x18% \x01(\bH\aR\x18notifyForMentionsIfMuted\x88\x01\x01\x12=\n" +
+	"\x17notifyForRepliesIfMuted\x18& \x01(\bH\bR\x17notifyForRepliesIfMuted\x88\x01\x01\x125\n" +
+	"\x13showUnreadReminders\x18' \x01(\bH\tR\x13showUnreadReminders\x88\x01\x01\x12;\n" +
+	"\x16notifyWhenContactJoins\x18( \x01(\bH\n" +
+	"R\x16notifyWhenContactJoins\x88\x01\x01\"P\n" +
+	"\x0fUnreadBadgeType\x12\x16\n" +
+	"\x12UNKNOWN_BADGE_TYPE\x10\x00\x12\x13\n" +
+	"\x0fUNREAD_MESSAGES\x10\x01\x12\x10\n" +
+	"\fUNREAD_CHATS\x10\x02B\x1b\n" +
 	"\x19_storyViewReceiptsEnabledB\r\n" +
 	"\v_backupTierB\x1b\n" +
 	"\x19_screenLockTimeoutMinutesB\x0f\n" +
-	"\r_pinRemindersJ\x04\b\x16\x10\x17J\x04\b\x19\x10\x1a\x1a\x86\x01\n" +
+	"\r_pinRemindersB\x1b\n" +
+	"\x19_includeMutedChatsInBadgeB\x18\n" +
+	"\x16_reactionNotificationsB\x18\n" +
+	"\x16_notifyForCallsIfMutedB\x1b\n" +
+	"\x19_notifyForMentionsIfMutedB\x1a\n" +
+	"\x18_notifyForRepliesIfMutedB\x16\n" +
+	"\x14_showUnreadRemindersB\x19\n" +
+	"\x17_notifyWhenContactJoinsJ\x04\b\x16\x10\x17J\x04\b\x19\x10\x1a\x1a\x86\x01\n" +
 	"\x0eSubscriberData\x12\"\n" +
 	"\fsubscriberId\x18\x01 \x01(\fR\fsubscriberId\x12\"\n" +
 	"\fcurrencyCode\x18\x02 \x01(\tR\fcurrencyCode\x12,\n" +
@@ -12387,7 +12568,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x04self\x18\x05 \x01(\v2\x13.signal.backup.SelfH\x00R\x04self\x12A\n" +
 	"\freleaseNotes\x18\x06 \x01(\v2\x1b.signal.backup.ReleaseNotesH\x00R\freleaseNotes\x125\n" +
 	"\bcallLink\x18\a \x01(\v2\x17.signal.backup.CallLinkH\x00R\bcallLinkB\r\n" +
-	"\vdestination\"\x9a\v\n" +
+	"\vdestination\"\xca\v\n" +
 	"\aContact\x12\x15\n" +
 	"\x03aci\x18\x01 \x01(\fH\x01R\x03aci\x88\x01\x01\x12\x15\n" +
 	"\x03pni\x18\x02 \x01(\fH\x02R\x03pni\x88\x01\x01\x12\x1f\n" +
@@ -12418,7 +12599,8 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x0esystemNickname\x18\x14 \x01(\tR\x0esystemNickname\x12A\n" +
 	"\vavatarColor\x18\x15 \x01(\x0e2\x1a.signal.backup.AvatarColorH\tR\vavatarColor\x88\x01\x01\x125\n" +
 	"\x13keyTransparencyData\x18\x16 \x01(\fH\n" +
-	"R\x13keyTransparencyData\x88\x01\x01\x1a\f\n" +
+	"R\x13keyTransparencyData\x88\x01\x01\x12.\n" +
+	"\x12blockedAtTimestamp\x18\x17 \x01(\x04R\x12blockedAtTimestamp\x1a\f\n" +
 	"\n" +
 	"Registered\x1aE\n" +
 	"\rNotRegistered\x124\n" +
@@ -12447,7 +12629,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x12_profileFamilyNameB\x0e\n" +
 	"\f_identityKeyB\x0e\n" +
 	"\f_avatarColorB\x16\n" +
-	"\x14_keyTransparencyData\"\xc6\x13\n" +
+	"\x14_keyTransparencyData\"\xf6\x13\n" +
 	"\x05Group\x12\x1c\n" +
 	"\tmasterKey\x18\x01 \x01(\fR\tmasterKey\x12 \n" +
 	"\vwhitelisted\x18\x02 \x01(\bR\vwhitelisted\x12\x1c\n" +
@@ -12455,7 +12637,8 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\rstorySendMode\x18\x04 \x01(\x0e2\".signal.backup.Group.StorySendModeR\rstorySendMode\x12>\n" +
 	"\bsnapshot\x18\x05 \x01(\v2\".signal.backup.Group.GroupSnapshotR\bsnapshot\x12\x18\n" +
 	"\ablocked\x18\x06 \x01(\bR\ablocked\x12A\n" +
-	"\vavatarColor\x18\a \x01(\x0e2\x1a.signal.backup.AvatarColorH\x00R\vavatarColor\x88\x01\x01\x1a\xe5\x06\n" +
+	"\vavatarColor\x18\a \x01(\x0e2\x1a.signal.backup.AvatarColorH\x00R\vavatarColor\x88\x01\x01\x12.\n" +
+	"\x12blockedAtTimestamp\x18\b \x01(\x04R\x12blockedAtTimestamp\x1a\xe5\x06\n" +
 	"\rGroupSnapshot\x12=\n" +
 	"\x05title\x18\x02 \x01(\v2'.signal.backup.Group.GroupAttributeBlobR\x05title\x12I\n" +
 	"\vdescription\x18\v \x01(\v2'.signal.backup.Group.GroupAttributeBlobR\vdescription\x12\x1c\n" +
@@ -12523,7 +12706,7 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x04Self\x12A\n" +
 	"\vavatarColor\x18\x01 \x01(\x0e2\x1a.signal.backup.AvatarColorH\x00R\vavatarColor\x88\x01\x01B\x0e\n" +
 	"\f_avatarColor\"\x0e\n" +
-	"\fReleaseNotes\"\xd3\x03\n" +
+	"\fReleaseNotes\"\xb0\x06\n" +
 	"\x04Chat\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12 \n" +
 	"\vrecipientId\x18\x02 \x01(\x04R\vrecipientId\x12\x1a\n" +
@@ -12535,10 +12718,18 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	"\x1cdontNotifyForMentionsIfMuted\x18\b \x01(\bR\x1cdontNotifyForMentionsIfMuted\x12.\n" +
 	"\x05style\x18\t \x01(\v2\x18.signal.backup.ChatStyleR\x05style\x12.\n" +
 	"\x12expireTimerVersion\x18\n" +
-	" \x01(\rR\x12expireTimerVersionB\x0e\n" +
+	" \x01(\rR\x12expireTimerVersion\x129\n" +
+	"\x15notifyForCallsIfMuted\x18\v \x01(\bH\x03R\x15notifyForCallsIfMuted\x88\x01\x01\x12?\n" +
+	"\x18notifyForMentionsIfMuted\x18\f \x01(\bH\x04R\x18notifyForMentionsIfMuted\x88\x01\x01\x12=\n" +
+	"\x17notifyForRepliesIfMuted\x18\r \x01(\bH\x05R\x17notifyForRepliesIfMuted\x88\x01\x01\x125\n" +
+	"\x13showUnreadReminders\x18\x0e \x01(\bH\x06R\x13showUnreadReminders\x88\x01\x01B\x0e\n" +
 	"\f_pinnedOrderB\x14\n" +
 	"\x12_expirationTimerMsB\x0e\n" +
-	"\f_muteUntilMs\"\x95\x02\n" +
+	"\f_muteUntilMsB\x18\n" +
+	"\x16_notifyForCallsIfMutedB\x1b\n" +
+	"\x19_notifyForMentionsIfMutedB\x1a\n" +
+	"\x18_notifyForRepliesIfMutedB\x16\n" +
+	"\x14_showUnreadReminders\"\x95\x02\n" +
 	"\bCallLink\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\x1f\n" +
 	"\badminKey\x18\x02 \x01(\fH\x00R\badminKey\x88\x01\x01\x12\x12\n" +
@@ -13426,7 +13617,7 @@ func file_backuppb_Backup_proto_rawDescGZIP() []byte {
 	return file_backuppb_Backup_proto_rawDescData
 }
 
-var file_backuppb_Backup_proto_enumTypes = make([]protoimpl.EnumInfo, 36)
+var file_backuppb_Backup_proto_enumTypes = make([]protoimpl.EnumInfo, 37)
 var file_backuppb_Backup_proto_msgTypes = make([]protoimpl.MessageInfo, 131)
 var file_backuppb_Backup_proto_goTypes = []any{
 	(AvatarColor)(0),                                                            // 0: signal.backup.AvatarColor
@@ -13437,367 +13628,369 @@ var file_backuppb_Backup_proto_goTypes = []any{
 	(AccountData_CallsUseLessDataSetting)(0),                                    // 5: signal.backup.AccountData.CallsUseLessDataSetting
 	(AccountData_UsernameLink_Color)(0),                                         // 6: signal.backup.AccountData.UsernameLink.Color
 	(AccountData_AutoDownloadSettings_AutoDownloadOption)(0),                    // 7: signal.backup.AccountData.AutoDownloadSettings.AutoDownloadOption
-	(AccountData_AndroidSpecificSettings_NavigationBarSize)(0),                  // 8: signal.backup.AccountData.AndroidSpecificSettings.NavigationBarSize
-	(Contact_IdentityState)(0),                                                  // 9: signal.backup.Contact.IdentityState
-	(Contact_Visibility)(0),                                                     // 10: signal.backup.Contact.Visibility
-	(Group_StorySendMode)(0),                                                    // 11: signal.backup.Group.StorySendMode
-	(Group_Member_Role)(0),                                                      // 12: signal.backup.Group.Member.Role
-	(Group_AccessControl_AccessRequired)(0),                                     // 13: signal.backup.Group.AccessControl.AccessRequired
-	(CallLink_Restrictions)(0),                                                  // 14: signal.backup.CallLink.Restrictions
-	(AdHocCall_State)(0),                                                        // 15: signal.backup.AdHocCall.State
-	(DistributionList_PrivacyMode)(0),                                           // 16: signal.backup.DistributionList.PrivacyMode
-	(SendStatus_Failed_FailureReason)(0),                                        // 17: signal.backup.SendStatus.Failed.FailureReason
-	(PaymentNotification_TransactionDetails_FailedTransaction_FailureReason)(0), // 18: signal.backup.PaymentNotification.TransactionDetails.FailedTransaction.FailureReason
-	(PaymentNotification_TransactionDetails_Transaction_Status)(0),              // 19: signal.backup.PaymentNotification.TransactionDetails.Transaction.Status
-	(GiftBadge_State)(0),                                                        // 20: signal.backup.GiftBadge.State
-	(ContactAttachment_Phone_Type)(0),                                           // 21: signal.backup.ContactAttachment.Phone.Type
-	(ContactAttachment_Email_Type)(0),                                           // 22: signal.backup.ContactAttachment.Email.Type
-	(ContactAttachment_PostalAddress_Type)(0),                                   // 23: signal.backup.ContactAttachment.PostalAddress.Type
-	(MessageAttachment_Flag)(0),                                                 // 24: signal.backup.MessageAttachment.Flag
-	(Quote_Type)(0),                                                             // 25: signal.backup.Quote.Type
-	(BodyRange_Style)(0),                                                        // 26: signal.backup.BodyRange.Style
-	(IndividualCall_Type)(0),                                                    // 27: signal.backup.IndividualCall.Type
-	(IndividualCall_Direction)(0),                                               // 28: signal.backup.IndividualCall.Direction
-	(IndividualCall_State)(0),                                                   // 29: signal.backup.IndividualCall.State
-	(GroupCall_State)(0),                                                        // 30: signal.backup.GroupCall.State
-	(SimpleChatUpdate_Type)(0),                                                  // 31: signal.backup.SimpleChatUpdate.Type
-	(ChatStyle_WallpaperPreset)(0),                                              // 32: signal.backup.ChatStyle.WallpaperPreset
-	(ChatStyle_BubbleColorPreset)(0),                                            // 33: signal.backup.ChatStyle.BubbleColorPreset
-	(NotificationProfile_DayOfWeek)(0),                                          // 34: signal.backup.NotificationProfile.DayOfWeek
-	(ChatFolder_FolderType)(0),                                                  // 35: signal.backup.ChatFolder.FolderType
-	(*BackupInfo)(nil),                                                          // 36: signal.backup.BackupInfo
-	(*Frame)(nil),                                                               // 37: signal.backup.Frame
-	(*AccountData)(nil),                                                         // 38: signal.backup.AccountData
-	(*Recipient)(nil),                                                           // 39: signal.backup.Recipient
-	(*Contact)(nil),                                                             // 40: signal.backup.Contact
-	(*Group)(nil),                                                               // 41: signal.backup.Group
-	(*Self)(nil),                                                                // 42: signal.backup.Self
-	(*ReleaseNotes)(nil),                                                        // 43: signal.backup.ReleaseNotes
-	(*Chat)(nil),                                                                // 44: signal.backup.Chat
-	(*CallLink)(nil),                                                            // 45: signal.backup.CallLink
-	(*AdHocCall)(nil),                                                           // 46: signal.backup.AdHocCall
-	(*DistributionListItem)(nil),                                                // 47: signal.backup.DistributionListItem
-	(*DistributionList)(nil),                                                    // 48: signal.backup.DistributionList
-	(*ChatItem)(nil),                                                            // 49: signal.backup.ChatItem
-	(*SendStatus)(nil),                                                          // 50: signal.backup.SendStatus
-	(*Text)(nil),                                                                // 51: signal.backup.Text
-	(*StandardMessage)(nil),                                                     // 52: signal.backup.StandardMessage
-	(*ContactMessage)(nil),                                                      // 53: signal.backup.ContactMessage
-	(*DirectStoryReplyMessage)(nil),                                             // 54: signal.backup.DirectStoryReplyMessage
-	(*PaymentNotification)(nil),                                                 // 55: signal.backup.PaymentNotification
-	(*GiftBadge)(nil),                                                           // 56: signal.backup.GiftBadge
-	(*ViewOnceMessage)(nil),                                                     // 57: signal.backup.ViewOnceMessage
-	(*ContactAttachment)(nil),                                                   // 58: signal.backup.ContactAttachment
-	(*StickerMessage)(nil),                                                      // 59: signal.backup.StickerMessage
-	(*RemoteDeletedMessage)(nil),                                                // 60: signal.backup.RemoteDeletedMessage
-	(*Sticker)(nil),                                                             // 61: signal.backup.Sticker
-	(*LinkPreview)(nil),                                                         // 62: signal.backup.LinkPreview
-	(*MessageAttachment)(nil),                                                   // 63: signal.backup.MessageAttachment
-	(*FilePointer)(nil),                                                         // 64: signal.backup.FilePointer
-	(*Quote)(nil),                                                               // 65: signal.backup.Quote
-	(*BodyRange)(nil),                                                           // 66: signal.backup.BodyRange
-	(*Reaction)(nil),                                                            // 67: signal.backup.Reaction
-	(*Poll)(nil),                                                                // 68: signal.backup.Poll
-	(*AdminDeletedMessage)(nil),                                                 // 69: signal.backup.AdminDeletedMessage
-	(*ChatUpdateMessage)(nil),                                                   // 70: signal.backup.ChatUpdateMessage
-	(*IndividualCall)(nil),                                                      // 71: signal.backup.IndividualCall
-	(*GroupCall)(nil),                                                           // 72: signal.backup.GroupCall
-	(*SimpleChatUpdate)(nil),                                                    // 73: signal.backup.SimpleChatUpdate
-	(*ExpirationTimerChatUpdate)(nil),                                           // 74: signal.backup.ExpirationTimerChatUpdate
-	(*ProfileChangeChatUpdate)(nil),                                             // 75: signal.backup.ProfileChangeChatUpdate
-	(*LearnedProfileChatUpdate)(nil),                                            // 76: signal.backup.LearnedProfileChatUpdate
-	(*ThreadMergeChatUpdate)(nil),                                               // 77: signal.backup.ThreadMergeChatUpdate
-	(*SessionSwitchoverChatUpdate)(nil),                                         // 78: signal.backup.SessionSwitchoverChatUpdate
-	(*GroupChangeChatUpdate)(nil),                                               // 79: signal.backup.GroupChangeChatUpdate
-	(*GenericGroupUpdate)(nil),                                                  // 80: signal.backup.GenericGroupUpdate
-	(*GroupCreationUpdate)(nil),                                                 // 81: signal.backup.GroupCreationUpdate
-	(*GroupNameUpdate)(nil),                                                     // 82: signal.backup.GroupNameUpdate
-	(*GroupAvatarUpdate)(nil),                                                   // 83: signal.backup.GroupAvatarUpdate
-	(*GroupDescriptionUpdate)(nil),                                              // 84: signal.backup.GroupDescriptionUpdate
-	(*GroupMembershipAccessLevelChangeUpdate)(nil),                              // 85: signal.backup.GroupMembershipAccessLevelChangeUpdate
-	(*GroupAttributesAccessLevelChangeUpdate)(nil),                              // 86: signal.backup.GroupAttributesAccessLevelChangeUpdate
-	(*GroupMemberLabelAccessLevelChangeUpdate)(nil),                             // 87: signal.backup.GroupMemberLabelAccessLevelChangeUpdate
-	(*GroupTerminateChangeUpdate)(nil),                                          // 88: signal.backup.GroupTerminateChangeUpdate
-	(*GroupAnnouncementOnlyChangeUpdate)(nil),                                   // 89: signal.backup.GroupAnnouncementOnlyChangeUpdate
-	(*GroupAdminStatusUpdate)(nil),                                              // 90: signal.backup.GroupAdminStatusUpdate
-	(*GroupMemberLeftUpdate)(nil),                                               // 91: signal.backup.GroupMemberLeftUpdate
-	(*GroupMemberRemovedUpdate)(nil),                                            // 92: signal.backup.GroupMemberRemovedUpdate
-	(*SelfInvitedToGroupUpdate)(nil),                                            // 93: signal.backup.SelfInvitedToGroupUpdate
-	(*SelfInvitedOtherUserToGroupUpdate)(nil),                                   // 94: signal.backup.SelfInvitedOtherUserToGroupUpdate
-	(*GroupUnknownInviteeUpdate)(nil),                                           // 95: signal.backup.GroupUnknownInviteeUpdate
-	(*GroupInvitationAcceptedUpdate)(nil),                                       // 96: signal.backup.GroupInvitationAcceptedUpdate
-	(*GroupInvitationDeclinedUpdate)(nil),                                       // 97: signal.backup.GroupInvitationDeclinedUpdate
-	(*GroupMemberJoinedUpdate)(nil),                                             // 98: signal.backup.GroupMemberJoinedUpdate
-	(*GroupMemberAddedUpdate)(nil),                                              // 99: signal.backup.GroupMemberAddedUpdate
-	(*GroupSelfInvitationRevokedUpdate)(nil),                                    // 100: signal.backup.GroupSelfInvitationRevokedUpdate
-	(*GroupInvitationRevokedUpdate)(nil),                                        // 101: signal.backup.GroupInvitationRevokedUpdate
-	(*GroupJoinRequestUpdate)(nil),                                              // 102: signal.backup.GroupJoinRequestUpdate
-	(*GroupJoinRequestApprovalUpdate)(nil),                                      // 103: signal.backup.GroupJoinRequestApprovalUpdate
-	(*GroupJoinRequestCanceledUpdate)(nil),                                      // 104: signal.backup.GroupJoinRequestCanceledUpdate
-	(*GroupSequenceOfRequestsAndCancelsUpdate)(nil),                             // 105: signal.backup.GroupSequenceOfRequestsAndCancelsUpdate
-	(*GroupInviteLinkResetUpdate)(nil),                                          // 106: signal.backup.GroupInviteLinkResetUpdate
-	(*GroupInviteLinkEnabledUpdate)(nil),                                        // 107: signal.backup.GroupInviteLinkEnabledUpdate
-	(*GroupInviteLinkAdminApprovalUpdate)(nil),                                  // 108: signal.backup.GroupInviteLinkAdminApprovalUpdate
-	(*GroupInviteLinkDisabledUpdate)(nil),                                       // 109: signal.backup.GroupInviteLinkDisabledUpdate
-	(*GroupMemberJoinedByLinkUpdate)(nil),                                       // 110: signal.backup.GroupMemberJoinedByLinkUpdate
-	(*GroupV2MigrationUpdate)(nil),                                              // 111: signal.backup.GroupV2MigrationUpdate
-	(*GroupV2MigrationSelfInvitedUpdate)(nil),                                   // 112: signal.backup.GroupV2MigrationSelfInvitedUpdate
-	(*GroupV2MigrationInvitedMembersUpdate)(nil),                                // 113: signal.backup.GroupV2MigrationInvitedMembersUpdate
-	(*GroupV2MigrationDroppedMembersUpdate)(nil),                                // 114: signal.backup.GroupV2MigrationDroppedMembersUpdate
-	(*GroupExpirationTimerUpdate)(nil),                                          // 115: signal.backup.GroupExpirationTimerUpdate
-	(*PollTerminateUpdate)(nil),                                                 // 116: signal.backup.PollTerminateUpdate
-	(*PinMessageUpdate)(nil),                                                    // 117: signal.backup.PinMessageUpdate
-	(*StickerPack)(nil),                                                         // 118: signal.backup.StickerPack
-	(*ChatStyle)(nil),                                                           // 119: signal.backup.ChatStyle
-	(*NotificationProfile)(nil),                                                 // 120: signal.backup.NotificationProfile
-	(*ChatFolder)(nil),                                                          // 121: signal.backup.ChatFolder
-	(*AccountData_UsernameLink)(nil),                                            // 122: signal.backup.AccountData.UsernameLink
-	(*AccountData_AutoDownloadSettings)(nil),                                    // 123: signal.backup.AccountData.AutoDownloadSettings
-	(*AccountData_AccountSettings)(nil),                                         // 124: signal.backup.AccountData.AccountSettings
-	(*AccountData_SubscriberData)(nil),                                          // 125: signal.backup.AccountData.SubscriberData
-	(*AccountData_IAPSubscriberData)(nil),                                       // 126: signal.backup.AccountData.IAPSubscriberData
-	(*AccountData_AndroidSpecificSettings)(nil),                                 // 127: signal.backup.AccountData.AndroidSpecificSettings
-	(*Contact_Registered)(nil),                                                  // 128: signal.backup.Contact.Registered
-	(*Contact_NotRegistered)(nil),                                               // 129: signal.backup.Contact.NotRegistered
-	(*Contact_Name)(nil),                                                        // 130: signal.backup.Contact.Name
-	(*Group_GroupSnapshot)(nil),                                                 // 131: signal.backup.Group.GroupSnapshot
-	(*Group_GroupAttributeBlob)(nil),                                            // 132: signal.backup.Group.GroupAttributeBlob
-	(*Group_Member)(nil),                                                        // 133: signal.backup.Group.Member
-	(*Group_MemberPendingProfileKey)(nil),                                       // 134: signal.backup.Group.MemberPendingProfileKey
-	(*Group_MemberPendingAdminApproval)(nil),                                    // 135: signal.backup.Group.MemberPendingAdminApproval
-	(*Group_MemberBanned)(nil),                                                  // 136: signal.backup.Group.MemberBanned
-	(*Group_AccessControl)(nil),                                                 // 137: signal.backup.Group.AccessControl
-	(*ChatItem_IncomingMessageDetails)(nil),                                     // 138: signal.backup.ChatItem.IncomingMessageDetails
-	(*ChatItem_OutgoingMessageDetails)(nil),                                     // 139: signal.backup.ChatItem.OutgoingMessageDetails
-	(*ChatItem_DirectionlessMessageDetails)(nil),                                // 140: signal.backup.ChatItem.DirectionlessMessageDetails
-	(*ChatItem_PinDetails)(nil),                                                 // 141: signal.backup.ChatItem.PinDetails
-	(*SendStatus_Pending)(nil),                                                  // 142: signal.backup.SendStatus.Pending
-	(*SendStatus_Sent)(nil),                                                     // 143: signal.backup.SendStatus.Sent
-	(*SendStatus_Delivered)(nil),                                                // 144: signal.backup.SendStatus.Delivered
-	(*SendStatus_Read)(nil),                                                     // 145: signal.backup.SendStatus.Read
-	(*SendStatus_Viewed)(nil),                                                   // 146: signal.backup.SendStatus.Viewed
-	(*SendStatus_Skipped)(nil),                                                  // 147: signal.backup.SendStatus.Skipped
-	(*SendStatus_Failed)(nil),                                                   // 148: signal.backup.SendStatus.Failed
-	(*DirectStoryReplyMessage_TextReply)(nil),                                   // 149: signal.backup.DirectStoryReplyMessage.TextReply
-	(*PaymentNotification_TransactionDetails)(nil),                              // 150: signal.backup.PaymentNotification.TransactionDetails
-	(*PaymentNotification_TransactionDetails_MobileCoinTxoIdentification)(nil), // 151: signal.backup.PaymentNotification.TransactionDetails.MobileCoinTxoIdentification
-	(*PaymentNotification_TransactionDetails_FailedTransaction)(nil),           // 152: signal.backup.PaymentNotification.TransactionDetails.FailedTransaction
-	(*PaymentNotification_TransactionDetails_Transaction)(nil),                 // 153: signal.backup.PaymentNotification.TransactionDetails.Transaction
-	(*ContactAttachment_Name)(nil),                                             // 154: signal.backup.ContactAttachment.Name
-	(*ContactAttachment_Phone)(nil),                                            // 155: signal.backup.ContactAttachment.Phone
-	(*ContactAttachment_Email)(nil),                                            // 156: signal.backup.ContactAttachment.Email
-	(*ContactAttachment_PostalAddress)(nil),                                    // 157: signal.backup.ContactAttachment.PostalAddress
-	(*FilePointer_LocatorInfo)(nil),                                            // 158: signal.backup.FilePointer.LocatorInfo
-	(*Quote_QuotedAttachment)(nil),                                             // 159: signal.backup.Quote.QuotedAttachment
-	(*Poll_PollOption)(nil),                                                    // 160: signal.backup.Poll.PollOption
-	(*Poll_PollOption_PollVote)(nil),                                           // 161: signal.backup.Poll.PollOption.PollVote
-	(*GroupChangeChatUpdate_Update)(nil),                                       // 162: signal.backup.GroupChangeChatUpdate.Update
-	(*GroupInvitationRevokedUpdate_Invitee)(nil),                               // 163: signal.backup.GroupInvitationRevokedUpdate.Invitee
-	(*ChatStyle_Gradient)(nil),                                                 // 164: signal.backup.ChatStyle.Gradient
-	(*ChatStyle_CustomChatColor)(nil),                                          // 165: signal.backup.ChatStyle.CustomChatColor
-	(*ChatStyle_AutomaticBubbleColor)(nil),                                     // 166: signal.backup.ChatStyle.AutomaticBubbleColor
+	(AccountData_AccountSettings_UnreadBadgeType)(0),                            // 8: signal.backup.AccountData.AccountSettings.UnreadBadgeType
+	(AccountData_AndroidSpecificSettings_NavigationBarSize)(0),                  // 9: signal.backup.AccountData.AndroidSpecificSettings.NavigationBarSize
+	(Contact_IdentityState)(0),                                                  // 10: signal.backup.Contact.IdentityState
+	(Contact_Visibility)(0),                                                     // 11: signal.backup.Contact.Visibility
+	(Group_StorySendMode)(0),                                                    // 12: signal.backup.Group.StorySendMode
+	(Group_Member_Role)(0),                                                      // 13: signal.backup.Group.Member.Role
+	(Group_AccessControl_AccessRequired)(0),                                     // 14: signal.backup.Group.AccessControl.AccessRequired
+	(CallLink_Restrictions)(0),                                                  // 15: signal.backup.CallLink.Restrictions
+	(AdHocCall_State)(0),                                                        // 16: signal.backup.AdHocCall.State
+	(DistributionList_PrivacyMode)(0),                                           // 17: signal.backup.DistributionList.PrivacyMode
+	(SendStatus_Failed_FailureReason)(0),                                        // 18: signal.backup.SendStatus.Failed.FailureReason
+	(PaymentNotification_TransactionDetails_FailedTransaction_FailureReason)(0), // 19: signal.backup.PaymentNotification.TransactionDetails.FailedTransaction.FailureReason
+	(PaymentNotification_TransactionDetails_Transaction_Status)(0),              // 20: signal.backup.PaymentNotification.TransactionDetails.Transaction.Status
+	(GiftBadge_State)(0),                                                        // 21: signal.backup.GiftBadge.State
+	(ContactAttachment_Phone_Type)(0),                                           // 22: signal.backup.ContactAttachment.Phone.Type
+	(ContactAttachment_Email_Type)(0),                                           // 23: signal.backup.ContactAttachment.Email.Type
+	(ContactAttachment_PostalAddress_Type)(0),                                   // 24: signal.backup.ContactAttachment.PostalAddress.Type
+	(MessageAttachment_Flag)(0),                                                 // 25: signal.backup.MessageAttachment.Flag
+	(Quote_Type)(0),                                                             // 26: signal.backup.Quote.Type
+	(BodyRange_Style)(0),                                                        // 27: signal.backup.BodyRange.Style
+	(IndividualCall_Type)(0),                                                    // 28: signal.backup.IndividualCall.Type
+	(IndividualCall_Direction)(0),                                               // 29: signal.backup.IndividualCall.Direction
+	(IndividualCall_State)(0),                                                   // 30: signal.backup.IndividualCall.State
+	(GroupCall_State)(0),                                                        // 31: signal.backup.GroupCall.State
+	(SimpleChatUpdate_Type)(0),                                                  // 32: signal.backup.SimpleChatUpdate.Type
+	(ChatStyle_WallpaperPreset)(0),                                              // 33: signal.backup.ChatStyle.WallpaperPreset
+	(ChatStyle_BubbleColorPreset)(0),                                            // 34: signal.backup.ChatStyle.BubbleColorPreset
+	(NotificationProfile_DayOfWeek)(0),                                          // 35: signal.backup.NotificationProfile.DayOfWeek
+	(ChatFolder_FolderType)(0),                                                  // 36: signal.backup.ChatFolder.FolderType
+	(*BackupInfo)(nil),                                                          // 37: signal.backup.BackupInfo
+	(*Frame)(nil),                                                               // 38: signal.backup.Frame
+	(*AccountData)(nil),                                                         // 39: signal.backup.AccountData
+	(*Recipient)(nil),                                                           // 40: signal.backup.Recipient
+	(*Contact)(nil),                                                             // 41: signal.backup.Contact
+	(*Group)(nil),                                                               // 42: signal.backup.Group
+	(*Self)(nil),                                                                // 43: signal.backup.Self
+	(*ReleaseNotes)(nil),                                                        // 44: signal.backup.ReleaseNotes
+	(*Chat)(nil),                                                                // 45: signal.backup.Chat
+	(*CallLink)(nil),                                                            // 46: signal.backup.CallLink
+	(*AdHocCall)(nil),                                                           // 47: signal.backup.AdHocCall
+	(*DistributionListItem)(nil),                                                // 48: signal.backup.DistributionListItem
+	(*DistributionList)(nil),                                                    // 49: signal.backup.DistributionList
+	(*ChatItem)(nil),                                                            // 50: signal.backup.ChatItem
+	(*SendStatus)(nil),                                                          // 51: signal.backup.SendStatus
+	(*Text)(nil),                                                                // 52: signal.backup.Text
+	(*StandardMessage)(nil),                                                     // 53: signal.backup.StandardMessage
+	(*ContactMessage)(nil),                                                      // 54: signal.backup.ContactMessage
+	(*DirectStoryReplyMessage)(nil),                                             // 55: signal.backup.DirectStoryReplyMessage
+	(*PaymentNotification)(nil),                                                 // 56: signal.backup.PaymentNotification
+	(*GiftBadge)(nil),                                                           // 57: signal.backup.GiftBadge
+	(*ViewOnceMessage)(nil),                                                     // 58: signal.backup.ViewOnceMessage
+	(*ContactAttachment)(nil),                                                   // 59: signal.backup.ContactAttachment
+	(*StickerMessage)(nil),                                                      // 60: signal.backup.StickerMessage
+	(*RemoteDeletedMessage)(nil),                                                // 61: signal.backup.RemoteDeletedMessage
+	(*Sticker)(nil),                                                             // 62: signal.backup.Sticker
+	(*LinkPreview)(nil),                                                         // 63: signal.backup.LinkPreview
+	(*MessageAttachment)(nil),                                                   // 64: signal.backup.MessageAttachment
+	(*FilePointer)(nil),                                                         // 65: signal.backup.FilePointer
+	(*Quote)(nil),                                                               // 66: signal.backup.Quote
+	(*BodyRange)(nil),                                                           // 67: signal.backup.BodyRange
+	(*Reaction)(nil),                                                            // 68: signal.backup.Reaction
+	(*Poll)(nil),                                                                // 69: signal.backup.Poll
+	(*AdminDeletedMessage)(nil),                                                 // 70: signal.backup.AdminDeletedMessage
+	(*ChatUpdateMessage)(nil),                                                   // 71: signal.backup.ChatUpdateMessage
+	(*IndividualCall)(nil),                                                      // 72: signal.backup.IndividualCall
+	(*GroupCall)(nil),                                                           // 73: signal.backup.GroupCall
+	(*SimpleChatUpdate)(nil),                                                    // 74: signal.backup.SimpleChatUpdate
+	(*ExpirationTimerChatUpdate)(nil),                                           // 75: signal.backup.ExpirationTimerChatUpdate
+	(*ProfileChangeChatUpdate)(nil),                                             // 76: signal.backup.ProfileChangeChatUpdate
+	(*LearnedProfileChatUpdate)(nil),                                            // 77: signal.backup.LearnedProfileChatUpdate
+	(*ThreadMergeChatUpdate)(nil),                                               // 78: signal.backup.ThreadMergeChatUpdate
+	(*SessionSwitchoverChatUpdate)(nil),                                         // 79: signal.backup.SessionSwitchoverChatUpdate
+	(*GroupChangeChatUpdate)(nil),                                               // 80: signal.backup.GroupChangeChatUpdate
+	(*GenericGroupUpdate)(nil),                                                  // 81: signal.backup.GenericGroupUpdate
+	(*GroupCreationUpdate)(nil),                                                 // 82: signal.backup.GroupCreationUpdate
+	(*GroupNameUpdate)(nil),                                                     // 83: signal.backup.GroupNameUpdate
+	(*GroupAvatarUpdate)(nil),                                                   // 84: signal.backup.GroupAvatarUpdate
+	(*GroupDescriptionUpdate)(nil),                                              // 85: signal.backup.GroupDescriptionUpdate
+	(*GroupMembershipAccessLevelChangeUpdate)(nil),                              // 86: signal.backup.GroupMembershipAccessLevelChangeUpdate
+	(*GroupAttributesAccessLevelChangeUpdate)(nil),                              // 87: signal.backup.GroupAttributesAccessLevelChangeUpdate
+	(*GroupMemberLabelAccessLevelChangeUpdate)(nil),                             // 88: signal.backup.GroupMemberLabelAccessLevelChangeUpdate
+	(*GroupTerminateChangeUpdate)(nil),                                          // 89: signal.backup.GroupTerminateChangeUpdate
+	(*GroupAnnouncementOnlyChangeUpdate)(nil),                                   // 90: signal.backup.GroupAnnouncementOnlyChangeUpdate
+	(*GroupAdminStatusUpdate)(nil),                                              // 91: signal.backup.GroupAdminStatusUpdate
+	(*GroupMemberLeftUpdate)(nil),                                               // 92: signal.backup.GroupMemberLeftUpdate
+	(*GroupMemberRemovedUpdate)(nil),                                            // 93: signal.backup.GroupMemberRemovedUpdate
+	(*SelfInvitedToGroupUpdate)(nil),                                            // 94: signal.backup.SelfInvitedToGroupUpdate
+	(*SelfInvitedOtherUserToGroupUpdate)(nil),                                   // 95: signal.backup.SelfInvitedOtherUserToGroupUpdate
+	(*GroupUnknownInviteeUpdate)(nil),                                           // 96: signal.backup.GroupUnknownInviteeUpdate
+	(*GroupInvitationAcceptedUpdate)(nil),                                       // 97: signal.backup.GroupInvitationAcceptedUpdate
+	(*GroupInvitationDeclinedUpdate)(nil),                                       // 98: signal.backup.GroupInvitationDeclinedUpdate
+	(*GroupMemberJoinedUpdate)(nil),                                             // 99: signal.backup.GroupMemberJoinedUpdate
+	(*GroupMemberAddedUpdate)(nil),                                              // 100: signal.backup.GroupMemberAddedUpdate
+	(*GroupSelfInvitationRevokedUpdate)(nil),                                    // 101: signal.backup.GroupSelfInvitationRevokedUpdate
+	(*GroupInvitationRevokedUpdate)(nil),                                        // 102: signal.backup.GroupInvitationRevokedUpdate
+	(*GroupJoinRequestUpdate)(nil),                                              // 103: signal.backup.GroupJoinRequestUpdate
+	(*GroupJoinRequestApprovalUpdate)(nil),                                      // 104: signal.backup.GroupJoinRequestApprovalUpdate
+	(*GroupJoinRequestCanceledUpdate)(nil),                                      // 105: signal.backup.GroupJoinRequestCanceledUpdate
+	(*GroupSequenceOfRequestsAndCancelsUpdate)(nil),                             // 106: signal.backup.GroupSequenceOfRequestsAndCancelsUpdate
+	(*GroupInviteLinkResetUpdate)(nil),                                          // 107: signal.backup.GroupInviteLinkResetUpdate
+	(*GroupInviteLinkEnabledUpdate)(nil),                                        // 108: signal.backup.GroupInviteLinkEnabledUpdate
+	(*GroupInviteLinkAdminApprovalUpdate)(nil),                                  // 109: signal.backup.GroupInviteLinkAdminApprovalUpdate
+	(*GroupInviteLinkDisabledUpdate)(nil),                                       // 110: signal.backup.GroupInviteLinkDisabledUpdate
+	(*GroupMemberJoinedByLinkUpdate)(nil),                                       // 111: signal.backup.GroupMemberJoinedByLinkUpdate
+	(*GroupV2MigrationUpdate)(nil),                                              // 112: signal.backup.GroupV2MigrationUpdate
+	(*GroupV2MigrationSelfInvitedUpdate)(nil),                                   // 113: signal.backup.GroupV2MigrationSelfInvitedUpdate
+	(*GroupV2MigrationInvitedMembersUpdate)(nil),                                // 114: signal.backup.GroupV2MigrationInvitedMembersUpdate
+	(*GroupV2MigrationDroppedMembersUpdate)(nil),                                // 115: signal.backup.GroupV2MigrationDroppedMembersUpdate
+	(*GroupExpirationTimerUpdate)(nil),                                          // 116: signal.backup.GroupExpirationTimerUpdate
+	(*PollTerminateUpdate)(nil),                                                 // 117: signal.backup.PollTerminateUpdate
+	(*PinMessageUpdate)(nil),                                                    // 118: signal.backup.PinMessageUpdate
+	(*StickerPack)(nil),                                                         // 119: signal.backup.StickerPack
+	(*ChatStyle)(nil),                                                           // 120: signal.backup.ChatStyle
+	(*NotificationProfile)(nil),                                                 // 121: signal.backup.NotificationProfile
+	(*ChatFolder)(nil),                                                          // 122: signal.backup.ChatFolder
+	(*AccountData_UsernameLink)(nil),                                            // 123: signal.backup.AccountData.UsernameLink
+	(*AccountData_AutoDownloadSettings)(nil),                                    // 124: signal.backup.AccountData.AutoDownloadSettings
+	(*AccountData_AccountSettings)(nil),                                         // 125: signal.backup.AccountData.AccountSettings
+	(*AccountData_SubscriberData)(nil),                                          // 126: signal.backup.AccountData.SubscriberData
+	(*AccountData_IAPSubscriberData)(nil),                                       // 127: signal.backup.AccountData.IAPSubscriberData
+	(*AccountData_AndroidSpecificSettings)(nil),                                 // 128: signal.backup.AccountData.AndroidSpecificSettings
+	(*Contact_Registered)(nil),                                                  // 129: signal.backup.Contact.Registered
+	(*Contact_NotRegistered)(nil),                                               // 130: signal.backup.Contact.NotRegistered
+	(*Contact_Name)(nil),                                                        // 131: signal.backup.Contact.Name
+	(*Group_GroupSnapshot)(nil),                                                 // 132: signal.backup.Group.GroupSnapshot
+	(*Group_GroupAttributeBlob)(nil),                                            // 133: signal.backup.Group.GroupAttributeBlob
+	(*Group_Member)(nil),                                                        // 134: signal.backup.Group.Member
+	(*Group_MemberPendingProfileKey)(nil),                                       // 135: signal.backup.Group.MemberPendingProfileKey
+	(*Group_MemberPendingAdminApproval)(nil),                                    // 136: signal.backup.Group.MemberPendingAdminApproval
+	(*Group_MemberBanned)(nil),                                                  // 137: signal.backup.Group.MemberBanned
+	(*Group_AccessControl)(nil),                                                 // 138: signal.backup.Group.AccessControl
+	(*ChatItem_IncomingMessageDetails)(nil),                                     // 139: signal.backup.ChatItem.IncomingMessageDetails
+	(*ChatItem_OutgoingMessageDetails)(nil),                                     // 140: signal.backup.ChatItem.OutgoingMessageDetails
+	(*ChatItem_DirectionlessMessageDetails)(nil),                                // 141: signal.backup.ChatItem.DirectionlessMessageDetails
+	(*ChatItem_PinDetails)(nil),                                                 // 142: signal.backup.ChatItem.PinDetails
+	(*SendStatus_Pending)(nil),                                                  // 143: signal.backup.SendStatus.Pending
+	(*SendStatus_Sent)(nil),                                                     // 144: signal.backup.SendStatus.Sent
+	(*SendStatus_Delivered)(nil),                                                // 145: signal.backup.SendStatus.Delivered
+	(*SendStatus_Read)(nil),                                                     // 146: signal.backup.SendStatus.Read
+	(*SendStatus_Viewed)(nil),                                                   // 147: signal.backup.SendStatus.Viewed
+	(*SendStatus_Skipped)(nil),                                                  // 148: signal.backup.SendStatus.Skipped
+	(*SendStatus_Failed)(nil),                                                   // 149: signal.backup.SendStatus.Failed
+	(*DirectStoryReplyMessage_TextReply)(nil),                                   // 150: signal.backup.DirectStoryReplyMessage.TextReply
+	(*PaymentNotification_TransactionDetails)(nil),                              // 151: signal.backup.PaymentNotification.TransactionDetails
+	(*PaymentNotification_TransactionDetails_MobileCoinTxoIdentification)(nil), // 152: signal.backup.PaymentNotification.TransactionDetails.MobileCoinTxoIdentification
+	(*PaymentNotification_TransactionDetails_FailedTransaction)(nil),           // 153: signal.backup.PaymentNotification.TransactionDetails.FailedTransaction
+	(*PaymentNotification_TransactionDetails_Transaction)(nil),                 // 154: signal.backup.PaymentNotification.TransactionDetails.Transaction
+	(*ContactAttachment_Name)(nil),                                             // 155: signal.backup.ContactAttachment.Name
+	(*ContactAttachment_Phone)(nil),                                            // 156: signal.backup.ContactAttachment.Phone
+	(*ContactAttachment_Email)(nil),                                            // 157: signal.backup.ContactAttachment.Email
+	(*ContactAttachment_PostalAddress)(nil),                                    // 158: signal.backup.ContactAttachment.PostalAddress
+	(*FilePointer_LocatorInfo)(nil),                                            // 159: signal.backup.FilePointer.LocatorInfo
+	(*Quote_QuotedAttachment)(nil),                                             // 160: signal.backup.Quote.QuotedAttachment
+	(*Poll_PollOption)(nil),                                                    // 161: signal.backup.Poll.PollOption
+	(*Poll_PollOption_PollVote)(nil),                                           // 162: signal.backup.Poll.PollOption.PollVote
+	(*GroupChangeChatUpdate_Update)(nil),                                       // 163: signal.backup.GroupChangeChatUpdate.Update
+	(*GroupInvitationRevokedUpdate_Invitee)(nil),                               // 164: signal.backup.GroupInvitationRevokedUpdate.Invitee
+	(*ChatStyle_Gradient)(nil),                                                 // 165: signal.backup.ChatStyle.Gradient
+	(*ChatStyle_CustomChatColor)(nil),                                          // 166: signal.backup.ChatStyle.CustomChatColor
+	(*ChatStyle_AutomaticBubbleColor)(nil),                                     // 167: signal.backup.ChatStyle.AutomaticBubbleColor
 }
 var file_backuppb_Backup_proto_depIdxs = []int32{
-	38,  // 0: signal.backup.Frame.account:type_name -> signal.backup.AccountData
-	39,  // 1: signal.backup.Frame.recipient:type_name -> signal.backup.Recipient
-	44,  // 2: signal.backup.Frame.chat:type_name -> signal.backup.Chat
-	49,  // 3: signal.backup.Frame.chatItem:type_name -> signal.backup.ChatItem
-	118, // 4: signal.backup.Frame.stickerPack:type_name -> signal.backup.StickerPack
-	46,  // 5: signal.backup.Frame.adHocCall:type_name -> signal.backup.AdHocCall
-	120, // 6: signal.backup.Frame.notificationProfile:type_name -> signal.backup.NotificationProfile
-	121, // 7: signal.backup.Frame.chatFolder:type_name -> signal.backup.ChatFolder
-	122, // 8: signal.backup.AccountData.usernameLink:type_name -> signal.backup.AccountData.UsernameLink
-	125, // 9: signal.backup.AccountData.donationSubscriberData:type_name -> signal.backup.AccountData.SubscriberData
-	124, // 10: signal.backup.AccountData.accountSettings:type_name -> signal.backup.AccountData.AccountSettings
-	126, // 11: signal.backup.AccountData.backupsSubscriberData:type_name -> signal.backup.AccountData.IAPSubscriberData
-	127, // 12: signal.backup.AccountData.androidSpecificSettings:type_name -> signal.backup.AccountData.AndroidSpecificSettings
-	40,  // 13: signal.backup.Recipient.contact:type_name -> signal.backup.Contact
-	41,  // 14: signal.backup.Recipient.group:type_name -> signal.backup.Group
-	47,  // 15: signal.backup.Recipient.distributionList:type_name -> signal.backup.DistributionListItem
-	42,  // 16: signal.backup.Recipient.self:type_name -> signal.backup.Self
-	43,  // 17: signal.backup.Recipient.releaseNotes:type_name -> signal.backup.ReleaseNotes
-	45,  // 18: signal.backup.Recipient.callLink:type_name -> signal.backup.CallLink
-	10,  // 19: signal.backup.Contact.visibility:type_name -> signal.backup.Contact.Visibility
-	128, // 20: signal.backup.Contact.registered:type_name -> signal.backup.Contact.Registered
-	129, // 21: signal.backup.Contact.notRegistered:type_name -> signal.backup.Contact.NotRegistered
-	9,   // 22: signal.backup.Contact.identityState:type_name -> signal.backup.Contact.IdentityState
-	130, // 23: signal.backup.Contact.nickname:type_name -> signal.backup.Contact.Name
+	39,  // 0: signal.backup.Frame.account:type_name -> signal.backup.AccountData
+	40,  // 1: signal.backup.Frame.recipient:type_name -> signal.backup.Recipient
+	45,  // 2: signal.backup.Frame.chat:type_name -> signal.backup.Chat
+	50,  // 3: signal.backup.Frame.chatItem:type_name -> signal.backup.ChatItem
+	119, // 4: signal.backup.Frame.stickerPack:type_name -> signal.backup.StickerPack
+	47,  // 5: signal.backup.Frame.adHocCall:type_name -> signal.backup.AdHocCall
+	121, // 6: signal.backup.Frame.notificationProfile:type_name -> signal.backup.NotificationProfile
+	122, // 7: signal.backup.Frame.chatFolder:type_name -> signal.backup.ChatFolder
+	123, // 8: signal.backup.AccountData.usernameLink:type_name -> signal.backup.AccountData.UsernameLink
+	126, // 9: signal.backup.AccountData.donationSubscriberData:type_name -> signal.backup.AccountData.SubscriberData
+	125, // 10: signal.backup.AccountData.accountSettings:type_name -> signal.backup.AccountData.AccountSettings
+	127, // 11: signal.backup.AccountData.backupsSubscriberData:type_name -> signal.backup.AccountData.IAPSubscriberData
+	128, // 12: signal.backup.AccountData.androidSpecificSettings:type_name -> signal.backup.AccountData.AndroidSpecificSettings
+	41,  // 13: signal.backup.Recipient.contact:type_name -> signal.backup.Contact
+	42,  // 14: signal.backup.Recipient.group:type_name -> signal.backup.Group
+	48,  // 15: signal.backup.Recipient.distributionList:type_name -> signal.backup.DistributionListItem
+	43,  // 16: signal.backup.Recipient.self:type_name -> signal.backup.Self
+	44,  // 17: signal.backup.Recipient.releaseNotes:type_name -> signal.backup.ReleaseNotes
+	46,  // 18: signal.backup.Recipient.callLink:type_name -> signal.backup.CallLink
+	11,  // 19: signal.backup.Contact.visibility:type_name -> signal.backup.Contact.Visibility
+	129, // 20: signal.backup.Contact.registered:type_name -> signal.backup.Contact.Registered
+	130, // 21: signal.backup.Contact.notRegistered:type_name -> signal.backup.Contact.NotRegistered
+	10,  // 22: signal.backup.Contact.identityState:type_name -> signal.backup.Contact.IdentityState
+	131, // 23: signal.backup.Contact.nickname:type_name -> signal.backup.Contact.Name
 	0,   // 24: signal.backup.Contact.avatarColor:type_name -> signal.backup.AvatarColor
-	11,  // 25: signal.backup.Group.storySendMode:type_name -> signal.backup.Group.StorySendMode
-	131, // 26: signal.backup.Group.snapshot:type_name -> signal.backup.Group.GroupSnapshot
+	12,  // 25: signal.backup.Group.storySendMode:type_name -> signal.backup.Group.StorySendMode
+	132, // 26: signal.backup.Group.snapshot:type_name -> signal.backup.Group.GroupSnapshot
 	0,   // 27: signal.backup.Group.avatarColor:type_name -> signal.backup.AvatarColor
 	0,   // 28: signal.backup.Self.avatarColor:type_name -> signal.backup.AvatarColor
-	119, // 29: signal.backup.Chat.style:type_name -> signal.backup.ChatStyle
-	14,  // 30: signal.backup.CallLink.restrictions:type_name -> signal.backup.CallLink.Restrictions
-	15,  // 31: signal.backup.AdHocCall.state:type_name -> signal.backup.AdHocCall.State
-	48,  // 32: signal.backup.DistributionListItem.distributionList:type_name -> signal.backup.DistributionList
-	16,  // 33: signal.backup.DistributionList.privacyMode:type_name -> signal.backup.DistributionList.PrivacyMode
-	49,  // 34: signal.backup.ChatItem.revisions:type_name -> signal.backup.ChatItem
-	138, // 35: signal.backup.ChatItem.incoming:type_name -> signal.backup.ChatItem.IncomingMessageDetails
-	139, // 36: signal.backup.ChatItem.outgoing:type_name -> signal.backup.ChatItem.OutgoingMessageDetails
-	140, // 37: signal.backup.ChatItem.directionless:type_name -> signal.backup.ChatItem.DirectionlessMessageDetails
-	52,  // 38: signal.backup.ChatItem.standardMessage:type_name -> signal.backup.StandardMessage
-	53,  // 39: signal.backup.ChatItem.contactMessage:type_name -> signal.backup.ContactMessage
-	59,  // 40: signal.backup.ChatItem.stickerMessage:type_name -> signal.backup.StickerMessage
-	60,  // 41: signal.backup.ChatItem.remoteDeletedMessage:type_name -> signal.backup.RemoteDeletedMessage
-	70,  // 42: signal.backup.ChatItem.updateMessage:type_name -> signal.backup.ChatUpdateMessage
-	55,  // 43: signal.backup.ChatItem.paymentNotification:type_name -> signal.backup.PaymentNotification
-	56,  // 44: signal.backup.ChatItem.giftBadge:type_name -> signal.backup.GiftBadge
-	57,  // 45: signal.backup.ChatItem.viewOnceMessage:type_name -> signal.backup.ViewOnceMessage
-	54,  // 46: signal.backup.ChatItem.directStoryReplyMessage:type_name -> signal.backup.DirectStoryReplyMessage
-	68,  // 47: signal.backup.ChatItem.poll:type_name -> signal.backup.Poll
-	69,  // 48: signal.backup.ChatItem.adminDeletedMessage:type_name -> signal.backup.AdminDeletedMessage
-	141, // 49: signal.backup.ChatItem.pinDetails:type_name -> signal.backup.ChatItem.PinDetails
-	142, // 50: signal.backup.SendStatus.pending:type_name -> signal.backup.SendStatus.Pending
-	143, // 51: signal.backup.SendStatus.sent:type_name -> signal.backup.SendStatus.Sent
-	144, // 52: signal.backup.SendStatus.delivered:type_name -> signal.backup.SendStatus.Delivered
-	145, // 53: signal.backup.SendStatus.read:type_name -> signal.backup.SendStatus.Read
-	146, // 54: signal.backup.SendStatus.viewed:type_name -> signal.backup.SendStatus.Viewed
-	147, // 55: signal.backup.SendStatus.skipped:type_name -> signal.backup.SendStatus.Skipped
-	148, // 56: signal.backup.SendStatus.failed:type_name -> signal.backup.SendStatus.Failed
-	66,  // 57: signal.backup.Text.bodyRanges:type_name -> signal.backup.BodyRange
-	65,  // 58: signal.backup.StandardMessage.quote:type_name -> signal.backup.Quote
-	51,  // 59: signal.backup.StandardMessage.text:type_name -> signal.backup.Text
-	63,  // 60: signal.backup.StandardMessage.attachments:type_name -> signal.backup.MessageAttachment
-	62,  // 61: signal.backup.StandardMessage.linkPreview:type_name -> signal.backup.LinkPreview
-	64,  // 62: signal.backup.StandardMessage.longText:type_name -> signal.backup.FilePointer
-	67,  // 63: signal.backup.StandardMessage.reactions:type_name -> signal.backup.Reaction
-	58,  // 64: signal.backup.ContactMessage.contact:type_name -> signal.backup.ContactAttachment
-	67,  // 65: signal.backup.ContactMessage.reactions:type_name -> signal.backup.Reaction
-	149, // 66: signal.backup.DirectStoryReplyMessage.textReply:type_name -> signal.backup.DirectStoryReplyMessage.TextReply
-	67,  // 67: signal.backup.DirectStoryReplyMessage.reactions:type_name -> signal.backup.Reaction
-	150, // 68: signal.backup.PaymentNotification.transactionDetails:type_name -> signal.backup.PaymentNotification.TransactionDetails
-	20,  // 69: signal.backup.GiftBadge.state:type_name -> signal.backup.GiftBadge.State
-	63,  // 70: signal.backup.ViewOnceMessage.attachment:type_name -> signal.backup.MessageAttachment
-	67,  // 71: signal.backup.ViewOnceMessage.reactions:type_name -> signal.backup.Reaction
-	154, // 72: signal.backup.ContactAttachment.name:type_name -> signal.backup.ContactAttachment.Name
-	155, // 73: signal.backup.ContactAttachment.number:type_name -> signal.backup.ContactAttachment.Phone
-	156, // 74: signal.backup.ContactAttachment.email:type_name -> signal.backup.ContactAttachment.Email
-	157, // 75: signal.backup.ContactAttachment.address:type_name -> signal.backup.ContactAttachment.PostalAddress
-	64,  // 76: signal.backup.ContactAttachment.avatar:type_name -> signal.backup.FilePointer
-	61,  // 77: signal.backup.StickerMessage.sticker:type_name -> signal.backup.Sticker
-	67,  // 78: signal.backup.StickerMessage.reactions:type_name -> signal.backup.Reaction
-	64,  // 79: signal.backup.Sticker.data:type_name -> signal.backup.FilePointer
-	64,  // 80: signal.backup.LinkPreview.image:type_name -> signal.backup.FilePointer
-	64,  // 81: signal.backup.MessageAttachment.pointer:type_name -> signal.backup.FilePointer
-	24,  // 82: signal.backup.MessageAttachment.flag:type_name -> signal.backup.MessageAttachment.Flag
-	158, // 83: signal.backup.FilePointer.locatorInfo:type_name -> signal.backup.FilePointer.LocatorInfo
-	51,  // 84: signal.backup.Quote.text:type_name -> signal.backup.Text
-	159, // 85: signal.backup.Quote.attachments:type_name -> signal.backup.Quote.QuotedAttachment
-	25,  // 86: signal.backup.Quote.type:type_name -> signal.backup.Quote.Type
-	26,  // 87: signal.backup.BodyRange.style:type_name -> signal.backup.BodyRange.Style
-	160, // 88: signal.backup.Poll.options:type_name -> signal.backup.Poll.PollOption
-	67,  // 89: signal.backup.Poll.reactions:type_name -> signal.backup.Reaction
-	73,  // 90: signal.backup.ChatUpdateMessage.simpleUpdate:type_name -> signal.backup.SimpleChatUpdate
-	79,  // 91: signal.backup.ChatUpdateMessage.groupChange:type_name -> signal.backup.GroupChangeChatUpdate
-	74,  // 92: signal.backup.ChatUpdateMessage.expirationTimerChange:type_name -> signal.backup.ExpirationTimerChatUpdate
-	75,  // 93: signal.backup.ChatUpdateMessage.profileChange:type_name -> signal.backup.ProfileChangeChatUpdate
-	77,  // 94: signal.backup.ChatUpdateMessage.threadMerge:type_name -> signal.backup.ThreadMergeChatUpdate
-	78,  // 95: signal.backup.ChatUpdateMessage.sessionSwitchover:type_name -> signal.backup.SessionSwitchoverChatUpdate
-	71,  // 96: signal.backup.ChatUpdateMessage.individualCall:type_name -> signal.backup.IndividualCall
-	72,  // 97: signal.backup.ChatUpdateMessage.groupCall:type_name -> signal.backup.GroupCall
-	76,  // 98: signal.backup.ChatUpdateMessage.learnedProfileChange:type_name -> signal.backup.LearnedProfileChatUpdate
-	116, // 99: signal.backup.ChatUpdateMessage.pollTerminate:type_name -> signal.backup.PollTerminateUpdate
-	117, // 100: signal.backup.ChatUpdateMessage.pinMessage:type_name -> signal.backup.PinMessageUpdate
-	27,  // 101: signal.backup.IndividualCall.type:type_name -> signal.backup.IndividualCall.Type
-	28,  // 102: signal.backup.IndividualCall.direction:type_name -> signal.backup.IndividualCall.Direction
-	29,  // 103: signal.backup.IndividualCall.state:type_name -> signal.backup.IndividualCall.State
-	30,  // 104: signal.backup.GroupCall.state:type_name -> signal.backup.GroupCall.State
-	31,  // 105: signal.backup.SimpleChatUpdate.type:type_name -> signal.backup.SimpleChatUpdate.Type
-	162, // 106: signal.backup.GroupChangeChatUpdate.updates:type_name -> signal.backup.GroupChangeChatUpdate.Update
+	120, // 29: signal.backup.Chat.style:type_name -> signal.backup.ChatStyle
+	15,  // 30: signal.backup.CallLink.restrictions:type_name -> signal.backup.CallLink.Restrictions
+	16,  // 31: signal.backup.AdHocCall.state:type_name -> signal.backup.AdHocCall.State
+	49,  // 32: signal.backup.DistributionListItem.distributionList:type_name -> signal.backup.DistributionList
+	17,  // 33: signal.backup.DistributionList.privacyMode:type_name -> signal.backup.DistributionList.PrivacyMode
+	50,  // 34: signal.backup.ChatItem.revisions:type_name -> signal.backup.ChatItem
+	139, // 35: signal.backup.ChatItem.incoming:type_name -> signal.backup.ChatItem.IncomingMessageDetails
+	140, // 36: signal.backup.ChatItem.outgoing:type_name -> signal.backup.ChatItem.OutgoingMessageDetails
+	141, // 37: signal.backup.ChatItem.directionless:type_name -> signal.backup.ChatItem.DirectionlessMessageDetails
+	53,  // 38: signal.backup.ChatItem.standardMessage:type_name -> signal.backup.StandardMessage
+	54,  // 39: signal.backup.ChatItem.contactMessage:type_name -> signal.backup.ContactMessage
+	60,  // 40: signal.backup.ChatItem.stickerMessage:type_name -> signal.backup.StickerMessage
+	61,  // 41: signal.backup.ChatItem.remoteDeletedMessage:type_name -> signal.backup.RemoteDeletedMessage
+	71,  // 42: signal.backup.ChatItem.updateMessage:type_name -> signal.backup.ChatUpdateMessage
+	56,  // 43: signal.backup.ChatItem.paymentNotification:type_name -> signal.backup.PaymentNotification
+	57,  // 44: signal.backup.ChatItem.giftBadge:type_name -> signal.backup.GiftBadge
+	58,  // 45: signal.backup.ChatItem.viewOnceMessage:type_name -> signal.backup.ViewOnceMessage
+	55,  // 46: signal.backup.ChatItem.directStoryReplyMessage:type_name -> signal.backup.DirectStoryReplyMessage
+	69,  // 47: signal.backup.ChatItem.poll:type_name -> signal.backup.Poll
+	70,  // 48: signal.backup.ChatItem.adminDeletedMessage:type_name -> signal.backup.AdminDeletedMessage
+	142, // 49: signal.backup.ChatItem.pinDetails:type_name -> signal.backup.ChatItem.PinDetails
+	143, // 50: signal.backup.SendStatus.pending:type_name -> signal.backup.SendStatus.Pending
+	144, // 51: signal.backup.SendStatus.sent:type_name -> signal.backup.SendStatus.Sent
+	145, // 52: signal.backup.SendStatus.delivered:type_name -> signal.backup.SendStatus.Delivered
+	146, // 53: signal.backup.SendStatus.read:type_name -> signal.backup.SendStatus.Read
+	147, // 54: signal.backup.SendStatus.viewed:type_name -> signal.backup.SendStatus.Viewed
+	148, // 55: signal.backup.SendStatus.skipped:type_name -> signal.backup.SendStatus.Skipped
+	149, // 56: signal.backup.SendStatus.failed:type_name -> signal.backup.SendStatus.Failed
+	67,  // 57: signal.backup.Text.bodyRanges:type_name -> signal.backup.BodyRange
+	66,  // 58: signal.backup.StandardMessage.quote:type_name -> signal.backup.Quote
+	52,  // 59: signal.backup.StandardMessage.text:type_name -> signal.backup.Text
+	64,  // 60: signal.backup.StandardMessage.attachments:type_name -> signal.backup.MessageAttachment
+	63,  // 61: signal.backup.StandardMessage.linkPreview:type_name -> signal.backup.LinkPreview
+	65,  // 62: signal.backup.StandardMessage.longText:type_name -> signal.backup.FilePointer
+	68,  // 63: signal.backup.StandardMessage.reactions:type_name -> signal.backup.Reaction
+	59,  // 64: signal.backup.ContactMessage.contact:type_name -> signal.backup.ContactAttachment
+	68,  // 65: signal.backup.ContactMessage.reactions:type_name -> signal.backup.Reaction
+	150, // 66: signal.backup.DirectStoryReplyMessage.textReply:type_name -> signal.backup.DirectStoryReplyMessage.TextReply
+	68,  // 67: signal.backup.DirectStoryReplyMessage.reactions:type_name -> signal.backup.Reaction
+	151, // 68: signal.backup.PaymentNotification.transactionDetails:type_name -> signal.backup.PaymentNotification.TransactionDetails
+	21,  // 69: signal.backup.GiftBadge.state:type_name -> signal.backup.GiftBadge.State
+	64,  // 70: signal.backup.ViewOnceMessage.attachment:type_name -> signal.backup.MessageAttachment
+	68,  // 71: signal.backup.ViewOnceMessage.reactions:type_name -> signal.backup.Reaction
+	155, // 72: signal.backup.ContactAttachment.name:type_name -> signal.backup.ContactAttachment.Name
+	156, // 73: signal.backup.ContactAttachment.number:type_name -> signal.backup.ContactAttachment.Phone
+	157, // 74: signal.backup.ContactAttachment.email:type_name -> signal.backup.ContactAttachment.Email
+	158, // 75: signal.backup.ContactAttachment.address:type_name -> signal.backup.ContactAttachment.PostalAddress
+	65,  // 76: signal.backup.ContactAttachment.avatar:type_name -> signal.backup.FilePointer
+	62,  // 77: signal.backup.StickerMessage.sticker:type_name -> signal.backup.Sticker
+	68,  // 78: signal.backup.StickerMessage.reactions:type_name -> signal.backup.Reaction
+	65,  // 79: signal.backup.Sticker.data:type_name -> signal.backup.FilePointer
+	65,  // 80: signal.backup.LinkPreview.image:type_name -> signal.backup.FilePointer
+	65,  // 81: signal.backup.MessageAttachment.pointer:type_name -> signal.backup.FilePointer
+	25,  // 82: signal.backup.MessageAttachment.flag:type_name -> signal.backup.MessageAttachment.Flag
+	159, // 83: signal.backup.FilePointer.locatorInfo:type_name -> signal.backup.FilePointer.LocatorInfo
+	52,  // 84: signal.backup.Quote.text:type_name -> signal.backup.Text
+	160, // 85: signal.backup.Quote.attachments:type_name -> signal.backup.Quote.QuotedAttachment
+	26,  // 86: signal.backup.Quote.type:type_name -> signal.backup.Quote.Type
+	27,  // 87: signal.backup.BodyRange.style:type_name -> signal.backup.BodyRange.Style
+	161, // 88: signal.backup.Poll.options:type_name -> signal.backup.Poll.PollOption
+	68,  // 89: signal.backup.Poll.reactions:type_name -> signal.backup.Reaction
+	74,  // 90: signal.backup.ChatUpdateMessage.simpleUpdate:type_name -> signal.backup.SimpleChatUpdate
+	80,  // 91: signal.backup.ChatUpdateMessage.groupChange:type_name -> signal.backup.GroupChangeChatUpdate
+	75,  // 92: signal.backup.ChatUpdateMessage.expirationTimerChange:type_name -> signal.backup.ExpirationTimerChatUpdate
+	76,  // 93: signal.backup.ChatUpdateMessage.profileChange:type_name -> signal.backup.ProfileChangeChatUpdate
+	78,  // 94: signal.backup.ChatUpdateMessage.threadMerge:type_name -> signal.backup.ThreadMergeChatUpdate
+	79,  // 95: signal.backup.ChatUpdateMessage.sessionSwitchover:type_name -> signal.backup.SessionSwitchoverChatUpdate
+	72,  // 96: signal.backup.ChatUpdateMessage.individualCall:type_name -> signal.backup.IndividualCall
+	73,  // 97: signal.backup.ChatUpdateMessage.groupCall:type_name -> signal.backup.GroupCall
+	77,  // 98: signal.backup.ChatUpdateMessage.learnedProfileChange:type_name -> signal.backup.LearnedProfileChatUpdate
+	117, // 99: signal.backup.ChatUpdateMessage.pollTerminate:type_name -> signal.backup.PollTerminateUpdate
+	118, // 100: signal.backup.ChatUpdateMessage.pinMessage:type_name -> signal.backup.PinMessageUpdate
+	28,  // 101: signal.backup.IndividualCall.type:type_name -> signal.backup.IndividualCall.Type
+	29,  // 102: signal.backup.IndividualCall.direction:type_name -> signal.backup.IndividualCall.Direction
+	30,  // 103: signal.backup.IndividualCall.state:type_name -> signal.backup.IndividualCall.State
+	31,  // 104: signal.backup.GroupCall.state:type_name -> signal.backup.GroupCall.State
+	32,  // 105: signal.backup.SimpleChatUpdate.type:type_name -> signal.backup.SimpleChatUpdate.Type
+	163, // 106: signal.backup.GroupChangeChatUpdate.updates:type_name -> signal.backup.GroupChangeChatUpdate.Update
 	1,   // 107: signal.backup.GroupMembershipAccessLevelChangeUpdate.accessLevel:type_name -> signal.backup.GroupV2AccessLevel
 	1,   // 108: signal.backup.GroupAttributesAccessLevelChangeUpdate.accessLevel:type_name -> signal.backup.GroupV2AccessLevel
 	1,   // 109: signal.backup.GroupMemberLabelAccessLevelChangeUpdate.accessLevel:type_name -> signal.backup.GroupV2AccessLevel
-	163, // 110: signal.backup.GroupInvitationRevokedUpdate.invitees:type_name -> signal.backup.GroupInvitationRevokedUpdate.Invitee
-	32,  // 111: signal.backup.ChatStyle.wallpaperPreset:type_name -> signal.backup.ChatStyle.WallpaperPreset
-	64,  // 112: signal.backup.ChatStyle.wallpaperPhoto:type_name -> signal.backup.FilePointer
-	166, // 113: signal.backup.ChatStyle.autoBubbleColor:type_name -> signal.backup.ChatStyle.AutomaticBubbleColor
-	33,  // 114: signal.backup.ChatStyle.bubbleColorPreset:type_name -> signal.backup.ChatStyle.BubbleColorPreset
-	34,  // 115: signal.backup.NotificationProfile.scheduleDaysEnabled:type_name -> signal.backup.NotificationProfile.DayOfWeek
-	35,  // 116: signal.backup.ChatFolder.folderType:type_name -> signal.backup.ChatFolder.FolderType
+	164, // 110: signal.backup.GroupInvitationRevokedUpdate.invitees:type_name -> signal.backup.GroupInvitationRevokedUpdate.Invitee
+	33,  // 111: signal.backup.ChatStyle.wallpaperPreset:type_name -> signal.backup.ChatStyle.WallpaperPreset
+	65,  // 112: signal.backup.ChatStyle.wallpaperPhoto:type_name -> signal.backup.FilePointer
+	167, // 113: signal.backup.ChatStyle.autoBubbleColor:type_name -> signal.backup.ChatStyle.AutomaticBubbleColor
+	34,  // 114: signal.backup.ChatStyle.bubbleColorPreset:type_name -> signal.backup.ChatStyle.BubbleColorPreset
+	35,  // 115: signal.backup.NotificationProfile.scheduleDaysEnabled:type_name -> signal.backup.NotificationProfile.DayOfWeek
+	36,  // 116: signal.backup.ChatFolder.folderType:type_name -> signal.backup.ChatFolder.FolderType
 	6,   // 117: signal.backup.AccountData.UsernameLink.color:type_name -> signal.backup.AccountData.UsernameLink.Color
 	7,   // 118: signal.backup.AccountData.AutoDownloadSettings.images:type_name -> signal.backup.AccountData.AutoDownloadSettings.AutoDownloadOption
 	7,   // 119: signal.backup.AccountData.AutoDownloadSettings.audio:type_name -> signal.backup.AccountData.AutoDownloadSettings.AutoDownloadOption
 	7,   // 120: signal.backup.AccountData.AutoDownloadSettings.video:type_name -> signal.backup.AccountData.AutoDownloadSettings.AutoDownloadOption
 	7,   // 121: signal.backup.AccountData.AutoDownloadSettings.documents:type_name -> signal.backup.AccountData.AutoDownloadSettings.AutoDownloadOption
 	2,   // 122: signal.backup.AccountData.AccountSettings.phoneNumberSharingMode:type_name -> signal.backup.AccountData.PhoneNumberSharingMode
-	119, // 123: signal.backup.AccountData.AccountSettings.defaultChatStyle:type_name -> signal.backup.ChatStyle
-	165, // 124: signal.backup.AccountData.AccountSettings.customChatColors:type_name -> signal.backup.ChatStyle.CustomChatColor
+	120, // 123: signal.backup.AccountData.AccountSettings.defaultChatStyle:type_name -> signal.backup.ChatStyle
+	166, // 124: signal.backup.AccountData.AccountSettings.customChatColors:type_name -> signal.backup.ChatStyle.CustomChatColor
 	3,   // 125: signal.backup.AccountData.AccountSettings.defaultSentMediaQuality:type_name -> signal.backup.AccountData.SentMediaQuality
-	123, // 126: signal.backup.AccountData.AccountSettings.autoDownloadSettings:type_name -> signal.backup.AccountData.AutoDownloadSettings
+	124, // 126: signal.backup.AccountData.AccountSettings.autoDownloadSettings:type_name -> signal.backup.AccountData.AutoDownloadSettings
 	4,   // 127: signal.backup.AccountData.AccountSettings.appTheme:type_name -> signal.backup.AccountData.AppTheme
 	5,   // 128: signal.backup.AccountData.AccountSettings.callsUseLessDataSetting:type_name -> signal.backup.AccountData.CallsUseLessDataSetting
-	8,   // 129: signal.backup.AccountData.AndroidSpecificSettings.navigationBarSize:type_name -> signal.backup.AccountData.AndroidSpecificSettings.NavigationBarSize
-	132, // 130: signal.backup.Group.GroupSnapshot.title:type_name -> signal.backup.Group.GroupAttributeBlob
-	132, // 131: signal.backup.Group.GroupSnapshot.description:type_name -> signal.backup.Group.GroupAttributeBlob
-	132, // 132: signal.backup.Group.GroupSnapshot.disappearingMessagesTimer:type_name -> signal.backup.Group.GroupAttributeBlob
-	137, // 133: signal.backup.Group.GroupSnapshot.accessControl:type_name -> signal.backup.Group.AccessControl
-	133, // 134: signal.backup.Group.GroupSnapshot.members:type_name -> signal.backup.Group.Member
-	134, // 135: signal.backup.Group.GroupSnapshot.membersPendingProfileKey:type_name -> signal.backup.Group.MemberPendingProfileKey
-	135, // 136: signal.backup.Group.GroupSnapshot.membersPendingAdminApproval:type_name -> signal.backup.Group.MemberPendingAdminApproval
-	136, // 137: signal.backup.Group.GroupSnapshot.members_banned:type_name -> signal.backup.Group.MemberBanned
-	12,  // 138: signal.backup.Group.Member.role:type_name -> signal.backup.Group.Member.Role
-	133, // 139: signal.backup.Group.MemberPendingProfileKey.member:type_name -> signal.backup.Group.Member
-	13,  // 140: signal.backup.Group.AccessControl.attributes:type_name -> signal.backup.Group.AccessControl.AccessRequired
-	13,  // 141: signal.backup.Group.AccessControl.members:type_name -> signal.backup.Group.AccessControl.AccessRequired
-	13,  // 142: signal.backup.Group.AccessControl.addFromInviteLink:type_name -> signal.backup.Group.AccessControl.AccessRequired
-	13,  // 143: signal.backup.Group.AccessControl.memberLabel:type_name -> signal.backup.Group.AccessControl.AccessRequired
-	50,  // 144: signal.backup.ChatItem.OutgoingMessageDetails.sendStatus:type_name -> signal.backup.SendStatus
-	17,  // 145: signal.backup.SendStatus.Failed.reason:type_name -> signal.backup.SendStatus.Failed.FailureReason
-	51,  // 146: signal.backup.DirectStoryReplyMessage.TextReply.text:type_name -> signal.backup.Text
-	64,  // 147: signal.backup.DirectStoryReplyMessage.TextReply.longText:type_name -> signal.backup.FilePointer
-	153, // 148: signal.backup.PaymentNotification.TransactionDetails.transaction:type_name -> signal.backup.PaymentNotification.TransactionDetails.Transaction
-	152, // 149: signal.backup.PaymentNotification.TransactionDetails.failedTransaction:type_name -> signal.backup.PaymentNotification.TransactionDetails.FailedTransaction
-	18,  // 150: signal.backup.PaymentNotification.TransactionDetails.FailedTransaction.reason:type_name -> signal.backup.PaymentNotification.TransactionDetails.FailedTransaction.FailureReason
-	19,  // 151: signal.backup.PaymentNotification.TransactionDetails.Transaction.status:type_name -> signal.backup.PaymentNotification.TransactionDetails.Transaction.Status
-	151, // 152: signal.backup.PaymentNotification.TransactionDetails.Transaction.mobileCoinIdentification:type_name -> signal.backup.PaymentNotification.TransactionDetails.MobileCoinTxoIdentification
-	21,  // 153: signal.backup.ContactAttachment.Phone.type:type_name -> signal.backup.ContactAttachment.Phone.Type
-	22,  // 154: signal.backup.ContactAttachment.Email.type:type_name -> signal.backup.ContactAttachment.Email.Type
-	23,  // 155: signal.backup.ContactAttachment.PostalAddress.type:type_name -> signal.backup.ContactAttachment.PostalAddress.Type
-	63,  // 156: signal.backup.Quote.QuotedAttachment.thumbnail:type_name -> signal.backup.MessageAttachment
-	161, // 157: signal.backup.Poll.PollOption.votes:type_name -> signal.backup.Poll.PollOption.PollVote
-	80,  // 158: signal.backup.GroupChangeChatUpdate.Update.genericGroupUpdate:type_name -> signal.backup.GenericGroupUpdate
-	81,  // 159: signal.backup.GroupChangeChatUpdate.Update.groupCreationUpdate:type_name -> signal.backup.GroupCreationUpdate
-	82,  // 160: signal.backup.GroupChangeChatUpdate.Update.groupNameUpdate:type_name -> signal.backup.GroupNameUpdate
-	83,  // 161: signal.backup.GroupChangeChatUpdate.Update.groupAvatarUpdate:type_name -> signal.backup.GroupAvatarUpdate
-	84,  // 162: signal.backup.GroupChangeChatUpdate.Update.groupDescriptionUpdate:type_name -> signal.backup.GroupDescriptionUpdate
-	85,  // 163: signal.backup.GroupChangeChatUpdate.Update.groupMembershipAccessLevelChangeUpdate:type_name -> signal.backup.GroupMembershipAccessLevelChangeUpdate
-	86,  // 164: signal.backup.GroupChangeChatUpdate.Update.groupAttributesAccessLevelChangeUpdate:type_name -> signal.backup.GroupAttributesAccessLevelChangeUpdate
-	89,  // 165: signal.backup.GroupChangeChatUpdate.Update.groupAnnouncementOnlyChangeUpdate:type_name -> signal.backup.GroupAnnouncementOnlyChangeUpdate
-	90,  // 166: signal.backup.GroupChangeChatUpdate.Update.groupAdminStatusUpdate:type_name -> signal.backup.GroupAdminStatusUpdate
-	91,  // 167: signal.backup.GroupChangeChatUpdate.Update.groupMemberLeftUpdate:type_name -> signal.backup.GroupMemberLeftUpdate
-	92,  // 168: signal.backup.GroupChangeChatUpdate.Update.groupMemberRemovedUpdate:type_name -> signal.backup.GroupMemberRemovedUpdate
-	93,  // 169: signal.backup.GroupChangeChatUpdate.Update.selfInvitedToGroupUpdate:type_name -> signal.backup.SelfInvitedToGroupUpdate
-	94,  // 170: signal.backup.GroupChangeChatUpdate.Update.selfInvitedOtherUserToGroupUpdate:type_name -> signal.backup.SelfInvitedOtherUserToGroupUpdate
-	95,  // 171: signal.backup.GroupChangeChatUpdate.Update.groupUnknownInviteeUpdate:type_name -> signal.backup.GroupUnknownInviteeUpdate
-	96,  // 172: signal.backup.GroupChangeChatUpdate.Update.groupInvitationAcceptedUpdate:type_name -> signal.backup.GroupInvitationAcceptedUpdate
-	97,  // 173: signal.backup.GroupChangeChatUpdate.Update.groupInvitationDeclinedUpdate:type_name -> signal.backup.GroupInvitationDeclinedUpdate
-	98,  // 174: signal.backup.GroupChangeChatUpdate.Update.groupMemberJoinedUpdate:type_name -> signal.backup.GroupMemberJoinedUpdate
-	99,  // 175: signal.backup.GroupChangeChatUpdate.Update.groupMemberAddedUpdate:type_name -> signal.backup.GroupMemberAddedUpdate
-	100, // 176: signal.backup.GroupChangeChatUpdate.Update.groupSelfInvitationRevokedUpdate:type_name -> signal.backup.GroupSelfInvitationRevokedUpdate
-	101, // 177: signal.backup.GroupChangeChatUpdate.Update.groupInvitationRevokedUpdate:type_name -> signal.backup.GroupInvitationRevokedUpdate
-	102, // 178: signal.backup.GroupChangeChatUpdate.Update.groupJoinRequestUpdate:type_name -> signal.backup.GroupJoinRequestUpdate
-	103, // 179: signal.backup.GroupChangeChatUpdate.Update.groupJoinRequestApprovalUpdate:type_name -> signal.backup.GroupJoinRequestApprovalUpdate
-	104, // 180: signal.backup.GroupChangeChatUpdate.Update.groupJoinRequestCanceledUpdate:type_name -> signal.backup.GroupJoinRequestCanceledUpdate
-	106, // 181: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkResetUpdate:type_name -> signal.backup.GroupInviteLinkResetUpdate
-	107, // 182: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkEnabledUpdate:type_name -> signal.backup.GroupInviteLinkEnabledUpdate
-	108, // 183: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkAdminApprovalUpdate:type_name -> signal.backup.GroupInviteLinkAdminApprovalUpdate
-	109, // 184: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkDisabledUpdate:type_name -> signal.backup.GroupInviteLinkDisabledUpdate
-	110, // 185: signal.backup.GroupChangeChatUpdate.Update.groupMemberJoinedByLinkUpdate:type_name -> signal.backup.GroupMemberJoinedByLinkUpdate
-	111, // 186: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationUpdate:type_name -> signal.backup.GroupV2MigrationUpdate
-	112, // 187: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationSelfInvitedUpdate:type_name -> signal.backup.GroupV2MigrationSelfInvitedUpdate
-	113, // 188: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationInvitedMembersUpdate:type_name -> signal.backup.GroupV2MigrationInvitedMembersUpdate
-	114, // 189: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationDroppedMembersUpdate:type_name -> signal.backup.GroupV2MigrationDroppedMembersUpdate
-	105, // 190: signal.backup.GroupChangeChatUpdate.Update.groupSequenceOfRequestsAndCancelsUpdate:type_name -> signal.backup.GroupSequenceOfRequestsAndCancelsUpdate
-	115, // 191: signal.backup.GroupChangeChatUpdate.Update.groupExpirationTimerUpdate:type_name -> signal.backup.GroupExpirationTimerUpdate
-	87,  // 192: signal.backup.GroupChangeChatUpdate.Update.groupMemberLabelAccessLevelChangeUpdate:type_name -> signal.backup.GroupMemberLabelAccessLevelChangeUpdate
-	88,  // 193: signal.backup.GroupChangeChatUpdate.Update.groupTerminateChangeUpdate:type_name -> signal.backup.GroupTerminateChangeUpdate
-	164, // 194: signal.backup.ChatStyle.CustomChatColor.gradient:type_name -> signal.backup.ChatStyle.Gradient
-	195, // [195:195] is the sub-list for method output_type
-	195, // [195:195] is the sub-list for method input_type
-	195, // [195:195] is the sub-list for extension type_name
-	195, // [195:195] is the sub-list for extension extendee
-	0,   // [0:195] is the sub-list for field type_name
+	8,   // 129: signal.backup.AccountData.AccountSettings.unreadBadgeType:type_name -> signal.backup.AccountData.AccountSettings.UnreadBadgeType
+	9,   // 130: signal.backup.AccountData.AndroidSpecificSettings.navigationBarSize:type_name -> signal.backup.AccountData.AndroidSpecificSettings.NavigationBarSize
+	133, // 131: signal.backup.Group.GroupSnapshot.title:type_name -> signal.backup.Group.GroupAttributeBlob
+	133, // 132: signal.backup.Group.GroupSnapshot.description:type_name -> signal.backup.Group.GroupAttributeBlob
+	133, // 133: signal.backup.Group.GroupSnapshot.disappearingMessagesTimer:type_name -> signal.backup.Group.GroupAttributeBlob
+	138, // 134: signal.backup.Group.GroupSnapshot.accessControl:type_name -> signal.backup.Group.AccessControl
+	134, // 135: signal.backup.Group.GroupSnapshot.members:type_name -> signal.backup.Group.Member
+	135, // 136: signal.backup.Group.GroupSnapshot.membersPendingProfileKey:type_name -> signal.backup.Group.MemberPendingProfileKey
+	136, // 137: signal.backup.Group.GroupSnapshot.membersPendingAdminApproval:type_name -> signal.backup.Group.MemberPendingAdminApproval
+	137, // 138: signal.backup.Group.GroupSnapshot.members_banned:type_name -> signal.backup.Group.MemberBanned
+	13,  // 139: signal.backup.Group.Member.role:type_name -> signal.backup.Group.Member.Role
+	134, // 140: signal.backup.Group.MemberPendingProfileKey.member:type_name -> signal.backup.Group.Member
+	14,  // 141: signal.backup.Group.AccessControl.attributes:type_name -> signal.backup.Group.AccessControl.AccessRequired
+	14,  // 142: signal.backup.Group.AccessControl.members:type_name -> signal.backup.Group.AccessControl.AccessRequired
+	14,  // 143: signal.backup.Group.AccessControl.addFromInviteLink:type_name -> signal.backup.Group.AccessControl.AccessRequired
+	14,  // 144: signal.backup.Group.AccessControl.memberLabel:type_name -> signal.backup.Group.AccessControl.AccessRequired
+	51,  // 145: signal.backup.ChatItem.OutgoingMessageDetails.sendStatus:type_name -> signal.backup.SendStatus
+	18,  // 146: signal.backup.SendStatus.Failed.reason:type_name -> signal.backup.SendStatus.Failed.FailureReason
+	52,  // 147: signal.backup.DirectStoryReplyMessage.TextReply.text:type_name -> signal.backup.Text
+	65,  // 148: signal.backup.DirectStoryReplyMessage.TextReply.longText:type_name -> signal.backup.FilePointer
+	154, // 149: signal.backup.PaymentNotification.TransactionDetails.transaction:type_name -> signal.backup.PaymentNotification.TransactionDetails.Transaction
+	153, // 150: signal.backup.PaymentNotification.TransactionDetails.failedTransaction:type_name -> signal.backup.PaymentNotification.TransactionDetails.FailedTransaction
+	19,  // 151: signal.backup.PaymentNotification.TransactionDetails.FailedTransaction.reason:type_name -> signal.backup.PaymentNotification.TransactionDetails.FailedTransaction.FailureReason
+	20,  // 152: signal.backup.PaymentNotification.TransactionDetails.Transaction.status:type_name -> signal.backup.PaymentNotification.TransactionDetails.Transaction.Status
+	152, // 153: signal.backup.PaymentNotification.TransactionDetails.Transaction.mobileCoinIdentification:type_name -> signal.backup.PaymentNotification.TransactionDetails.MobileCoinTxoIdentification
+	22,  // 154: signal.backup.ContactAttachment.Phone.type:type_name -> signal.backup.ContactAttachment.Phone.Type
+	23,  // 155: signal.backup.ContactAttachment.Email.type:type_name -> signal.backup.ContactAttachment.Email.Type
+	24,  // 156: signal.backup.ContactAttachment.PostalAddress.type:type_name -> signal.backup.ContactAttachment.PostalAddress.Type
+	64,  // 157: signal.backup.Quote.QuotedAttachment.thumbnail:type_name -> signal.backup.MessageAttachment
+	162, // 158: signal.backup.Poll.PollOption.votes:type_name -> signal.backup.Poll.PollOption.PollVote
+	81,  // 159: signal.backup.GroupChangeChatUpdate.Update.genericGroupUpdate:type_name -> signal.backup.GenericGroupUpdate
+	82,  // 160: signal.backup.GroupChangeChatUpdate.Update.groupCreationUpdate:type_name -> signal.backup.GroupCreationUpdate
+	83,  // 161: signal.backup.GroupChangeChatUpdate.Update.groupNameUpdate:type_name -> signal.backup.GroupNameUpdate
+	84,  // 162: signal.backup.GroupChangeChatUpdate.Update.groupAvatarUpdate:type_name -> signal.backup.GroupAvatarUpdate
+	85,  // 163: signal.backup.GroupChangeChatUpdate.Update.groupDescriptionUpdate:type_name -> signal.backup.GroupDescriptionUpdate
+	86,  // 164: signal.backup.GroupChangeChatUpdate.Update.groupMembershipAccessLevelChangeUpdate:type_name -> signal.backup.GroupMembershipAccessLevelChangeUpdate
+	87,  // 165: signal.backup.GroupChangeChatUpdate.Update.groupAttributesAccessLevelChangeUpdate:type_name -> signal.backup.GroupAttributesAccessLevelChangeUpdate
+	90,  // 166: signal.backup.GroupChangeChatUpdate.Update.groupAnnouncementOnlyChangeUpdate:type_name -> signal.backup.GroupAnnouncementOnlyChangeUpdate
+	91,  // 167: signal.backup.GroupChangeChatUpdate.Update.groupAdminStatusUpdate:type_name -> signal.backup.GroupAdminStatusUpdate
+	92,  // 168: signal.backup.GroupChangeChatUpdate.Update.groupMemberLeftUpdate:type_name -> signal.backup.GroupMemberLeftUpdate
+	93,  // 169: signal.backup.GroupChangeChatUpdate.Update.groupMemberRemovedUpdate:type_name -> signal.backup.GroupMemberRemovedUpdate
+	94,  // 170: signal.backup.GroupChangeChatUpdate.Update.selfInvitedToGroupUpdate:type_name -> signal.backup.SelfInvitedToGroupUpdate
+	95,  // 171: signal.backup.GroupChangeChatUpdate.Update.selfInvitedOtherUserToGroupUpdate:type_name -> signal.backup.SelfInvitedOtherUserToGroupUpdate
+	96,  // 172: signal.backup.GroupChangeChatUpdate.Update.groupUnknownInviteeUpdate:type_name -> signal.backup.GroupUnknownInviteeUpdate
+	97,  // 173: signal.backup.GroupChangeChatUpdate.Update.groupInvitationAcceptedUpdate:type_name -> signal.backup.GroupInvitationAcceptedUpdate
+	98,  // 174: signal.backup.GroupChangeChatUpdate.Update.groupInvitationDeclinedUpdate:type_name -> signal.backup.GroupInvitationDeclinedUpdate
+	99,  // 175: signal.backup.GroupChangeChatUpdate.Update.groupMemberJoinedUpdate:type_name -> signal.backup.GroupMemberJoinedUpdate
+	100, // 176: signal.backup.GroupChangeChatUpdate.Update.groupMemberAddedUpdate:type_name -> signal.backup.GroupMemberAddedUpdate
+	101, // 177: signal.backup.GroupChangeChatUpdate.Update.groupSelfInvitationRevokedUpdate:type_name -> signal.backup.GroupSelfInvitationRevokedUpdate
+	102, // 178: signal.backup.GroupChangeChatUpdate.Update.groupInvitationRevokedUpdate:type_name -> signal.backup.GroupInvitationRevokedUpdate
+	103, // 179: signal.backup.GroupChangeChatUpdate.Update.groupJoinRequestUpdate:type_name -> signal.backup.GroupJoinRequestUpdate
+	104, // 180: signal.backup.GroupChangeChatUpdate.Update.groupJoinRequestApprovalUpdate:type_name -> signal.backup.GroupJoinRequestApprovalUpdate
+	105, // 181: signal.backup.GroupChangeChatUpdate.Update.groupJoinRequestCanceledUpdate:type_name -> signal.backup.GroupJoinRequestCanceledUpdate
+	107, // 182: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkResetUpdate:type_name -> signal.backup.GroupInviteLinkResetUpdate
+	108, // 183: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkEnabledUpdate:type_name -> signal.backup.GroupInviteLinkEnabledUpdate
+	109, // 184: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkAdminApprovalUpdate:type_name -> signal.backup.GroupInviteLinkAdminApprovalUpdate
+	110, // 185: signal.backup.GroupChangeChatUpdate.Update.groupInviteLinkDisabledUpdate:type_name -> signal.backup.GroupInviteLinkDisabledUpdate
+	111, // 186: signal.backup.GroupChangeChatUpdate.Update.groupMemberJoinedByLinkUpdate:type_name -> signal.backup.GroupMemberJoinedByLinkUpdate
+	112, // 187: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationUpdate:type_name -> signal.backup.GroupV2MigrationUpdate
+	113, // 188: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationSelfInvitedUpdate:type_name -> signal.backup.GroupV2MigrationSelfInvitedUpdate
+	114, // 189: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationInvitedMembersUpdate:type_name -> signal.backup.GroupV2MigrationInvitedMembersUpdate
+	115, // 190: signal.backup.GroupChangeChatUpdate.Update.groupV2MigrationDroppedMembersUpdate:type_name -> signal.backup.GroupV2MigrationDroppedMembersUpdate
+	106, // 191: signal.backup.GroupChangeChatUpdate.Update.groupSequenceOfRequestsAndCancelsUpdate:type_name -> signal.backup.GroupSequenceOfRequestsAndCancelsUpdate
+	116, // 192: signal.backup.GroupChangeChatUpdate.Update.groupExpirationTimerUpdate:type_name -> signal.backup.GroupExpirationTimerUpdate
+	88,  // 193: signal.backup.GroupChangeChatUpdate.Update.groupMemberLabelAccessLevelChangeUpdate:type_name -> signal.backup.GroupMemberLabelAccessLevelChangeUpdate
+	89,  // 194: signal.backup.GroupChangeChatUpdate.Update.groupTerminateChangeUpdate:type_name -> signal.backup.GroupTerminateChangeUpdate
+	165, // 195: signal.backup.ChatStyle.CustomChatColor.gradient:type_name -> signal.backup.ChatStyle.Gradient
+	196, // [196:196] is the sub-list for method output_type
+	196, // [196:196] is the sub-list for method input_type
+	196, // [196:196] is the sub-list for extension type_name
+	196, // [196:196] is the sub-list for extension extendee
+	0,   // [0:196] is the sub-list for field type_name
 }
 
 func init() { file_backuppb_Backup_proto_init() }
@@ -14003,7 +14196,7 @@ func file_backuppb_Backup_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backuppb_Backup_proto_rawDesc), len(file_backuppb_Backup_proto_rawDesc)),
-			NumEnums:      36,
+			NumEnums:      37,
 			NumMessages:   131,
 			NumExtensions: 0,
 			NumServices:   0,

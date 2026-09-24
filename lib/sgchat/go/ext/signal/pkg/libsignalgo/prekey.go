@@ -43,6 +43,7 @@ func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddres
 	)
 	runtime.KeepAlive(preKeyMessage)
 	runtime.KeepAlive(fromAddress)
+	runtime.KeepAlive(localAddress)
 	if signalFfiError != nil {
 		return nil, callbackCtx.wrapError(signalFfiError)
 	}

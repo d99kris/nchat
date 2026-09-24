@@ -1,19 +1,18 @@
-#!/bin/sh
-PKG_IMPORT_PATH="go.mau.fi/mautrix-signal/pkg/signalmeow/signalpb"
-for file in *.proto
-do
-	# Requires https://go-review.googlesource.com/c/protobuf/+/369634
-	protoc --go_out=. \
-		--go_opt=M${file}=$PKG_IMPORT_PATH \
-		--go_opt=paths=source_relative \
-		$file
+#!/bin/bash
+cd $(dirname "$0")
+BASE_IMPORT_PATH="go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+opts=()
+for file in */*.proto; do
+	opts+=("--go_opt=M${file}=${BASE_IMPORT_PATH}/$(dirname "$file")")
+	opts+=("--go-grpc_opt=M${file}=${BASE_IMPORT_PATH}/$(dirname "$file")")
 done
-protoc --go_out=. \
-	--go_opt=Mbackuppb/Backup.proto=$PKG_IMPORT_PATH/backuppb \
-	--go_opt=paths=source_relative \
-	backuppb/Backup.proto
-protoc --go_out=. \
-	--go_opt=Mcds2pb/cds2.proto=$PKG_IMPORT_PATH/cds2pb \
-	--go_opt=paths=source_relative \
-	cds2pb/cds2.proto
+for file in org/signal/chat/*.proto; do
+	file_without_ext=$(basename "$file" .proto)
+	opts+=("--go_opt=M${file}=${BASE_IMPORT_PATH}/rpc/${file_without_ext}")
+	opts+=("--go-grpc_opt=M${file}=${BASE_IMPORT_PATH}/rpc/${file_without_ext}")
+done
+protoc --go_out=. --go-grpc_out=. \
+	--go_opt=module=$BASE_IMPORT_PATH \
+	--go-grpc_opt=module=$BASE_IMPORT_PATH "${opts[@]}" \
+	*/*.proto org/signal/chat/*.proto
 pre-commit run -a

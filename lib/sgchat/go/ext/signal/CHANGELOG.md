@@ -1,3 +1,12 @@
+# v26.09
+
+* Bumped minimum Go version to 1.26.
+* Updated libsignal to v0.102.2.
+* Fixed handling messages with invalid values in formatting body ranges.
+* Fixed websocket request retrying not working correctly if the first attempt
+  times out.
+* Fixed another potential race condition with edited message bridging.
+
 # v26.08
 
 * Updated libsignal to v0.100.0

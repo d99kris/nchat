@@ -89,6 +89,7 @@ func (bk *MessageBackupKey) GetHMACKey() ([MessageBackupKeyBytesLength]byte, err
 		out.cFixedArray(),
 		bk.constPtr(),
 	)
+	runtime.KeepAlive(bk)
 	if signalFfiError != nil {
 		return [MessageBackupKeyBytesLength]byte(out), wrapError(signalFfiError)
 	}
@@ -101,6 +102,7 @@ func (bk *MessageBackupKey) GetAESKey() ([MessageBackupKeyBytesLength]byte, erro
 		out.cFixedArray(),
 		bk.constPtr(),
 	)
+	runtime.KeepAlive(bk)
 	if signalFfiError != nil {
 		return [MessageBackupKeyBytesLength]byte(out), wrapError(signalFfiError)
 	}

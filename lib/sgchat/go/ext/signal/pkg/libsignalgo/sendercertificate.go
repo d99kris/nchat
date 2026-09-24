@@ -208,6 +208,7 @@ func (sc *SenderCertificate) Validate(trustRoots []*PublicKey, ts time.Time) (bo
 		C.uint64_t(ts.UnixMilli()),
 	)
 	runtime.KeepAlive(sc)
+	runtime.KeepAlive(trustRoots)
 	runtime.KeepAlive(constRoots)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)

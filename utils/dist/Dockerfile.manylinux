@@ -34,7 +34,7 @@ RUN dnf install -y epel-release && \
     dnf clean all
 
 # Go from the official (glibc-linked) tarball, for the whatsmeow c-archive.
-ARG GO_VERSION=1.25.1
+ARG GO_VERSION=1.26.3
 RUN set -euo pipefail; \
     case "$(uname -m)" in \
       aarch64) goarch=arm64 ;; \

@@ -25,6 +25,7 @@ import "C"
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -163,6 +164,8 @@ func (pk *ProfileKey) DeriveAccessKey() (*AccessKey, error) {
 	return &result, nil
 }
 
+const ExpiringProfileKeyCredentialResponseLength = 497
+
 type ProfileKeyCredentialRequestContext [473]byte
 type ProfileKeyCredentialRequest = fixedArray329
 type ProfileKeyCredentialResponse []byte
@@ -214,6 +217,9 @@ func (p *ProfileKeyCredentialRequestContext) ProfileKeyCredentialRequestContextG
 }
 
 func NewExpiringProfileKeyCredentialResponse(b []byte) (*ExpiringProfileKeyCredentialResponse, error) {
+	if len(b) != ExpiringProfileKeyCredentialResponseLength {
+		return nil, fmt.Errorf("invalid expiring profile key credential response length %d (expected %d)", len(b), ExpiringProfileKeyCredentialResponseLength)
+	}
 	borrowedBuffer := BytesToBuffer(b)
 	signalFfiError := C.signal_expiring_profile_key_credential_response_check_valid_contents(borrowedBuffer)
 	runtime.KeepAlive(b)

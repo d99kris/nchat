@@ -101,6 +101,7 @@ func (sc *SenderKeyDistributionMessage) CancelFinalizer() {
 func (sc *SenderKeyDistributionMessage) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sender_key_distribution_message_serialize(&serialized, sc.constPtr())
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -116,6 +117,7 @@ func (sc *SenderKeyDistributionMessage) Process(ctx context.Context, sender *Add
 		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(sender)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return callbackCtx.wrapError(signalFfiError)
 	}

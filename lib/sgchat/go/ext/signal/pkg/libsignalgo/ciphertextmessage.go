@@ -49,6 +49,7 @@ func NewCiphertextMessage(plaintext *PlaintextContent) (*CiphertextMessage, erro
 		&ciphertextMessage,
 		plaintext.constPtr(),
 	)
+	runtime.KeepAlive(plaintext)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

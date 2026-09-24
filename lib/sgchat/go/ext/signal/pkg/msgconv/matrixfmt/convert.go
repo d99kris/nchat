@@ -21,7 +21,7 @@ import (
 
 	"maunium.net/go/mautrix/event"
 
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 )
 
 func Parse(ctx context.Context, parser *HTMLParser, content *event.MessageEventContent) (string, []*signalpb.BodyRange) {

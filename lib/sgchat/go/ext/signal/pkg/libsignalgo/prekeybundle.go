@@ -41,6 +41,7 @@ func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress, 
 	)
 	runtime.KeepAlive(bundle)
 	runtime.KeepAlive(forAddress)
+	runtime.KeepAlive(localAddress)
 	return callbackCtx.wrapError(signalFfiError)
 }
 
@@ -118,10 +119,10 @@ func (pkb *PreKeyBundle) constPtr() C.SignalConstPointerPreKeyBundle {
 func (pkb *PreKeyBundle) Clone() (*PreKeyBundle, error) {
 	var cloned C.SignalMutPointerPreKeyBundle
 	signalFfiError := C.signal_pre_key_bundle_clone(&cloned, pkb.constPtr())
+	runtime.KeepAlive(pkb)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	runtime.KeepAlive(pkb)
 	return wrapPreKeyBundle(cloned.raw), nil
 }
 
@@ -137,9 +138,9 @@ func (pkb *PreKeyBundle) CancelFinalizer() {
 func (pkb *PreKeyBundle) GetIdentityKey() (*IdentityKey, error) {
 	var pk C.SignalMutPointerPublicKey
 	signalFfiError := C.signal_pre_key_bundle_get_identity_key(&pk, pkb.constPtr())
+	runtime.KeepAlive(pkb)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	runtime.KeepAlive(pkb)
 	return NewIdentityKeyFromPublicKey(wrapPublicKey(pk.raw))
 }
