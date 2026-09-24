@@ -52,6 +52,8 @@ void UiColorConfig::Init()
     { "list_color_fg", "" },
     { "list_color_unread_fg", "" },
     { "list_color_unread_bg", "" },
+    { "list_color_group_fg", "" },
+    { "list_color_group_unread_fg", "" },
     { "listborder_attr", "" },
     { "listborder_color_bg", "" },
     { "listborder_color_fg", "" },
