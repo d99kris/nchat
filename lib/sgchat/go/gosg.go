@@ -1166,7 +1166,7 @@ func (handler *SgEventHandler) handleChatEvent(evt *events.ChatEvent) bool {
 		ctx := context.TODO()
 		serviceID := StringToServiceID(chatId)
 		if !serviceID.IsEmpty() {
-			// 1:1 chat: fetch profile name
+			// 1:1 chat: fetch profile name (profiles are looked up by aci, pni chats are named via contact list)
 			if serviceID.Type == libsignalgo.ServiceIDTypeACI {
 				profile, err := client.RetrieveProfileByID(ctx, serviceID.UUID, 0)
 				if err == nil && profile != nil && profile.Name != "" {
@@ -1582,13 +1582,7 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 			continue
 		}
 
-		name := contact.ContactName
-		if name == "" {
-			name = contact.Profile.Name
-		}
-		if name == "" {
-			name = contact.E164
-		}
+		name := RecipientName(contact)
 		if name == "" {
 			continue
 		}
@@ -1624,17 +1618,54 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 func (handler *SgEventHandler) handleACIFound(evt *events.ACIFound) bool {
 	LOG_TRACE(fmt.Sprintf("handleACIFound pni=%s aci=%s", evt.PNI.String(), evt.ACI.String()))
 	connId := handler.connId
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return true
+	}
+
 	pniId := evt.PNI.String()
 	aciId := evt.ACI.String()
-	if !evt.ACI.IsEmpty() && HasContact(connId, pniId) {
-		name := GetContactName(connId, pniId)
-		if name != "" && name != pniId {
-			CSgNewContactsNotify(connId, pniId, name, "", BoolToInt(false), BoolToInt(true), NotifyDirect)
-			AddContactName(connId, aciId, name)
-			CSgNewContactsNotify(connId, aciId, name, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
-		}
+
+	// Only needed for known pni contacts, and once per contact (event is repeated for each pni signature message)
+	if evt.ACI.IsEmpty() || !HasContact(connId, pniId) || HasContact(connId, aciId) {
+		return true
 	}
+
+	// Recipient has been updated with the aci by signalmeow, retaining name and phone from the pni-only entry
+	name := GetContactName(connId, pniId)
+	phone := ""
+	ctx := context.TODO()
+	recipient, err := client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, evt.ACI.UUID, evt.PNI.UUID, nil)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("load recipient %s error: %v", aciId, err))
+	} else if recipient != nil {
+		if recipientName := RecipientName(recipient); recipientName != "" {
+			name = recipientName
+		}
+		phone = strings.TrimPrefix(recipient.E164, "+")
+	}
+
+	LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify alias %s %s", pniId, name))
+	CSgNewContactsNotify(connId, pniId, name, phone, BoolToInt(false), BoolToInt(true), NotifyDirect)
+	AddContactName(connId, pniId, name)
+
+	LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify %s %s", aciId, name))
+	CSgNewContactsNotify(connId, aciId, name, phone, BoolToInt(false), BoolToInt(false), NotifyDirect)
+	AddContactName(connId, aciId, name)
+
 	return true
+}
+
+func RecipientName(recipient *types.Recipient) string {
+	name := recipient.ContactName
+	if name == "" {
+		name = recipient.Profile.Name
+	}
+	if name == "" {
+		name = recipient.E164
+	}
+	return name
 }
 
 func (handler *SgEventHandler) handleDeleteForMe(evt *events.DeleteForMe) bool {
@@ -2851,7 +2882,7 @@ func SgMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 	// Parse sender ServiceID
 	senderServiceID := StringToServiceID(senderId)
 	if senderServiceID.IsEmpty() {
-		LOG_WARNING(fmt.Sprintf("invalid sender UUID: %s", senderId))
+		LOG_WARNING(fmt.Sprintf("invalid sender id: %s", senderId))
 		return -1
 	}
 
