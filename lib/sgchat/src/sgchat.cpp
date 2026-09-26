@@ -158,6 +158,9 @@ bool SgChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
     FileUtil::RmDir(m_ProfileDir);
   }
 
+  // @todo: remove after 2027-04 - cleans up stale contact created by pni-only contacts mapped to nil uuid
+  MessageCache::DeleteContact(m_ProfileId, "00000000-0000-0000-0000-000000000000");
+
   std::string proxyUrl = GetProxyUrl();
   m_ConnId = CSgInit(const_cast<char*>(m_ProfileDir.c_str()), const_cast<char*>(proxyUrl.c_str()));
   if (m_ConnId == -1) return false;
