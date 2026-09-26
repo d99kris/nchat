@@ -1694,6 +1694,9 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 		msg.Conversation = &contactText
 		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
 
+	case msg.SecretEncryptedMessage != nil:
+		handler.HandleSecretEncryptedMessage(messageInfo, msg, isSyncRead)
+
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
 	}
@@ -2266,6 +2269,32 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		CWmDeleteMessageNotify(connId, chatId, msgId, BoolToInt(messageInfo.IsFromMe))
 	} else {
 		LOG_TRACE(fmt.Sprintf("ProtocolMessage %#v ignore", protocol.GetType()))
+	}
+}
+
+func (handler *WmEventHandler) HandleSecretEncryptedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+	LOG_TRACE(fmt.Sprintf("SecretEncryptedMessage"))
+
+	connId := handler.connId
+	var client *whatsmeow.Client = GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return
+	}
+
+	decrypted, err := client.DecryptSecretEncryptedMessage(context.TODO(), &events.Message{Info: messageInfo, Message: msg})
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("decrypt secret encrypted message failed: %v", err))
+		return
+	}
+
+	originalId := msg.GetSecretEncryptedMessage().GetTargetMessageKey().GetID()
+	if originalId != "" {
+		newMessageInfo := messageInfo
+		newMessageInfo.ID = originalId
+		handler.HandleMessage(newMessageInfo, decrypted, isSyncRead)
+	} else {
+		handler.HandleMessage(messageInfo, decrypted, isSyncRead)
 	}
 }
 
