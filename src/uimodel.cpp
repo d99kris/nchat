@@ -2132,6 +2132,85 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       }
       break;
 
+    case MoveChatNotifyType:
+      {
+        std::shared_ptr<MoveChatNotify> moveChatNotify = std::static_pointer_cast<MoveChatNotify>(p_ServiceMessage);
+        const std::string& chatId = moveChatNotify->chatId;
+        const std::string& newChatId = moveChatNotify->newChatId;
+        std::unordered_map<std::string, ChatInfo>& chatInfos = m_ChatInfos[profileId];
+        if (!chatInfos.count(chatId)) return;
+
+        LOG_TRACE("chat moved %s to %s", chatId.c_str(), newChatId.c_str());
+
+        // replace old chat with new chat, merging into new chat if already present
+        const ChatInfo oldChatInfo = chatInfos[chatId];
+        chatInfos.erase(chatId);
+        if (chatInfos.count(newChatId))
+        {
+          ChatInfo& newChatInfo = chatInfos[newChatId];
+          newChatInfo.lastMessageTime = std::max(newChatInfo.lastMessageTime, oldChatInfo.lastMessageTime);
+          newChatInfo.isUnread = newChatInfo.isUnread || oldChatInfo.isUnread;
+        }
+        else
+        {
+          ChatInfo newChatInfo = oldChatInfo;
+          newChatInfo.id = newChatId;
+          chatInfos[newChatId] = newChatInfo;
+        }
+
+        for (auto it = m_ChatVec.begin(); it != m_ChatVec.end(); /* incremented in loop */)
+        {
+          if ((it->first == profileId) && (it->second == chatId))
+          {
+            it = m_ChatVec.erase(it);
+          }
+          else
+          {
+            ++it;
+          }
+        }
+
+        m_ChatSet[profileId].erase(chatId);
+        if (m_ChatSet[profileId].insert(newChatId).second)
+        {
+          m_ChatVec.push_back(std::make_pair(profileId, newChatId));
+        }
+
+        // keep any unsent draft
+        if (m_EntryStr[profileId][newChatId].empty())
+        {
+          m_EntryStr[profileId][newChatId] = m_EntryStr[profileId][chatId];
+          m_EntryPos[profileId][newChatId] = m_EntryPos[profileId][chatId];
+        }
+
+        m_EntryStr[profileId].erase(chatId);
+        m_EntryPos[profileId].erase(chatId);
+
+        // reset message state, to fetch merged messages from cache
+        for (const std::string& id : { chatId, newChatId })
+        {
+          m_MessageVec[profileId].erase(id);
+          m_Messages[profileId].erase(id);
+          m_MessageOffset[profileId].erase(id);
+          m_MessageOffsetStack[profileId].erase(id);
+          m_MsgFromIdsRequested[profileId].erase(id);
+          m_FetchedAllCache[profileId].erase(id);
+          m_OldestMessageId[profileId].erase(id);
+          m_OldestMessageTime[profileId].erase(id);
+        }
+
+        if ((m_CurrentChat.first == profileId) &&
+            ((m_CurrentChat.second == chatId) || (m_CurrentChat.second == newChatId)))
+        {
+          m_CurrentChat.second = newChatId;
+          SetSelectMessageActive(false);
+        }
+
+        SortChats();
+        OnCurrentChatChanged();
+      }
+      break;
+
     case UpdateMuteNotifyType:
       {
         std::shared_ptr<UpdateMuteNotify> updateMuteNotify = std::static_pointer_cast<UpdateMuteNotify>(

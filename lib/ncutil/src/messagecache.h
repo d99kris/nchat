@@ -41,6 +41,7 @@ private:
     DeleteOneMessageRequestType,
     DeleteOneChatRequestType,
     DeleteOneContactRequestType,
+    MoveChatRequestType,
     UpdateMessageIsReadRequestType,
     UpdateMessageIsPinnedRequestType,
     UpdateMessageFileInfoRequestType,
@@ -159,6 +160,15 @@ private:
     std::string contactId;
   };
 
+  class MoveChatRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return MoveChatRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string newChatId;
+  };
+
   class UpdateMessageIsReadRequest : public Request
   {
   public:
@@ -273,6 +283,8 @@ public:
   static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void DeleteChat(const std::string& p_ProfileId, const std::string& p_ChatId);
   static void DeleteContact(const std::string& p_ProfileId, const std::string& p_ContactId);
+  static void MoveChat(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_NewChatId);
+  static std::vector<std::string> GetChatIdsSync(const std::string& p_ProfileId);
   static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
                                   const std::string& p_MsgId,
                                   bool p_IsRead);

@@ -126,6 +126,7 @@ enum MessageType
   UpdatePinNotifyType,
   NewGroupMembersNotifyType,
   UpdateArchivedNotifyType,
+  MoveChatNotifyType,
 };
 
 struct ContactInfo
@@ -654,6 +655,16 @@ public:
   virtual MessageType GetMessageType() const { return DeleteChatNotifyType; }
   bool success = false;
   std::string chatId;
+};
+
+class MoveChatNotify : public ServiceMessage
+{
+public:
+  explicit MoveChatNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return MoveChatNotifyType; }
+  std::string chatId;
+  std::string newChatId;
 };
 
 class UpdateMuteNotify : public ServiceMessage

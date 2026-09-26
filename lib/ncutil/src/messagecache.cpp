@@ -226,6 +226,13 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       }
       break;
 
+    case MoveChatNotifyType:
+      {
+        std::shared_ptr<MoveChatNotify> moveChatNotify = std::static_pointer_cast<MoveChatNotify>(p_ServiceMessage);
+        MessageCache::MoveChat(p_ProfileId, moveChatNotify->chatId, moveChatNotify->newChatId);
+      }
+      break;
+
     case NewGroupMembersNotifyType:
       {
         std::shared_ptr<NewGroupMembersNotify> newGroupMembersNotify =
@@ -794,6 +801,18 @@ void MessageCache::DeleteContact(const std::string& p_ProfileId, const std::stri
   EnqueueRequest(deleteContactRequest);
 }
 
+void MessageCache::MoveChat(const std::string& p_ProfileId, const std::string& p_ChatId,
+                            const std::string& p_NewChatId)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<MoveChatRequest> moveChatRequest = std::make_shared<MoveChatRequest>();
+  moveChatRequest->profileId = p_ProfileId;
+  moveChatRequest->chatId = p_ChatId;
+  moveChatRequest->newChatId = p_NewChatId;
+  EnqueueRequest(moveChatRequest);
+}
+
 void MessageCache::UpdateMessageIsPinned(const std::string& p_ProfileId, const std::string& p_ChatId,
                                          const std::string& p_MsgId, bool p_IsPinned)
 {
@@ -945,6 +964,32 @@ std::vector<ContactInfo> MessageCache::FetchGroupMembersSync(const std::string& 
   }
 
   return contactInfos;
+}
+
+std::vector<std::string> MessageCache::GetChatIdsSync(const std::string& p_ProfileId)
+{
+  std::vector<std::string> chatIds;
+  if (!m_CacheEnabled) return chatIds;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+  if (!m_Dbs[p_ProfileId]) return chatIds;
+
+  try
+  {
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] << "SELECT DISTINCT chatId FROM " + s_TableMessages + ";" >>
+      [&](const std::string& chatId)
+      {
+        chatIds.push_back(chatId);
+      };
+    // *INDENT-ON*
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+  }
+
+  return chatIds;
 }
 
 void MessageCache::Export(const std::string& p_ExportDir)
@@ -1782,6 +1827,35 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache delete contact %s", contactId.c_str());
+      }
+      break;
+
+    case MoveChatRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<MoveChatRequest> moveChatRequest = std::static_pointer_cast<MoveChatRequest>(p_Request);
+        const std::string& profileId = moveChatRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& chatId = moveChatRequest->chatId;
+        const std::string& newChatId = moveChatRequest->newChatId;
+
+        try
+        {
+          *m_Dbs[profileId] << "BEGIN;";
+          *m_Dbs[profileId] << "UPDATE OR REPLACE " + s_TableMessages + " SET chatId = ? WHERE chatId = ?;" <<
+            newChatId << chatId;
+          // keep chat properties of new chat if it already exists, otherwise take over those of old chat
+          *m_Dbs[profileId] << "UPDATE OR IGNORE " + s_TableChats + " SET id = ? WHERE id = ?;" << newChatId << chatId;
+          *m_Dbs[profileId] << "DELETE FROM " + s_TableChats + " WHERE id = ?;" << chatId;
+          *m_Dbs[profileId] << "COMMIT;";
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache move chat %s to %s", chatId.c_str(), newChatId.c_str());
       }
       break;
 
