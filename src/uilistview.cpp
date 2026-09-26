@@ -52,6 +52,8 @@ void UiListView::Draw()
   static int attribute = UiColorConfig::GetAttribute("list_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("list_attr_selected");
   static int colorPairUnread = UiColorConfig::GetColorPair("list_color_unread");
+  static int colorPairGroup = UiColorConfig::GetColorPair("list_color_group");
+  static int colorPairGroupUnread = UiColorConfig::GetColorPair("list_color_group_unread");
 
   int index = std::max(0, m_Model->GetCurrentChatIndexLocked());
   const std::vector<std::pair<std::string, std::string>>& p_ChatVec = m_Model->GetChatVecLocked();
@@ -59,13 +61,16 @@ void UiListView::Draw()
   const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
   std::vector<std::string> names;
   std::vector<bool> unreads;
+  std::vector<bool> isGroups;
   for (auto& chatPair : p_ChatVec)
   {
     const std::string& name = m_Model->GetContactListNameLocked(chatPair.first, chatPair.second, true /*p_AllowId*/,
                                                                 true /*p_AllowAlias*/);
     bool isUnread = m_Model->GetChatIsUnreadLocked(chatPair.first, chatPair.second);
+    bool isGroup = m_Model->GetChatInfoIsGroupLocked(chatPair.first, chatPair.second);
     names.push_back(name);
     unreads.push_back(isUnread);
+    isGroups.push_back(isGroup);
   }
 
   werase(m_PaddedWin);
@@ -80,12 +85,6 @@ void UiListView::Draw()
     int last = std::min((height + offset), count);
     for (int i = offset; i < last; ++i)
     {
-      if (i == index)
-      {
-        wattroff(m_PaddedWin, attribute);
-        wattron(m_PaddedWin, attributeSelected);
-      }
-
       int y = i - offset;
       std::string name = names[i];
       if (!emojiEnabled)
@@ -96,10 +95,17 @@ void UiListView::Draw()
       std::wstring wname = StrUtil::ToWString(name).substr(0, m_PaddedW);
       wname = StrUtil::TrimPadWString(wname, m_PaddedW);
 
+      int activeAttr = (i == index) ? attributeSelected : attribute;
+      int colorToApply = colorPair;
       if (unreads[i])
       {
-        wattron(m_PaddedWin, colorPairUnread);
+        colorToApply = isGroups[i] ? colorPairGroupUnread : colorPairUnread;
       }
+      else if (isGroups[i])
+      {
+        colorToApply = colorPairGroup;
+      }
+      wattrset(m_PaddedWin, activeAttr | colorToApply);
 
       mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
 
@@ -108,18 +114,11 @@ void UiListView::Draw()
         static const std::string unreadIndicator = " " + UiConfig::GetStr("unread_indicator");
         static const std::wstring wunread = StrUtil::ToWString(unreadIndicator);
         mvwaddnwstr(m_PaddedWin, y, (m_PaddedW - StrUtil::WStringWidth(wunread)), wunread.c_str(), wunread.size());
-
-        wattron(m_PaddedWin, colorPair);
-      }
-
-      if (i == index)
-      {
-        wattroff(m_PaddedWin, attributeSelected);
-        wattron(m_PaddedWin, attribute);
       }
     }
   }
 
-  wattroff(m_PaddedWin, attribute | colorPair);
+  wattroff(m_PaddedWin, attribute | colorPair | colorPairGroup | colorPairGroupUnread | colorPairUnread);
+  wattron(m_PaddedWin, attribute | colorPair);
   wrefresh(m_PaddedWin);
 }
