@@ -2447,8 +2447,8 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		if isGroup {
-			groupResult, err := client.SendGroupMessage(ctx, groupID, content)
-			if err != nil || len(groupResult.SuccessfullySentTo) == 0 {
+			_, err := client.SendGroupMessage(ctx, groupID, content)
+			if err != nil {
 				LOG_WARNING(fmt.Sprintf("send group edit message failed: %v", err))
 				return -1
 			}
@@ -2553,8 +2553,8 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 
 		if isGroup {
-			groupResult, err := client.SendGroupMessage(ctx, groupID, content)
-			if err != nil || len(groupResult.SuccessfullySentTo) == 0 {
+			_, err := client.SendGroupMessage(ctx, groupID, content)
+			if err != nil {
 				LOG_WARNING(fmt.Sprintf("send group message failed: %v", err))
 				return -1
 			}
@@ -2925,8 +2925,8 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 			}
 		} else {
 			groupID := types.GroupIdentifier(chatId)
-			groupResult, err := client.SendGroupMessage(ctx, groupID, deleteContent)
-			if err != nil || len(groupResult.SuccessfullySentTo) == 0 {
+			_, err := client.SendGroupMessage(ctx, groupID, deleteContent)
+			if err != nil {
 				LOG_WARNING(fmt.Sprintf("send group delete-for-everyone failed: %v", err))
 				return -1
 			}
@@ -3281,8 +3281,8 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 	if recipientUUID == uuid.Nil {
 		// Group chat
 		groupID := types.GroupIdentifier(chatId)
-		groupResult, err := client.SendGroupMessage(ctx, groupID, content)
-		if err != nil || len(groupResult.SuccessfullySentTo) == 0 {
+		_, err := client.SendGroupMessage(ctx, groupID, content)
+		if err != nil {
 			LOG_WARNING(fmt.Sprintf("send group reaction failed: %v", err))
 			return -1
 		}
