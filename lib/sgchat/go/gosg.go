@@ -1624,35 +1624,41 @@ func (handler *SgEventHandler) handleACIFound(evt *events.ACIFound) bool {
 		return true
 	}
 
-	pniId := evt.PNI.String()
-	aciId := evt.ACI.String()
-
-	// Only needed for known pni contacts, and once per contact (event is repeated for each pni signature message)
-	if evt.ACI.IsEmpty() || !HasContact(connId, pniId) || HasContact(connId, aciId) {
+	if evt.ACI.IsEmpty() {
 		return true
 	}
 
-	// Recipient has been updated with the aci by signalmeow, retaining name and phone from the pni-only entry
-	name := GetContactName(connId, pniId)
-	phone := ""
-	ctx := context.TODO()
-	recipient, err := client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, evt.ACI.UUID, evt.PNI.UUID, nil)
-	if err != nil {
-		LOG_WARNING(fmt.Sprintf("load recipient %s error: %v", aciId, err))
-	} else if recipient != nil {
-		if recipientName := RecipientName(recipient); recipientName != "" {
-			name = recipientName
+	pniId := evt.PNI.String()
+	aciId := evt.ACI.String()
+
+	// Add aci contact for known pni contact, once per contact (event is repeated for each pni signature message)
+	if HasContact(connId, pniId) && !HasContact(connId, aciId) {
+		// Recipient has been updated with the aci by signalmeow, retaining name and phone from the pni-only entry
+		name := GetContactName(connId, pniId)
+		phone := ""
+		ctx := context.TODO()
+		recipient, err := client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, evt.ACI.UUID, evt.PNI.UUID, nil)
+		if err != nil {
+			LOG_WARNING(fmt.Sprintf("load recipient %s error: %v", aciId, err))
+		} else if recipient != nil {
+			if recipientName := RecipientName(recipient); recipientName != "" {
+				name = recipientName
+			}
+			phone = strings.TrimPrefix(recipient.E164, "+")
 		}
-		phone = strings.TrimPrefix(recipient.E164, "+")
+
+		LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify alias %s %s", pniId, name))
+		CSgNewContactsNotify(connId, pniId, name, phone, BoolToInt(false), BoolToInt(true), NotifyDirect)
+		AddContactName(connId, pniId, name)
+
+		LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify %s %s", aciId, name))
+		CSgNewContactsNotify(connId, aciId, name, phone, BoolToInt(false), BoolToInt(false), NotifyDirect)
+		AddContactName(connId, aciId, name)
 	}
 
-	LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify alias %s %s", pniId, name))
-	CSgNewContactsNotify(connId, pniId, name, phone, BoolToInt(false), BoolToInt(true), NotifyDirect)
-	AddContactName(connId, pniId, name)
-
-	LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify %s %s", aciId, name))
-	CSgNewContactsNotify(connId, aciId, name, phone, BoolToInt(false), BoolToInt(false), NotifyDirect)
-	AddContactName(connId, aciId, name)
+	// Move any chat started with the pni, as further messages will use the aci chat (no-op if already moved)
+	LOG_TRACE(fmt.Sprintf("Call CSgMoveChatNotify %s %s", pniId, aciId))
+	CSgMoveChatNotify(connId, pniId, aciId)
 
 	return true
 }
@@ -2729,6 +2735,40 @@ func SgGetContacts(connId int) int {
 	client.SendContactSyncRequest(ctx)
 
 	return 0
+}
+
+func SgGetAciForPni(connId int, pniId string) string {
+	device := GetDevice(connId)
+	if device == nil {
+		return ""
+	}
+
+	serviceID := StringToServiceID(pniId)
+	if serviceID.IsEmpty() || (serviceID.Type != libsignalgo.ServiceIDTypePNI) {
+		return ""
+	}
+
+	// lookup without LoadAndUpdateRecipient, which creates a recipient if not found
+	recipientStore, ok := device.RecipientStore.(interface {
+		LoadRecipientByPNI(ctx context.Context, theirUUID uuid.UUID) (*types.Recipient, error)
+	})
+	if !ok {
+		LOG_WARNING("recipient store lookup by pni not supported")
+		return ""
+	}
+
+	ctx := context.TODO()
+	recipient, err := recipientStore.LoadRecipientByPNI(ctx, serviceID.UUID)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("load recipient %s error: %v", pniId, err))
+		return ""
+	}
+
+	if (recipient == nil) || (recipient.ACI == uuid.Nil) {
+		return ""
+	}
+
+	return UUIDToString(recipient.ACI)
 }
 
 func SgGetChats(connId int) int {
