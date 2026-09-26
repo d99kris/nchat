@@ -40,6 +40,7 @@ private:
     FindCachedMessageRequestType,
     DeleteOneMessageRequestType,
     DeleteOneChatRequestType,
+    DeleteOneContactRequestType,
     UpdateMessageIsReadRequestType,
     UpdateMessageIsPinnedRequestType,
     UpdateMessageFileInfoRequestType,
@@ -148,6 +149,14 @@ private:
     virtual RequestType GetRequestType() const { return DeleteOneChatRequestType; }
     std::string profileId;
     std::string chatId;
+  };
+
+  class DeleteOneContactRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return DeleteOneContactRequestType; }
+    std::string profileId;
+    std::string contactId;
   };
 
   class UpdateMessageIsReadRequest : public Request
@@ -263,6 +272,7 @@ public:
                           const std::string& p_FindMsgId, bool p_FindPinned);
   static void DeleteOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId);
   static void DeleteChat(const std::string& p_ProfileId, const std::string& p_ChatId);
+  static void DeleteContact(const std::string& p_ProfileId, const std::string& p_ContactId);
   static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
                                   const std::string& p_MsgId,
                                   bool p_IsRead);

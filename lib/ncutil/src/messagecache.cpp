@@ -783,6 +783,17 @@ void MessageCache::DeleteChat(const std::string& p_ProfileId, const std::string&
   EnqueueRequest(deleteChatRequest);
 }
 
+void MessageCache::DeleteContact(const std::string& p_ProfileId, const std::string& p_ContactId)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<DeleteOneContactRequest> deleteContactRequest =
+    std::make_shared<DeleteOneContactRequest>();
+  deleteContactRequest->profileId = p_ProfileId;
+  deleteContactRequest->contactId = p_ContactId;
+  EnqueueRequest(deleteContactRequest);
+}
+
 void MessageCache::UpdateMessageIsPinned(const std::string& p_ProfileId, const std::string& p_ChatId,
                                          const std::string& p_MsgId, bool p_IsPinned)
 {
@@ -1748,6 +1759,29 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache delete %s", chatId.c_str());
+      }
+      break;
+
+    case DeleteOneContactRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<DeleteOneContactRequest> deleteContactRequest =
+          std::static_pointer_cast<DeleteOneContactRequest>(p_Request);
+        const std::string& profileId = deleteContactRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        const std::string& contactId = deleteContactRequest->contactId;
+
+        try
+        {
+          *m_Dbs[profileId] << "DELETE FROM " + s_TableContacts + " WHERE id = ?;" << contactId;
+        }
+        catch (const sqlite::sqlite_exception& ex)
+        {
+          HANDLE_SQLITE_EXCEPTION(ex);
+        }
+
+        LOG_DEBUG("cache delete contact %s", contactId.c_str());
       }
       break;
 
