@@ -1315,6 +1315,7 @@ void SgUpdateMuteNotify(int p_ConnId, char* p_ChatId, int p_IsMuted)
   if (instance != nullptr)
   {
     std::shared_ptr<UpdateMuteNotify> updateMuteNotify = std::make_shared<UpdateMuteNotify>(instance->GetProfileId());
+    updateMuteNotify->success = true;
     updateMuteNotify->chatId = std::string(p_ChatId);
     updateMuteNotify->isMuted = (p_IsMuted == 1);
 
@@ -1351,6 +1352,7 @@ void SgUpdatePinNotify(int p_ConnId, char* p_ChatId, int p_IsPinned, int p_TimeP
   if (instance != nullptr)
   {
     std::shared_ptr<UpdatePinNotify> updatePinNotify = std::make_shared<UpdatePinNotify>(instance->GetProfileId());
+    updatePinNotify->success = true;
     updatePinNotify->chatId = std::string(p_ChatId);
     updatePinNotify->isPinned = (p_IsPinned == 1);
     updatePinNotify->timePinned = ((int64_t)p_TimePinned) * 1000;
