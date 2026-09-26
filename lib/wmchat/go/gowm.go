@@ -114,7 +114,7 @@ var NotifyDirect = 0
 var NotifyCache = 1
 var NotifySendCached = 2
 
-func SaveMap(path string, m map[string]string) error {
+func SaveMap[V any](path string, m map[string]V) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -123,15 +123,15 @@ func SaveMap(path string, m map[string]string) error {
 	return gob.NewEncoder(f).Encode(m)
 }
 
-func LoadMap(path string) (map[string]string, error) {
+func LoadMap[V any](path string) (map[string]V, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return make(map[string]string), err
+		return make(map[string]V), err
 	}
 	defer f.Close()
-	var m map[string]string
+	var m map[string]V
 	if err := gob.NewDecoder(f).Decode(&m); err != nil {
-		return make(map[string]string), err
+		return make(map[string]V), err
 	}
 	return m, nil
 }
@@ -148,35 +148,17 @@ func GetExpirationsStorePath(connPath string) string {
 	return connPath + "/expirations.dat"
 }
 
-func LoadExpirations(path string) map[string]uint32 {
-	m := make(map[string]uint32)
-	if f, err := os.Open(path); err == nil {
-		defer f.Close()
-		gob.NewDecoder(f).Decode(&m)
-	}
-	return m
-}
-
-func SaveExpirations(path string, m map[string]uint32) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return gob.NewEncoder(f).Encode(m)
-}
-
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
 	var connId int = nextConnId
 	nextConnId++
 	clients[connId] = conn
 	paths[connId] = path
-	contacts[connId], _ = LoadMap(GetContactsStorePath(path))
-	senders[connId], _ = LoadMap(GetSendersStorePath(path))
+	contacts[connId], _ = LoadMap[string](GetContactsStorePath(path))
+	senders[connId], _ = LoadMap[string](GetSendersStorePath(path))
 	states[connId] = None
 	timeReads[connId] = make(map[string]time.Time)
-	expirations[connId] = LoadExpirations(GetExpirationsStorePath(path))
+	expirations[connId], _ = LoadMap[uint32](GetExpirationsStorePath(path))
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
 	namesSynced[connId] = false
@@ -188,6 +170,7 @@ func RemoveConn(connId int) {
 	mx.Lock()
 	SaveMap(GetContactsStorePath(paths[connId]), contacts[connId])
 	SaveMap(GetSendersStorePath(paths[connId]), senders[connId])
+	SaveMap(GetExpirationsStorePath(paths[connId]), expirations[connId])
 	delete(clients, connId)
 	delete(paths, connId)
 	delete(contacts, connId)
@@ -372,14 +355,10 @@ func SetExpiration(connId int, chatId string, expiration uint32) {
 	}
 	LOG_TRACE(fmt.Sprintf("set expiration %s %d", chatId, expiration))
 	chatExpirations[chatId] = expiration
-	// saved on every change so a timer learned once survives restarts and crashes
-	if err := SaveExpirations(GetExpirationsStorePath(paths[connId]), chatExpirations); err != nil {
-		LOG_WARNING(fmt.Sprintf("save expirations failed %#v", err))
-	}
 }
 
 // GetMessageExpiration returns the disappearing timer in a message's context
-// info, if the sender included one. Expects an already unwrapped message.
+// info, if the sender included one.
 func GetMessageExpiration(msg *waE2E.Message) (uint32, bool) {
 	var expiration uint32
 	found := false
@@ -1084,6 +1063,8 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 
 		chatId := GetChatId(client, &chatJid, nil)
 
+		// must stay after the message loop: history messages (incl. EPHEMERAL_SETTING) come
+		// newest first and can leave an outdated timer, the conversation value is authoritative
 		if conversation.EphemeralExpiration != nil {
 			SetExpiration(handler.connId, chatId, conversation.GetEphemeralExpiration())
 		}
