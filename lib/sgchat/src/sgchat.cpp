@@ -158,11 +158,29 @@ bool SgChat::LoadProfile(const std::string& p_ProfilesDir, const std::string& p_
     FileUtil::RmDir(m_ProfileDir);
   }
 
+  // @todo: remove after 2027-04 - cleans up stale contact created by pni-only contacts mapped to nil uuid
+  MessageCache::DeleteContact(m_ProfileId, "00000000-0000-0000-0000-000000000000");
+
   std::string proxyUrl = GetProxyUrl();
   m_ConnId = CSgInit(const_cast<char*>(m_ProfileDir.c_str()), const_cast<char*>(proxyUrl.c_str()));
   if (m_ConnId == -1) return false;
 
   AddInstance(m_ConnId, this);
+
+  // merge chats with pni-only contacts into their aci chats, if the aci has become known
+  for (const std::string& chatId : MessageCache::GetChatIdsSync(m_ProfileId))
+  {
+    if (!StrUtil::StartsWith(chatId, "PNI:")) continue;
+
+    char* aciId = CSgGetAciForPni(m_ConnId, const_cast<char*>(chatId.c_str()));
+    if (*aciId != '\0')
+    {
+      LOG_INFO("move chat %s to %s", chatId.c_str(), aciId);
+      MessageCache::MoveChat(m_ProfileId, chatId, aciId);
+    }
+
+    free(aciId);
+  }
 
   m_ProfileDirVersion = FileUtil::GetDirVersion(m_ProfileDir);
   if (m_SignalmeowDate < m_ProfileDirVersion)
@@ -1207,6 +1225,24 @@ void SgDeleteChatNotify(int p_ConnId, char* p_ChatId)
   }
 
   free(p_ChatId);
+}
+
+void SgMoveChatNotify(int p_ConnId, char* p_ChatId, char* p_NewChatId)
+{
+  SgChat* instance = SgChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    std::shared_ptr<MoveChatNotify> moveChatNotify = std::make_shared<MoveChatNotify>(instance->GetProfileId());
+    moveChatNotify->chatId = std::string(p_ChatId);
+    moveChatNotify->newChatId = std::string(p_NewChatId);
+
+    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+    deferNotifyRequest->serviceMessage = moveChatNotify;
+    instance->SendRequest(deferNotifyRequest);
+  }
+
+  free(p_ChatId);
+  free(p_NewChatId);
 }
 
 void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsOutgoing)

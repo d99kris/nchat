@@ -469,6 +469,14 @@ func UUIDToString(id uuid.UUID) string {
 	return id.String()
 }
 
+func StringToServiceID(s string) libsignalgo.ServiceID {
+	sid, err := libsignalgo.ServiceIDFromString(s)
+	if err != nil {
+		return libsignalgo.EmptyServiceID
+	}
+	return sid
+}
+
 func StringToUUID(s string) uuid.UUID {
 	id, err := uuid.Parse(s)
 	if err != nil {
@@ -1112,8 +1120,7 @@ func (handler *SgEventHandler) HandleEvent(evt events.SignalEvent) bool {
 		LOG_TRACE(fmt.Sprintf("Call event ignored"))
 		return true
 	case *events.ACIFound:
-		LOG_TRACE(fmt.Sprintf("ACIFound event ignored"))
-		return true
+		return handler.handleACIFound(e)
 	case *events.MessageRequestResponse:
 		LOG_TRACE(fmt.Sprintf("MessageRequestResponse event ignored"))
 		return true
@@ -1157,13 +1164,15 @@ func (handler *SgEventHandler) handleChatEvent(evt *events.ChatEvent) bool {
 	// Resolve chat name if not already known
 	if !HasContact(connId, chatId) {
 		ctx := context.TODO()
-		chatUUID := StringToUUID(chatId)
-		if chatUUID != uuid.Nil {
-			// 1:1 chat: fetch profile name
-			profile, err := client.RetrieveProfileByID(ctx, chatUUID, 0)
-			if err == nil && profile != nil && profile.Name != "" {
-				AddContactName(connId, chatId, profile.Name)
-				CSgNewContactsNotify(connId, chatId, profile.Name, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
+		serviceID := StringToServiceID(chatId)
+		if !serviceID.IsEmpty() {
+			// 1:1 chat: fetch profile name (profiles are looked up by aci, pni chats are named via contact list)
+			if serviceID.Type == libsignalgo.ServiceIDTypeACI {
+				profile, err := client.RetrieveProfileByID(ctx, serviceID.UUID, 0)
+				if err == nil && profile != nil && profile.Name != "" {
+					AddContactName(connId, chatId, profile.Name)
+					CSgNewContactsNotify(connId, chatId, profile.Name, "", BoolToInt(false), BoolToInt(false), NotifyDirect)
+				}
 			}
 		} else {
 			// Group chat: fetch group title
@@ -1561,18 +1570,19 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 		//	notify = NotifySendCached
 		//}
 
-		contactId := UUIDToString(contact.ACI)
+		var contactId string
+		if contact.ACI != uuid.Nil {
+			contactId = UUIDToString(contact.ACI)
+		} else if contact.PNI != uuid.Nil {
+			contactId = libsignalgo.NewPNIServiceID(contact.PNI).String()
+		} else {
+			continue
+		}
 		if contactId == selfId {
 			continue
 		}
 
-		name := contact.ContactName
-		if name == "" {
-			name = contact.Profile.Name
-		}
-		if name == "" {
-			name = contact.E164
-		}
+		name := RecipientName(contact)
 		if name == "" {
 			continue
 		}
@@ -1583,6 +1593,13 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 		LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify %s %s", contactId, name))
 		CSgNewContactsNotify(connId, contactId, name, phone, BoolToInt(isSelf), BoolToInt(isAlias), notify)
 		AddContactName(connId, contactId, name)
+
+		if contact.ACI != uuid.Nil && contact.PNI != uuid.Nil {
+			pniId := libsignalgo.NewPNIServiceID(contact.PNI).String()
+			LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify alias %s %s", pniId, name))
+			CSgNewContactsNotify(connId, pniId, name, phone, BoolToInt(isSelf), BoolToInt(true), notify)
+			AddContactName(connId, pniId, name)
+		}
 	}
 
 	// Add self as contact
@@ -1596,6 +1613,65 @@ func (handler *SgEventHandler) handleContactList(evt *events.ContactList) bool {
 	AddContactName(connId, selfId, selfName)
 
 	return true
+}
+
+func (handler *SgEventHandler) handleACIFound(evt *events.ACIFound) bool {
+	LOG_TRACE(fmt.Sprintf("handleACIFound pni=%s aci=%s", evt.PNI.String(), evt.ACI.String()))
+	connId := handler.connId
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return true
+	}
+
+	if evt.ACI.IsEmpty() {
+		return true
+	}
+
+	pniId := evt.PNI.String()
+	aciId := evt.ACI.String()
+
+	// Add aci contact for known pni contact, once per contact (event is repeated for each pni signature message)
+	if HasContact(connId, pniId) && !HasContact(connId, aciId) {
+		// Recipient has been updated with the aci by signalmeow, retaining name and phone from the pni-only entry
+		name := GetContactName(connId, pniId)
+		phone := ""
+		ctx := context.TODO()
+		recipient, err := client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, evt.ACI.UUID, evt.PNI.UUID, nil)
+		if err != nil {
+			LOG_WARNING(fmt.Sprintf("load recipient %s error: %v", aciId, err))
+		} else if recipient != nil {
+			if recipientName := RecipientName(recipient); recipientName != "" {
+				name = recipientName
+			}
+			phone = strings.TrimPrefix(recipient.E164, "+")
+		}
+
+		LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify alias %s %s", pniId, name))
+		CSgNewContactsNotify(connId, pniId, name, phone, BoolToInt(false), BoolToInt(true), NotifyDirect)
+		AddContactName(connId, pniId, name)
+
+		LOG_TRACE(fmt.Sprintf("Call CSgNewContactsNotify %s %s", aciId, name))
+		CSgNewContactsNotify(connId, aciId, name, phone, BoolToInt(false), BoolToInt(false), NotifyDirect)
+		AddContactName(connId, aciId, name)
+	}
+
+	// Move any chat started with the pni, as further messages will use the aci chat (no-op if already moved)
+	LOG_TRACE(fmt.Sprintf("Call CSgMoveChatNotify %s %s", pniId, aciId))
+	CSgMoveChatNotify(connId, pniId, aciId)
+
+	return true
+}
+
+func RecipientName(recipient *types.Recipient) string {
+	name := recipient.ContactName
+	if name == "" {
+		name = recipient.Profile.Name
+	}
+	if name == "" {
+		name = recipient.E164
+	}
+	return name
 }
 
 func (handler *SgEventHandler) handleDeleteForMe(evt *events.DeleteForMe) bool {
@@ -1625,9 +1701,9 @@ func (handler *SgEventHandler) handleDeleteForMe(evt *events.DeleteForMe) bool {
 		if client != nil && client.Store.BackupStore != nil {
 			ctx := context.TODO()
 			var backupChat *store.BackupChat
-			chatUUID := StringToUUID(chatIdStr)
-			if chatUUID != uuid.Nil {
-				backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+			serviceID := StringToServiceID(chatIdStr)
+			if !serviceID.IsEmpty() {
+				backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
 			} else {
 				backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatIdStr))
 			}
@@ -1671,9 +1747,9 @@ func (handler *SgEventHandler) handleDeleteForMe(evt *events.DeleteForMe) bool {
 		if client != nil && client.Store.BackupStore != nil {
 			ctx := context.TODO()
 			var backupChat *store.BackupChat
-			chatUUID := StringToUUID(chatIdStr)
-			if chatUUID != uuid.Nil {
-				backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+			serviceID := StringToServiceID(chatIdStr)
+			if !serviceID.IsEmpty() {
+				backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
 			} else {
 				backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatIdStr))
 			}
@@ -2196,9 +2272,8 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 	// Resolve chatId to backup store chat (UUID for 1:1, GroupIdentifier for groups)
 	var backupChat *store.BackupChat
 	var err error
-	chatUUID := StringToUUID(chatId)
-	if chatUUID != uuid.Nil {
-		serviceID := libsignalgo.NewACIServiceID(chatUUID)
+	serviceID := StringToServiceID(chatId)
+	if !serviceID.IsEmpty() {
 		backupChat, err = client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
 	} else {
 		backupChat, err = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
@@ -2403,14 +2478,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 	ctx := context.TODO()
 
 	// Determine if DM or group
-	recipientUUID := StringToUUID(chatId)
-	isGroup := recipientUUID == uuid.Nil
+	recipientServiceID := StringToServiceID(chatId)
+	isGroup := recipientServiceID.IsEmpty()
 	var groupID types.GroupIdentifier
-	var recipientServiceID libsignalgo.ServiceID
 	if isGroup {
 		groupID = types.GroupIdentifier(chatId)
-	} else {
-		recipientServiceID = libsignalgo.NewACIServiceID(recipientUUID)
 	}
 
 	// Create data message
@@ -2607,8 +2679,7 @@ func SgGetGroupMembers(connId int, chatId string) int {
 	ctx := context.TODO()
 
 	// In Signal, groups use GroupIdentifier as chatId
-	recipientUUID := StringToUUID(chatId)
-	if recipientUUID != uuid.Nil {
+	if !StringToServiceID(chatId).IsEmpty() {
 		LOG_WARNING("not a group chat")
 		return -1
 	}
@@ -2666,6 +2737,40 @@ func SgGetContacts(connId int) int {
 	return 0
 }
 
+func SgGetAciForPni(connId int, pniId string) string {
+	device := GetDevice(connId)
+	if device == nil {
+		return ""
+	}
+
+	serviceID := StringToServiceID(pniId)
+	if serviceID.IsEmpty() || (serviceID.Type != libsignalgo.ServiceIDTypePNI) {
+		return ""
+	}
+
+	// lookup without LoadAndUpdateRecipient, which creates a recipient if not found
+	recipientStore, ok := device.RecipientStore.(interface {
+		LoadRecipientByPNI(ctx context.Context, theirUUID uuid.UUID) (*types.Recipient, error)
+	})
+	if !ok {
+		LOG_WARNING("recipient store lookup by pni not supported")
+		return ""
+	}
+
+	ctx := context.TODO()
+	recipient, err := recipientStore.LoadRecipientByPNI(ctx, serviceID.UUID)
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("load recipient %s error: %v", pniId, err))
+		return ""
+	}
+
+	if (recipient == nil) || (recipient.ACI == uuid.Nil) {
+		return ""
+	}
+
+	return UUIDToString(recipient.ACI)
+}
+
 func SgGetChats(connId int) int {
 	LOG_TRACE("get chats " + strconv.Itoa(connId))
 
@@ -2709,10 +2814,14 @@ func SgGetChats(connId int) int {
 				switch dest := recipient.Destination.(type) {
 				case *backuppb.Recipient_Contact:
 					aciBytes := dest.Contact.GetAci()
-					if len(aciBytes) != 16 {
+					pniBytes := dest.Contact.GetPni()
+					if len(aciBytes) == 16 {
+						chatId = UUIDToString(uuid.UUID(aciBytes))
+					} else if len(pniBytes) == 16 {
+						chatId = libsignalgo.NewPNIServiceID(uuid.UUID(pniBytes)).String()
+					} else {
 						continue
 					}
-					chatId = UUIDToString(uuid.UUID(aciBytes))
 					// Resolve contact name: nickname > profile name > e164
 					if nick := dest.Contact.GetNickname(); nick != nil {
 						chatName = strings.TrimSpace(nick.GetGiven() + " " + nick.GetFamily())
@@ -2810,14 +2919,12 @@ func SgMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 
 	ctx := context.TODO()
 
-	// Parse sender UUID
-	senderUUID := StringToUUID(senderId)
-	if senderUUID == uuid.Nil {
-		LOG_WARNING(fmt.Sprintf("invalid sender UUID: %s", senderId))
+	// Parse sender ServiceID
+	senderServiceID := StringToServiceID(senderId)
+	if senderServiceID.IsEmpty() {
+		LOG_WARNING(fmt.Sprintf("invalid sender id: %s", senderId))
 		return -1
 	}
-
-	senderServiceID := libsignalgo.NewACIServiceID(senderUUID)
 
 	// Parse message timestamp
 	timestamp, err := strconv.ParseUint(msgId, 10, 64)
@@ -2848,8 +2955,7 @@ func SgMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 }
 
 func chatIdToConversationIdentifier(chatId string) *signalpb.ConversationIdentifier {
-	recipientUUID := StringToUUID(chatId)
-	if recipientUUID != uuid.Nil {
+	if !StringToServiceID(chatId).IsEmpty() {
 		// DM chat
 		return &signalpb.ConversationIdentifier{
 			Identifier: &signalpb.ConversationIdentifier_ThreadServiceId{
@@ -2916,9 +3022,9 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 			},
 		}
 
-		recipientUUID := StringToUUID(chatId)
-		if recipientUUID != uuid.Nil {
-			result := client.SendMessage(ctx, libsignalgo.NewACIServiceID(recipientUUID), deleteContent)
+		recipientServiceID := StringToServiceID(chatId)
+		if !recipientServiceID.IsEmpty() {
+			result := client.SendMessage(ctx, recipientServiceID, deleteContent)
 			if !result.WasSuccessful {
 				LOG_WARNING("send delete-for-everyone failed")
 				return -1
@@ -2967,9 +3073,9 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 	// Delete from local backup store so the message doesn't reappear on restart
 	if client.Store.BackupStore != nil {
 		var backupChat *store.BackupChat
-		chatUUID := StringToUUID(chatId)
-		if chatUUID != uuid.Nil {
-			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+		serviceID := StringToServiceID(chatId)
+		if !serviceID.IsEmpty() {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
 		} else {
 			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
 		}
@@ -3010,9 +3116,9 @@ func SgDeleteChat(connId int, chatId string) int {
 	var mostRecentMessages []*signalpb.AddressableMessage
 	var backupChat *store.BackupChat
 	if client.Store != nil && client.Store.BackupStore != nil {
-		chatUUID := StringToUUID(chatId)
-		if chatUUID != uuid.Nil {
-			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(chatUUID))
+		serviceID := StringToServiceID(chatId)
+		if !serviceID.IsEmpty() {
+			backupChat, _ = client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
 		} else {
 			backupChat, _ = client.Store.BackupStore.GetBackupChatByGroupID(ctx, types.GroupIdentifier(chatId))
 		}
@@ -3192,8 +3298,8 @@ func SgSendTyping(connId int, chatId string, isTyping int) int {
 	}
 
 	// Determine if DM or group
-	recipientUUID := StringToUUID(chatId)
-	if recipientUUID == uuid.Nil {
+	recipientServiceID := StringToServiceID(chatId)
+	if recipientServiceID.IsEmpty() {
 		// Group chat
 		groupID := types.GroupIdentifier(chatId)
 		_, err := client.SendGroupMessage(ctx, groupID, content)
@@ -3203,7 +3309,6 @@ func SgSendTyping(connId int, chatId string, isTyping int) int {
 		}
 	} else {
 		// DM chat
-		recipientServiceID := libsignalgo.NewACIServiceID(recipientUUID)
 		result := client.SendMessage(ctx, recipientServiceID, content)
 		if !result.WasSuccessful {
 			LOG_WARNING("send typing failed")
@@ -3277,8 +3382,8 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 	}
 
 	// Determine if DM or group
-	recipientUUID := StringToUUID(chatId)
-	if recipientUUID == uuid.Nil {
+	recipientServiceID := StringToServiceID(chatId)
+	if recipientServiceID.IsEmpty() {
 		// Group chat
 		groupID := types.GroupIdentifier(chatId)
 		_, err := client.SendGroupMessage(ctx, groupID, content)
@@ -3288,7 +3393,6 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 		}
 	} else {
 		// DM chat
-		recipientServiceID := libsignalgo.NewACIServiceID(recipientUUID)
 		result := client.SendMessage(ctx, recipientServiceID, content)
 		if !result.WasSuccessful {
 			LOG_WARNING("send reaction failed")
