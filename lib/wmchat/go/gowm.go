@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -113,7 +114,7 @@ var NotifyDirect = 0
 var NotifyCache = 1
 var NotifySendCached = 2
 
-func SaveMap(path string, m map[string]string) error {
+func SaveMap[V any](path string, m map[string]V) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -122,15 +123,15 @@ func SaveMap(path string, m map[string]string) error {
 	return gob.NewEncoder(f).Encode(m)
 }
 
-func LoadMap(path string) (map[string]string, error) {
+func LoadMap[V any](path string) (map[string]V, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return make(map[string]string), err
+		return make(map[string]V), err
 	}
 	defer f.Close()
-	var m map[string]string
+	var m map[string]V
 	if err := gob.NewDecoder(f).Decode(&m); err != nil {
-		return make(map[string]string), err
+		return make(map[string]V), err
 	}
 	return m, nil
 }
@@ -143,17 +144,21 @@ func GetSendersStorePath(connPath string) string {
 	return connPath + "/senders.dat"
 }
 
+func GetExpirationsStorePath(connPath string) string {
+	return connPath + "/expirations.dat"
+}
+
 func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	mx.Lock()
 	var connId int = nextConnId
 	nextConnId++
 	clients[connId] = conn
 	paths[connId] = path
-	contacts[connId], _ = LoadMap(GetContactsStorePath(path))
-	senders[connId], _ = LoadMap(GetSendersStorePath(path))
+	contacts[connId], _ = LoadMap[string](GetContactsStorePath(path))
+	senders[connId], _ = LoadMap[string](GetSendersStorePath(path))
 	states[connId] = None
 	timeReads[connId] = make(map[string]time.Time)
-	expirations[connId] = make(map[string]uint32)
+	expirations[connId], _ = LoadMap[uint32](GetExpirationsStorePath(path))
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
 	namesSynced[connId] = false
@@ -165,6 +170,7 @@ func RemoveConn(connId int) {
 	mx.Lock()
 	SaveMap(GetContactsStorePath(paths[connId]), contacts[connId])
 	SaveMap(GetSendersStorePath(paths[connId]), senders[connId])
+	SaveMap(GetExpirationsStorePath(paths[connId]), expirations[connId])
 	delete(clients, connId)
 	delete(paths, connId)
 	delete(contacts, connId)
@@ -342,11 +348,33 @@ func GetExpiration(connId int, chatId string) uint32 {
 
 func SetExpiration(connId int, chatId string, expiration uint32) {
 	mx.Lock()
-	if expirations[connId] == nil {
-		expirations[connId] = make(map[string]uint32)
+	defer mx.Unlock()
+	chatExpirations, ok := expirations[connId]
+	if !ok || chatExpirations[chatId] == expiration {
+		return
 	}
-	expirations[connId][chatId] = expiration
-	mx.Unlock()
+	LOG_TRACE(fmt.Sprintf("set expiration %s %d", chatId, expiration))
+	chatExpirations[chatId] = expiration
+}
+
+// GetMessageExpiration returns the disappearing timer in a message's context
+// info, if the sender included one.
+func GetMessageExpiration(msg *waE2E.Message) (uint32, bool) {
+	var expiration uint32
+	found := false
+	msg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		if fd.Kind() != protoreflect.MessageKind || fd.IsList() || fd.IsMap() {
+			return true
+		}
+		content, ok := v.Message().Interface().(interface{ GetContextInfo() *waE2E.ContextInfo })
+		if !ok || content.GetContextInfo() == nil || content.GetContextInfo().Expiration == nil {
+			return true
+		}
+		expiration = content.GetContextInfo().GetExpiration()
+		found = true
+		return false
+	})
+	return expiration, found
 }
 
 // download info
@@ -1034,6 +1062,13 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 		}
 
 		chatId := GetChatId(client, &chatJid, nil)
+
+		// must stay after the message loop: history messages (incl. EPHEMERAL_SETTING) come
+		// newest first and can leave an outdated timer, the conversation value is authoritative
+		if conversation.EphemeralExpiration != nil {
+			SetExpiration(handler.connId, chatId, conversation.GetEphemeralExpiration())
+		}
+
 		if hasMessages {
 			isMuted := false
 			isPinned := false
@@ -1084,6 +1119,10 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 		return
 	}
 	chatId := GetChatId(client, &groupInfo.JID, nil)
+
+	if groupInfo.Ephemeral != nil {
+		SetExpiration(connId, chatId, groupInfo.Ephemeral.DisappearingTimer)
+	}
 
 	// sender is optional (parsed from an optional "participant" attribute), and is
 	// legitimately nil for group changes not attributed to a participant
@@ -1538,9 +1577,7 @@ func GetContacts(connId int) {
 			CWmNewContactsNotify(connId, groupId, groupName, groupPhone, isSelf, isAlias, notify)
 			AddContactName(connId, groupId, groupName)
 
-			if group.GroupEphemeral.IsEphemeral {
-				SetExpiration(connId, groupId, group.GroupEphemeral.DisappearingTimer)
-			}
+			SetExpiration(connId, groupId, group.GroupEphemeral.DisappearingTimer)
 		}
 	}
 
@@ -1699,6 +1736,13 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 	default:
 		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
+	}
+
+	// after the message is handled, so a failure here cannot lose it
+	if expiration, found := GetMessageExpiration(msg); found {
+		if client := GetClient(handler.connId); client != nil {
+			SetExpiration(handler.connId, GetChatId(client, &messageInfo.Chat, &messageInfo.Sender), expiration)
+		}
 	}
 }
 
@@ -2255,6 +2299,16 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
 		}
+	} else if protocol.GetType() == waE2E.ProtocolMessage_EPHEMERAL_SETTING {
+		// handle disappearing messages timer change
+		connId := handler.connId
+		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
+		chatId := GetChatId(client, &messageInfo.Chat, &messageInfo.Sender)
+		SetExpiration(connId, chatId, protocol.GetEphemeralExpiration())
 	} else if protocol.GetType() == waE2E.ProtocolMessage_REVOKE {
 		// handle message revoke
 		connId := handler.connId
