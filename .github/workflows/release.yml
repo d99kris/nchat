@@ -275,4 +275,4 @@ jobs:
             dist/symbols-[0-9]*.tar.gz
             dist/sha256sums.txt
           fail_on_unmatched_files: true
-          generate_release_notes: true
+          generate_release_notes: false
