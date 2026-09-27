@@ -301,16 +301,51 @@ void MessageCache::AddProfile(const std::string& p_ProfileId, bool p_CheckSequen
   if (m_CacheReadOnly)
   {
     LOG_WARNING("cache read only");
-    std::string tmpDbPath = dbPath + ".tmp";
-    FileUtil::CopyFile(dbPath, tmpDbPath);
-    m_Dbs[p_ProfileId].reset(new sqlite::database(tmpDbPath));
-  }
-  else
-  {
-    m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
   }
 
+  auto openDb = [&]()
+  {
+    if (m_CacheReadOnly)
+    {
+      std::string tmpDbPath = dbPath + ".tmp";
+      FileUtil::CopyFile(dbPath, tmpDbPath);
+      m_Dbs[p_ProfileId].reset(new sqlite::database(tmpDbPath));
+    }
+    else
+    {
+      m_Dbs[p_ProfileId].reset(new sqlite::database(dbPath));
+    }
+  };
+
+  openDb();
   if (!m_Dbs[p_ProfileId]) return;
+
+  // Discard a corrupt db and start over with an empty one, indicating removal to protocol so it can
+  // perform reinit to fetch chats. Other errors are left to be handled by the schema setup below.
+  try
+  {
+    int64_t tableCount = 0;
+    *m_Dbs[p_ProfileId] << "SELECT COUNT(*) FROM sqlite_master;" >> tableCount;
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    const int code = ex.get_code();
+    if ((code == SQLITE_CORRUPT) || (code == SQLITE_NOTADB))
+    {
+      LOG_WARNING("cache db corrupt (%d: \"%s\"), removing %s", code, ex.what(), dbDir.c_str());
+      m_Dbs[p_ProfileId].reset();
+      FileUtil::RmDir(dbDir);
+      FileUtil::MkDir(dbDir);
+      FileUtil::InitDirVersion(dbDir, p_DirVersion);
+      if (p_IsRemoved != nullptr)
+      {
+        *p_IsRemoved = !p_IsSetup;
+      }
+
+      openDb();
+      if (!m_Dbs[p_ProfileId]) return;
+    }
+  }
 
   try
   {
