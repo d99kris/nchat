@@ -1,12 +1,13 @@
 // uitextinputdialog.cpp
 //
-// Copyright (c) 2024-2025 Kristofer Berggren
+// Copyright (c) 2024-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #include "uitextinputdialog.h"
 
+#include "apputil.h"
 #include "numutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
@@ -35,7 +36,7 @@ UiTextInputDialog::~UiTextInputDialog()
 bool UiTextInputDialog::Run()
 {
   Draw();
-  while (m_Running)
+  while (m_Running && !AppUtil::IsTerminateRequested())
   {
     wint_t key = UiController::GetKey(50);
     if (key != 0)

@@ -1,12 +1,13 @@
 // uimessagedialog.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
 #include "uimessagedialog.h"
 
+#include "apputil.h"
 #include "numutil.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -33,7 +34,7 @@ UiMessageDialog::~UiMessageDialog()
 bool UiMessageDialog::Run()
 {
   Draw();
-  while (m_Running)
+  while (m_Running && !AppUtil::IsTerminateRequested())
   {
     wint_t key = UiController::GetKey(50);
     if (key != 0)

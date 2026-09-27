@@ -14,6 +14,7 @@
 
 #include <cassert>
 #include <dlfcn.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -421,6 +422,9 @@ int main(int argc, char* argv[])
       Status::Set(protocol.first, Status::FlagConnecting);
     }
 
+    // Signal handler for terminate signals
+    AppUtil::InitTerminateSignalHandler();
+
     // Login
     std::thread loginThread([&]
     {
@@ -482,6 +486,14 @@ int main(int argc, char* argv[])
   LOG_INFO("exit");
 
   Log::Cleanup(isLogdumpEnabled);
+
+  if (AppUtil::IsTerminateRequested())
+  {
+    // Re-raise so the parent sees termination by signal (shell message, exit status 128+N)
+    const int sig = AppUtil::GetTerminateSignal();
+    signal(sig, SIG_DFL);
+    kill(getpid(), sig);
+  }
 
   return rv;
 }

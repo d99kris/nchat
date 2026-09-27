@@ -1,6 +1,6 @@
 // ui.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -8,10 +8,12 @@
 #include "ui.h"
 
 #include <locale.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <ncurses.h>
 
+#include "apputil.h"
 #include "emojilist.h"
 #include "log.h"
 #include "messagecache.h"
@@ -81,6 +83,8 @@ void Ui::Cleanup()
   {
     printf("\033]0;%s\007", "");
   }
+
+  fflush(stdout);
 }
 
 void Ui::Run()
@@ -97,13 +101,19 @@ void Ui::Run()
 
   raw();
   curs_set(1);
-  while (m_Model->Process())
+  while (m_Model->Process() && !AppUtil::IsTerminateRequested())
   {
     wint_t key = UiController::GetKey(50);
     if (key != 0)
     {
       m_Model->KeyHandler(key);
     }
+  }
+
+  if (AppUtil::IsTerminateRequested())
+  {
+    const int sig = AppUtil::GetTerminateSignal();
+    LOG_WARNING("termination requested by signal %d (%s)", sig, strsignal(sig));
   }
 
   LOG_INFO("ui loop end");

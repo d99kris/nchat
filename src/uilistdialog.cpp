@@ -7,6 +7,7 @@
 
 #include "uilistdialog.h"
 
+#include "apputil.h"
 #include "numutil.h"
 #include "strutil.h"
 #include "timeutil.h"
@@ -37,7 +38,7 @@ bool UiListDialog::Run()
 
   Draw();
   int64_t lastTimerEvent = 0;
-  while (m_Running)
+  while (m_Running && !AppUtil::IsTerminateRequested())
   {
     wint_t key = UiController::GetKey(50);
     if (key != 0)

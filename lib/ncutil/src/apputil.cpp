@@ -1,6 +1,6 @@
 // apputil.cpp
 //
-// Copyright (c) 2020-2025 Kristofer Berggren
+// Copyright (c) 2020-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -28,6 +28,7 @@
 #include "version.h"
 
 bool AppUtil::m_DeveloperMode = false;
+volatile sig_atomic_t AppUtil::m_TerminateSignal = 0;
 
 void AppUtil::AssertionFailed()
 {
@@ -146,6 +147,47 @@ void AppUtil::InitSignalHandler()
   {
     sigaction(sig, &action, nullptr);
   }
+}
+
+void AppUtil::InitTerminateSignalHandler()
+{
+  static const std::set<int> signals =
+  {
+    SIGHUP, // terminal close
+    SIGTERM,
+  };
+
+  // SA_ONSTACK as the signal may be delivered on a Go runtime thread.
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = TerminateSignalHandler;
+  sigemptyset(&action.sa_mask);
+  action.sa_flags = SA_ONSTACK;
+
+  for (const auto sig : signals)
+  {
+    sigaction(sig, &action, nullptr);
+  }
+}
+
+void AppUtil::TerminateSignalHandler(int p_Signal)
+{
+  // Async-signal-safe only: request ui exit, and watchdog alarm in case shutdown hangs
+  if (m_TerminateSignal == 0)
+  {
+    m_TerminateSignal = p_Signal;
+    alarm(5);
+  }
+}
+
+bool AppUtil::IsTerminateRequested()
+{
+  return (m_TerminateSignal != 0);
+}
+
+int AppUtil::GetTerminateSignal()
+{
+  return m_TerminateSignal;
 }
 
 #if !defined(HAVE_EXECINFO_H) && defined(NCHAT_BUILD_MUSL)
