@@ -508,6 +508,7 @@ This configuration file holds general user interface settings. Default content:
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
+    newsletter=1
     notify_every_unread=1
     online_status_share=1
     online_status_dynamic=1
@@ -836,6 +837,13 @@ Specifies whether to display reactions.
 Specifies a custom command to use for spell checking composed messages. If not
 specified, nchat checks if `aspell` or `ispell` is available on the system (in
 that order), and uses the first found.
+
+### newsletter
+
+Specifies (WhatsApp) Channels / `*@newsletter` chat level of visibility:
+
+    0 = hidden
+    1 = visible  <- default
 
 ### status_broadcast
 
