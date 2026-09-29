@@ -18,6 +18,7 @@ public:
   static void Init();
   static void Cleanup();
   static int GetColorPair(const std::string& p_Param); // ex: "top_color"
+  static bool HasColor(const std::string& p_Param); // ex: "list_color_selected"
   static int GetUserColorPair(const std::string& p_Param, const std::string& p_UserId);
   static bool IsUserColor(const std::string& p_Param); // ex: "top_color"
   static int GetAttribute(const std::string& p_Param); // ex: "top_attr"

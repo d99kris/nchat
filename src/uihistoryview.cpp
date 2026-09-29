@@ -105,6 +105,14 @@ void UiHistoryView::Draw()
     int attributeText = isSelectedMessage ? attributeTextSelected : attributeTextNormal;
     int colorPairText = [&]()
     {
+      // selected color takes precedence over sent/recv/usercolor for the selected message
+      static bool hasColorSelected = UiColorConfig::HasColor("history_text_color_selected");
+      if (isSelectedMessage && hasColorSelected)
+      {
+        static int colorPairSelected = UiColorConfig::GetColorPair("history_text_color_selected");
+        return colorPairSelected;
+      }
+
       if (msg.isOutgoing) return colorPairTextSent;
 
       if (msg.senderId == currentChat.second) return colorPairTextRecv;
@@ -365,6 +373,14 @@ void UiHistoryView::Draw()
     int attributeName = isSelectedMessage ? attributeNameSelected : attributeNameNormal;
     int colorPairName = [&]()
     {
+      // selected color takes precedence over sent/recv/usercolor for the selected message
+      static bool hasColorSelected = UiColorConfig::HasColor("history_name_color_selected");
+      if (isSelectedMessage && hasColorSelected)
+      {
+        static int colorPairSelected = UiColorConfig::GetColorPair("history_name_color_selected");
+        return colorPairSelected;
+      }
+
       if (msg.isOutgoing) return colorPairNameSent;
 
       if (msg.senderId == currentChat.second) return colorPairNameRecv;
