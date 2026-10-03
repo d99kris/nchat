@@ -21,14 +21,6 @@ macro(add_unit_test testname)
   # Linking
   target_link_libraries(${testname} PUBLIC ncutil)
 
-  # Dependency execinfo
-  if(CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
-    find_library(EXECINFO_LIBRARY execinfo)
-    if(EXECINFO_LIBRARY)
-      target_link_libraries(${testname} PRIVATE ${EXECINFO_LIBRARY})
-    endif()
-  endif()
-
   # Common
   target_common_config(${testname})
 
