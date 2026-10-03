@@ -100,6 +100,12 @@ target_include_directories(ncutil PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated
 check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)
 if(FOUND_EXECINFO_H)
   target_compile_definitions(ncutil PRIVATE HAVE_EXECINFO_H=1)
+  if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+    find_library(EXECINFO_LIBRARY execinfo)
+    if(EXECINFO_LIBRARY)
+      target_link_libraries(ncutil PUBLIC ${EXECINFO_LIBRARY})
+    endif()
+  endif()
 endif()
 
 find_package(PNG)

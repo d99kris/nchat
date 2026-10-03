@@ -510,14 +510,6 @@ else()
   target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
 endif()
 
-# Dependency execinfo
-if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
-  find_library(EXECINFO_LIBRARY execinfo)
-  if(EXECINFO_LIBRARY)
-    target_link_libraries(nchat PUBLIC ${EXECINFO_LIBRARY})
-  endif()
-endif()
-
 # Linking
 target_link_libraries(nchat PUBLIC ncutil pthread ${CURSES_LIBRARIES} ${CMAKE_DL_LIBS})
 
