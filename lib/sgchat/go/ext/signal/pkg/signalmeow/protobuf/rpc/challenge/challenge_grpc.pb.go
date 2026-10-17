@@ -23,18 +23,45 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Challenge_HandleChallengeResponse_FullMethodName = "/org.signal.chat.challenge.Challenge/HandleChallengeResponse"
+	Challenge_AnswerChallenge_FullMethodName      = "/org.signal.chat.challenge.Challenge/AnswerChallenge"
+	Challenge_RequestPushChallenge_FullMethodName = "/org.signal.chat.challenge.Challenge/RequestPushChallenge"
 )
 
 // ChallengeClient is the client API for Challenge service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChallengeClient interface {
-	//  Some server endpoints (the "send message" endpoint, for example) may return
-	//  a response indicating the client must complete a challenge before continuing.
-	//  Clients may use this endpoint to provide proof of a completed challenge.
-	//  If successful, the client may then continue their original operation.
-	HandleChallengeResponse(ctx context.Context, in *AnswerChallengeRequest, opts ...grpc.CallOption) (*AnswerChallengeResponse, error)
+	// Submit proof of a challenge completion.
+	//
+	// Some server endpoints (the "send message" endpoint, for example) may return
+	// a response indicating the client must complete a challenge before continuing.
+	// Clients may use this endpoint to provide proof of a completed challenge.
+	// If successful, the client may then continue their original operation.
+	AnswerChallenge(ctx context.Context, in *AnswerChallengeRequest, opts ...grpc.CallOption) (*AnswerChallengeResponse, error)
+	// Requests that a challenge value be sent to the authenticated account's
+	// primary device via push notification. Once received, callers may present
+	// the challenge value via the HandleChallengeResponse RPC.
+	//
+	// APNs challenge payloads will be formatted as follows:
+	//
+	// ```
+	// {
+	//     "aps": {
+	//         "sound": "default",
+	//         "alert": {
+	//             "loc-key": "APN_Message"
+	//         }
+	//     },
+	//     "rateLimitChallenge": "{CHALLENGE_TOKEN}"
+	// }
+	// ```
+	//
+	// FCM challenge payloads will be formatted as follows:
+	//
+	// ```
+	// {"rateLimitChallenge": "{CHALLENGE_TOKEN}"}
+	// ```
+	RequestPushChallenge(ctx context.Context, in *RequestPushChallengeRequest, opts ...grpc.CallOption) (*RequestPushChallengeResponse, error)
 }
 
 type challengeClient struct {
@@ -45,10 +72,20 @@ func NewChallengeClient(cc grpc.ClientConnInterface) ChallengeClient {
 	return &challengeClient{cc}
 }
 
-func (c *challengeClient) HandleChallengeResponse(ctx context.Context, in *AnswerChallengeRequest, opts ...grpc.CallOption) (*AnswerChallengeResponse, error) {
+func (c *challengeClient) AnswerChallenge(ctx context.Context, in *AnswerChallengeRequest, opts ...grpc.CallOption) (*AnswerChallengeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AnswerChallengeResponse)
-	err := c.cc.Invoke(ctx, Challenge_HandleChallengeResponse_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Challenge_AnswerChallenge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *challengeClient) RequestPushChallenge(ctx context.Context, in *RequestPushChallengeRequest, opts ...grpc.CallOption) (*RequestPushChallengeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestPushChallengeResponse)
+	err := c.cc.Invoke(ctx, Challenge_RequestPushChallenge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +96,37 @@ func (c *challengeClient) HandleChallengeResponse(ctx context.Context, in *Answe
 // All implementations must embed UnimplementedChallengeServer
 // for forward compatibility.
 type ChallengeServer interface {
-	//  Some server endpoints (the "send message" endpoint, for example) may return
-	//  a response indicating the client must complete a challenge before continuing.
-	//  Clients may use this endpoint to provide proof of a completed challenge.
-	//  If successful, the client may then continue their original operation.
-	HandleChallengeResponse(context.Context, *AnswerChallengeRequest) (*AnswerChallengeResponse, error)
+	// Submit proof of a challenge completion.
+	//
+	// Some server endpoints (the "send message" endpoint, for example) may return
+	// a response indicating the client must complete a challenge before continuing.
+	// Clients may use this endpoint to provide proof of a completed challenge.
+	// If successful, the client may then continue their original operation.
+	AnswerChallenge(context.Context, *AnswerChallengeRequest) (*AnswerChallengeResponse, error)
+	// Requests that a challenge value be sent to the authenticated account's
+	// primary device via push notification. Once received, callers may present
+	// the challenge value via the HandleChallengeResponse RPC.
+	//
+	// APNs challenge payloads will be formatted as follows:
+	//
+	// ```
+	// {
+	//     "aps": {
+	//         "sound": "default",
+	//         "alert": {
+	//             "loc-key": "APN_Message"
+	//         }
+	//     },
+	//     "rateLimitChallenge": "{CHALLENGE_TOKEN}"
+	// }
+	// ```
+	//
+	// FCM challenge payloads will be formatted as follows:
+	//
+	// ```
+	// {"rateLimitChallenge": "{CHALLENGE_TOKEN}"}
+	// ```
+	RequestPushChallenge(context.Context, *RequestPushChallengeRequest) (*RequestPushChallengeResponse, error)
 	mustEmbedUnimplementedChallengeServer()
 }
 
@@ -74,8 +137,11 @@ type ChallengeServer interface {
 // pointer dereference when methods are called.
 type UnimplementedChallengeServer struct{}
 
-func (UnimplementedChallengeServer) HandleChallengeResponse(context.Context, *AnswerChallengeRequest) (*AnswerChallengeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method HandleChallengeResponse not implemented")
+func (UnimplementedChallengeServer) AnswerChallenge(context.Context, *AnswerChallengeRequest) (*AnswerChallengeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AnswerChallenge not implemented")
+}
+func (UnimplementedChallengeServer) RequestPushChallenge(context.Context, *RequestPushChallengeRequest) (*RequestPushChallengeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestPushChallenge not implemented")
 }
 func (UnimplementedChallengeServer) mustEmbedUnimplementedChallengeServer() {}
 func (UnimplementedChallengeServer) testEmbeddedByValue()                   {}
@@ -98,20 +164,38 @@ func RegisterChallengeServer(s grpc.ServiceRegistrar, srv ChallengeServer) {
 	s.RegisterService(&Challenge_ServiceDesc, srv)
 }
 
-func _Challenge_HandleChallengeResponse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Challenge_AnswerChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AnswerChallengeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ChallengeServer).HandleChallengeResponse(ctx, in)
+		return srv.(ChallengeServer).AnswerChallenge(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Challenge_HandleChallengeResponse_FullMethodName,
+		FullMethod: Challenge_AnswerChallenge_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChallengeServer).HandleChallengeResponse(ctx, req.(*AnswerChallengeRequest))
+		return srv.(ChallengeServer).AnswerChallenge(ctx, req.(*AnswerChallengeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Challenge_RequestPushChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestPushChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChallengeServer).RequestPushChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Challenge_RequestPushChallenge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChallengeServer).RequestPushChallenge(ctx, req.(*RequestPushChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -124,8 +208,12 @@ var Challenge_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ChallengeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "HandleChallengeResponse",
-			Handler:    _Challenge_HandleChallengeResponse_Handler,
+			MethodName: "AnswerChallenge",
+			Handler:    _Challenge_AnswerChallenge_Handler,
+		},
+		{
+			MethodName: "RequestPushChallenge",
+			Handler:    _Challenge_RequestPushChallenge_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

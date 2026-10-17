@@ -37,25 +37,29 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/msgconv"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var (
-	_ bridgev2.EditHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI     = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI          = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI             = (*SignalClient)(nil)
-	_ bridgev2.DisappearTimerChangingNetworkAPI  = (*SignalClient)(nil)
-	_ bridgev2.DeleteChatHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.PollHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.MessageRequestAcceptingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI           = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI              = (*SignalClient)(nil)
+	_ bridgev2.DisappearTimerChangingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.MessageRequestAcceptingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.UserBlockingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.ViewLimitedMediaHandlingNetworkAPI = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -92,7 +96,10 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 	} else {
 		res := s.Client.SendMessage(ctx, userID, content)
 		if !res.WasSuccessful {
-			return res.Error
+			if res.Error != nil {
+				return res.Error
+			}
+			return errors.New("failed to send message")
 		}
 		return nil
 	}
@@ -120,7 +127,8 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		return nil, err
 	}
 	return s.doSendMessage(ctx, msg, converted, &signalid.MessageMetadata{
-		ContainsAttachments: len(converted.Attachments) > 0,
+		ContainsAttachments: msgconv.ContainsAttachments(converted),
+		ViewOnce:            converted.GetIsViewOnce(),
 	})
 }
 
@@ -153,7 +161,29 @@ func (s *SignalClient) doSendMessage(
 	}, nil
 }
 
+func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *bridgev2.MatrixViewLimitedMedia) error {
+	meta, ok := msg.Message.Metadata.(*signalid.MessageMetadata)
+	if !ok || !meta.ViewOnce || !meta.ContainsAttachments || msg.Content == nil || *msg.Content != (event.BeeperViewLimitedMedia{Type: "count", Count: 1}) {
+		return bridgev2.ErrUnsupportedViewLimitedType
+	}
+	sender, timestamp, err := signalid.ParseMessageID(msg.Message.ID)
+	if err != nil {
+		return err
+	}
+	return s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
+		Content: &signalpb.Content_ReceiptMessage{
+			ReceiptMessage: &signalpb.ReceiptMessage{
+				Type:      signalpb.ReceiptMessage_VIEWED.Enum(),
+				Timestamp: []uint64{timestamp},
+			},
+		},
+	})
+}
+
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
+	if msg.Content.BeeperViewLimited != nil || msg.EditTarget.Metadata.(*signalid.MessageMetadata).ViewOnce {
+		return fmt.Errorf("%w of view-once media", bridgev2.ErrEditsNotSupported)
+	}
 	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.EditTarget.ID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
@@ -182,7 +212,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	}
 	prevID := msg.EditTarget.ID
 	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, ts)
-	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
+	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: msgconv.ContainsAttachments(converted)}
 	msg.EditTarget.EditCount++
 	if prevID != msg.EditTarget.ID {
 		err = s.Main.Bridge.DB.DoTxn(ctx, nil, func(ctx context.Context) error {
@@ -734,6 +764,24 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 		return fmt.Errorf("failed to parse portal ID: %w", err)
 	}
 
+	if groupID != "" {
+		memberInfo, err := s.Main.Bridge.Matrix.GetMemberInfo(ctx, msg.Portal.MXID, s.UserLogin.UserMXID)
+		if err != nil {
+			return fmt.Errorf("failed to get own member info: %w", err)
+		} else if memberInfo.Membership == event.MembershipJoin {
+			portalMeta := msg.Portal.Metadata.(*signalid.PortalMetadata)
+			ownACI := s.Client.Store.ACI
+			revision, err := s.Client.UpdateGroup(ctx, &signalmeow.GroupChange{
+				DeleteMembers: []*uuid.UUID{&ownACI},
+				Revision:      portalMeta.Revision + 1,
+			}, groupID)
+			if err != nil {
+				return fmt.Errorf("failed to leave group before deleting chat: %w", err)
+			}
+			portalMeta.Revision = revision
+		}
+	}
+
 	if msg.Content.FromMessageRequest {
 		// TODO block and delete support?
 		err = s.syncMessageRequestResponse(ctx, msg.Portal, signalpb.SyncMessage_MessageRequestResponse_DELETE)
@@ -928,7 +976,7 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 			return fmt.Errorf("failed to get own profile key: %w", err)
 		}
 		var pniSig *signalpb.PniSignatureMessage
-		if s.Client.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY {
+		if s.Client.Store.PNI != uuid.Nil && s.Client.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY {
 			sig, err := s.Client.Store.PNIIdentityKeyPair.SignAlternateIdentity(s.Client.Store.ACIIdentityKeyPair.GetIdentityKey())
 			if err != nil {
 				return fmt.Errorf("failed to generate PNI signature: %w", err)
@@ -952,6 +1000,71 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 			return fmt.Errorf("failed to share profile key to accept message request: %w", res.Error)
 		}
 		// TODO send read receipts too?
+	}
+	return nil
+}
+
+func (s *SignalClient) HandleMatrixBlockUser(ctx context.Context, msg *bridgev2.MatrixBlockUser) error {
+	if s.Client == nil {
+		return bridgev2.ErrNotLoggedIn
+	}
+	userID, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil {
+		return err
+	}
+	if groupID != "" {
+		return bridgev2.ErrNonDMBlockUser
+	}
+	aci, pni := userID.ToACIAndPNI()
+	if aci == uuid.Nil {
+		return fmt.Errorf("blocking requires a known ACI")
+	}
+	respType := signalpb.SyncMessage_MessageRequestResponse_ACCEPT
+	if msg.Content.Block {
+		respType = signalpb.SyncMessage_MessageRequestResponse_BLOCK
+	}
+	if msg.Content.ReportSpam {
+		if err = s.reportSpam(ctx, msg.Portal, aci); err != nil {
+			return err
+		}
+		if msg.Content.Block {
+			respType = signalpb.SyncMessage_MessageRequestResponse_BLOCK_AND_SPAM
+		} else {
+			respType = signalpb.SyncMessage_MessageRequestResponse_SPAM
+		}
+	}
+	if err = s.syncMessageRequestResponse(ctx, msg.Portal, respType); err != nil {
+		return err
+	}
+	_, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (bool, error) {
+		changed := recipient.Blocked != msg.Content.Block
+		recipient.Blocked = msg.Content.Block
+		return changed, nil
+	})
+	return err
+}
+
+func (s *SignalClient) reportSpam(ctx context.Context, portal *bridgev2.Portal, aci uuid.UUID) error {
+	messages, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portal.PortalKey, 100)
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]bool)
+	for _, message := range messages {
+		meta := message.Metadata.(*signalid.MessageMetadata)
+		if message.SenderID != signalid.MakeUserID(aci) || meta.ServerGUID == "" || seen[meta.ServerGUID] {
+			continue
+		}
+		if err = s.Client.ReportSpam(ctx, aci, meta.ServerGUID, meta.ReportingToken); err != nil {
+			return err
+		}
+		seen[meta.ServerGUID] = true
+		if len(seen) == 3 {
+			break
+		}
+	}
+	if len(seen) == 0 {
+		return fmt.Errorf("no received messages with server GUIDs available to report")
 	}
 	return nil
 }

@@ -68,6 +68,33 @@ func ReceiveAuthCredentialWithPni(
 	return (*AuthCredentialWithPni)(resultBytes), nil
 }
 
+func ReceiveAuthCredentialZKC(
+	serverPublicParams *ServerPublicParams,
+	aci uuid.UUID,
+	authCredentialSalt []byte,
+	redemptionTime uint64,
+	authCredResponse AuthCredentialWithPniResponse,
+) (*AuthCredentialWithPni, error) {
+	var c_result C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+
+	signalFfiError := C.signal_server_public_params_receive_auth_credential_zkc_without_pni(
+		&c_result,
+		C.SignalConstPointerServerPublicParams{serverPublicParams},
+		NewACIServiceID(aci).cConstFixedArray(),
+		BytesToBuffer(authCredentialSalt),
+		C.uint64_t(redemptionTime),
+		BytesToBuffer(authCredResponse[:]),
+	)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	resultBytes := CopySignalOwnedBufferToBytes(c_result)
+	if len(resultBytes) != AuthCredentialWithPniLength {
+		return nil, fmt.Errorf("invalid response length %d (expected %d)", len(resultBytes), AuthCredentialWithPniLength)
+	}
+	return (*AuthCredentialWithPni)(resultBytes), nil
+}
+
 func NewAuthCredentialWithPniResponse(b []byte) (*AuthCredentialWithPniResponse, error) {
 	if len(b) != AuthCredentialWithPniResponseLength {
 		return nil, fmt.Errorf("invalid auth credential with pni response length %d (expected %d)", len(b), AuthCredentialWithPniResponseLength)

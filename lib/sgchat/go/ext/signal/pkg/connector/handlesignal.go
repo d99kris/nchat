@@ -17,6 +17,7 @@
 package connector
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -47,11 +48,17 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
-		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s}).Success
+		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
+		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
+			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
+		}
+		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, wrapped).Success
 	case *events.DecryptionError:
 		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapDecryptionError(evt)).Success
 	case *events.Receipt:
 		return s.handleSignalReceipt(evt)
+	case *events.ViewOnceOpen:
+		return s.handleSignalViewOnceOpen(evt)
 	case *events.ReadSelf:
 		return s.handleSignalReadSelf(evt)
 	case *events.DeleteForMe:
@@ -68,6 +75,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		s.queueEmptyWaiter.Set()
 	case *events.LoggedOut:
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: evt.Error.Error()})
+	case *events.IdentityChange:
+		// TODO send notice
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}
@@ -175,7 +184,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	switch innerEvt := evt.Event.(type) {
 	case *signalpb.DataMessage:
 		switch {
-		case innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
+		case innerEvt.GetIsViewOnce(), innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
 			innerEvt.Payment != nil, innerEvt.GiftBadge != nil, innerEvt.PollCreate != nil, innerEvt.PollVote != nil,
 			innerEvt.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT),
 			innerEvt.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
@@ -198,17 +207,25 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	return bridgev2.RemoteEventUnknown
 }
 
-func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context) (*bridgev2.ChatInfoChange, error) {
+func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfoChange, error) {
 	dm, _ := evt.Event.(*signalpb.DataMessage)
 	gv2 := dm.GetGroupV2()
 	if gv2 == nil || gv2.GroupChange == nil {
 		return nil, fmt.Errorf("GetChatInfoChange() called for non-GroupChange event")
 	}
+	portalRevision := portal.Metadata.(*signalid.PortalMetadata).Revision
 	groupChange, err := evt.s.Client.DecryptGroupChange(ctx, gv2)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt group change: %w", err)
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to decrypt group change")
+		return nil, nil
+	} else if groupChange.Revision != gv2.GetRevision() || groupChange.Revision != portalRevision+1 {
+		zerolog.Ctx(ctx).Warn().
+			Uint32("decrypted_revision", groupChange.Revision).
+			Uint32("envelope_revision", gv2.GetRevision()).
+			Uint32("portal_revision", portalRevision).
+			Msg("Group change revision mismatch, ignoring event")
+		return nil, nil
 	}
-	// XXX: is this ID compatible with types.GroupIdentifier?
 	return evt.s.groupChangeToChatInfoChange(ctx, types.GroupIdentifier(evt.Info.ChatID), gv2.GetRevision(), groupChange)
 }
 
@@ -341,6 +358,16 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 		return nil, fmt.Errorf("ConvertMessage() called for non-DataMessage event")
 	}
 	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, evt.Info.Sender, intent, dataMsg, nil)
+	for _, part := range converted.Parts {
+		meta, ok := part.DBMetadata.(*signalid.MessageMetadata)
+		if !ok {
+			meta = &signalid.MessageMetadata{}
+			part.DBMetadata = meta
+		}
+		meta.ServerGUID = evt.Info.ServerGUID
+		meta.ReportingToken = evt.Info.ReportingToken
+	}
+
 	if converted.Disappear.Type != "" {
 		evtTS := evt.GetTimestamp()
 		if !dataMsg.GetIsViewOnce() {
@@ -383,6 +410,14 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 	editMsg, ok := evt.Event.(*signalpb.EditMessage)
 	if !ok {
 		return nil, fmt.Errorf("ConvertEdit() called for non-EditMessage event")
+	}
+	if editMsg.GetDataMessage().GetIsViewOnce() {
+		return nil, bridgev2.ErrIgnoringRemoteEvent
+	}
+	for _, part := range existing {
+		if part.Metadata.(*signalid.MessageMetadata).ViewOnce {
+			return nil, fmt.Errorf("%w: edit target is view-once media", bridgev2.ErrIgnoringRemoteEvent)
+		}
 	}
 	existing = slices.DeleteFunc(slices.Clone(existing), isEditStub)
 	if len(existing) == 0 {
@@ -510,6 +545,54 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) bool {
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(s.Client.Store.ACI, msgTS))
 	})
 	return s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
+}
+
+func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
+	ctx := s.Main.Bridge.BackgroundCtx
+	log := s.UserLogin.Log.With().
+		Str("action", "handle signal view once open").
+		Logger()
+	ctx = log.WithContext(ctx)
+	sender, err := signalmeow.ParseStringOrBinaryUUID(evt.GetSenderAci(), evt.GetSenderAciBinary())
+	if err != nil {
+		log.Err(err).Msg("Invalid sender in view-once open sync")
+		return true
+	}
+	messageID := signalid.MakeMessageID(sender, evt.GetTimestamp())
+	portalKey, ok := s.recentMessageRooms.Get(messageID)
+	if !ok {
+		msg, dbErr := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, messageID)
+		if dbErr != nil {
+			log.Err(dbErr).Msg("Failed to get opened view-once message")
+			return ctx.Err() == nil
+		} else if msg == nil {
+			return true
+		}
+		portalKey = msg.Room
+	}
+	return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &simplevent.EventMeta{
+		Type:      bridgev2.RemoteEventUnknown,
+		PortalKey: portalKey,
+		PreHandleFunc: func(ctx context.Context, portal *bridgev2.Portal) {
+			messages, dbErr := s.Main.Bridge.DB.Message.GetAllPartsByID(ctx, s.UserLogin.ID, messageID)
+			if dbErr != nil {
+				log.Err(dbErr).Msg("Failed to get opened view-once message")
+				return
+			}
+			for _, msg := range messages {
+				meta := msg.Metadata.(*signalid.MessageMetadata)
+				if !meta.ViewOnce || !meta.ContainsAttachments {
+					continue
+				}
+				if addErr := s.Main.Bridge.DisappearLoop.Add(ctx, &database.DisappearingMessage{
+					RoomID: portal.MXID, EventID: msg.MXID, Timestamp: msg.Timestamp,
+					DisappearingSetting: database.DisappearingSetting{Type: "view_limited", DisappearAt: time.Now()},
+				}); addErr != nil {
+					log.Err(addErr).Msg("Failed to queue opened view-once media expiry")
+				}
+			}
+		},
+	}).Success
 }
 
 func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {
@@ -689,8 +772,14 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 }
 
 func (s *SignalClient) handleSignalMessageRequestResponse(evt *events.MessageRequestResponse) bool {
-	if evt.Type != signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
-		// TODO do we need to do anything with blocks/deletes here or are they sent as normal delete events?
+	info := &bridgev2.ChatInfo{}
+	switch evt.Type {
+	case signalpb.SyncMessage_MessageRequestResponse_ACCEPT:
+		info.MessageRequest = ptr.Ptr(false)
+		info.UserBlocked = ptr.Ptr(false)
+	case signalpb.SyncMessage_MessageRequestResponse_BLOCK, signalpb.SyncMessage_MessageRequestResponse_BLOCK_AND_SPAM, signalpb.SyncMessage_MessageRequestResponse_BLOCK_AND_DELETE:
+		info.UserBlocked = ptr.Ptr(true)
+	default:
 		return true
 	}
 	var portalKey networkid.PortalKey
@@ -712,9 +801,7 @@ func (s *SignalClient) handleSignalMessageRequestResponse(evt *events.MessageReq
 			},
 		},
 		ChatInfoChange: &bridgev2.ChatInfoChange{
-			ChatInfo: &bridgev2.ChatInfo{
-				MessageRequest: ptr.Ptr(false),
-			},
+			ChatInfo: info,
 		},
 	})
 	return res.Success
@@ -765,7 +852,7 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			log.Err(err).Msg("Failed to get ghost to update contact info")
 			continue
 		}
-		userInfo, err := s.contactToUserInfo(ctx, contact)
+		userInfo, err := s.contactToUserInfo(ctx, contact, ghost.Metadata.(*signalid.GhostMetadata).Username, false)
 		if err != nil {
 			log.Err(err).Msg("Failed to convert contact info")
 			continue
@@ -774,28 +861,24 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 		if contact.ACI == s.Client.Store.ACI {
 			s.updateRemoteProfile(ctx, true)
 		}
-		if ptr.Val(contact.Whitelisted) {
-			portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, s.makeDMPortalKey(libsignalgo.NewACIServiceID(contact.ACI)))
-			if err != nil {
-				log.Err(err).Msg("Failed to get existing portal to update contact info")
-				continue
-			} else if portal != nil && portal.MessageRequest {
-				s.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
-					EventMeta: simplevent.EventMeta{
-						Type: bridgev2.RemoteEventChatInfoChange,
-						LogContext: func(c zerolog.Context) zerolog.Context {
-							return c.Str("action", "unmark message request").Str("source", "contact list")
-						},
-						PortalKey: portal.PortalKey,
-					},
-					ChatInfoChange: &bridgev2.ChatInfoChange{
-						ChatInfo: &bridgev2.ChatInfo{
-							MessageRequest: ptr.Ptr(false),
-						},
-					},
-				})
-			}
+		portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, s.makeDMPortalKey(libsignalgo.NewACIServiceID(contact.ACI)))
+		if err != nil {
+			log.Err(err).Msg("Failed to get existing portal to update contact info")
+			continue
 		}
+		if portal != nil && (portal.UserBlocked != contact.Blocked || (portal.MessageRequest && ptr.Val(contact.Whitelisted))) {
+			info := &bridgev2.ChatInfo{UserBlocked: ptr.Ptr(contact.Blocked)}
+			if ptr.Val(contact.Whitelisted) {
+				info.MessageRequest = ptr.Ptr(false)
+			}
+			s.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
+				EventMeta:      simplevent.EventMeta{Type: bridgev2.RemoteEventChatInfoChange, PortalKey: portal.PortalKey},
+				ChatInfoChange: &bridgev2.ChatInfoChange{ChatInfo: info},
+			})
+		}
+	}
+	if evt.IsFromDB {
+		return
 	}
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).LastContactSync = jsontime.UnixMilliNow()
 	err := s.UserLogin.Save(ctx)
@@ -814,6 +897,13 @@ func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool
 		}
 	}
 	changed := false
+	if s.Client.Store.AccountRecord != nil && s.Client.Store.AccountRecord.Username != s.UserLogin.RemoteProfile.Username {
+		s.UserLogin.RemoteProfile.Username = s.Client.Store.AccountRecord.Username
+		if s.Client.Store.PNI == uuid.Nil {
+			s.UserLogin.RemoteName = cmp.Or(s.Client.Store.AccountRecord.Username, s.Client.Store.ACI.String())
+		}
+		changed = true
+	}
 	if s.UserLogin.RemoteProfile.Name != s.Ghost.Name {
 		s.UserLogin.RemoteProfile.Name = s.Ghost.Name
 		changed = true

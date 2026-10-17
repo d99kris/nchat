@@ -84,6 +84,9 @@ func (gid *GroupIdentifier) String() string {
 	return base64.StdEncoding.EncodeToString(gid[:])
 }
 
+const UUIDCiphertextLength = 65
+const ProfileKeyCiphertextLength = 65
+
 type UUIDCiphertext = fixedArray65
 type ProfileKeyCiphertext = fixedArray65
 

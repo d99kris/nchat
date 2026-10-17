@@ -1,3 +1,22 @@
+# v26.10
+
+* Updated libsignal to v0.105.0.
+* Added support for phonenumberless accounts.
+* Added support for starting chats with usernames and username links.
+* Added support for blocking and unblocking users on Signal.
+* Added support for new view-limited media interface in bridgev2.
+* Added proper sender certificate validation.
+* Changed storage sync to only sync once if repeated fetch latest notices are
+  received.
+* Fixed contact syncs not happening even when `sync_contacts_on_startup` was
+  set to true.
+* Fixed Signal encryption using wrong timestamp precision for session expiry.
+* Fixed sender key sharing not handling removed users properly.
+* Fixed handling retry receipts with no sender key info.
+* Fixed deadlock in prekey upload loop if the client gets logged out.
+* Fixed infinite loop when importing sticker packs with duplicate emoji
+  shortcuts.
+
 # v26.09
 
 * Bumped minimum Go version to 1.26.

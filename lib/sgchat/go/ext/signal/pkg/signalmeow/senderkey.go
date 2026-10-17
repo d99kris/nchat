@@ -96,8 +96,14 @@ func (cli *Client) sendToGroupWithSenderKey(
 		SuccessfullySentTo: make([]SuccessfulSendResult, 0),
 		FailedToSendTo:     make([]FailedSendResult, 0),
 	}
-
 	groupIDStr := types.GroupIdentifier(groupID.String())
+
+	if retries == 0 {
+		for _, recipientID := range allRecipients {
+			cli.addSendCache(recipientID, groupIDStr, messageTimestamp, content)
+		}
+	}
+
 	deviceIDs, senderKeyRecipients, fallbackRecipients := cli.getDevicesIDs(ctx, allRecipients, sec, result)
 	if len(senderKeyRecipients) == 0 {
 		doUnlock()
@@ -130,6 +136,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 		log.Debug().
 			Any("removed_devices", removedDevices).
 			Msg("Resetting sender key due to recipient device changes")
+		ski.SharedWith = make(map[libsignalgo.ServiceID][]int)
 		devicesAddedTo = slices.Collect(maps.Keys(deviceIDs))
 		err = cli.Store.SenderKeyStore.DeleteSenderKey(ctx, myAddress, ski.DistributionID)
 		if err != nil {
@@ -189,9 +196,6 @@ func (cli *Client) sendToGroupWithSenderKey(
 			return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
 		}
 		return nil, err
-	}
-	for recipientID := range ski.SharedWith {
-		cli.addSendCache(recipientID, groupIDStr, messageTimestamp, content)
 	}
 	header := http.Header{}
 	header.Set("Content-Type", string(web.ContentTypeMultiRecipientMessage))

@@ -32,8 +32,8 @@ const (
 // The amount is below the minimum for the currency.
 type AmountBelowMinimumError struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The minimum amount for the currency
-	Minimum       string `protobuf:"bytes,1,opt,name=minimum,proto3" json:"minimum,omitempty"`
+	// The minimum amount for the currency in the [currency's minor unit](https://docs.stripe.com/currencies#minor-units)
+	Minimum       uint64 `protobuf:"varint,1,opt,name=minimum,proto3" json:"minimum,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -68,18 +68,18 @@ func (*AmountBelowMinimumError) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_one_time_donations_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *AmountBelowMinimumError) GetMinimum() string {
+func (x *AmountBelowMinimumError) GetMinimum() uint64 {
 	if x != nil {
 		return x.Minimum
 	}
-	return ""
+	return 0
 }
 
 // The SEPA Direct Debit amount exceeds the allowed maximum.
 type AmountAboveSepaLimitError struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The maximum amount for a SEPA transaction
-	Maximum       string `protobuf:"bytes,1,opt,name=maximum,proto3" json:"maximum,omitempty"`
+	// The maximum amount for a SEPA transaction in the [currency's minor unit](https://docs.stripe.com/currencies#minor-units)
+	Maximum       uint64 `protobuf:"varint,1,opt,name=maximum,proto3" json:"maximum,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -114,11 +114,11 @@ func (*AmountAboveSepaLimitError) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_one_time_donations_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *AmountAboveSepaLimitError) GetMaximum() string {
+func (x *AmountAboveSepaLimitError) GetMaximum() uint64 {
 	if x != nil {
 		return x.Maximum
 	}
-	return ""
+	return 0
 }
 
 type CreateBoostRequest struct {
@@ -793,7 +793,7 @@ func (*ConfirmPayPalBoostResponse_UnsupportedLevel) isConfirmPayPalBoostResponse
 
 func (*ConfirmPayPalBoostResponse_ChargeFailure) isConfirmPayPalBoostResponse_Response() {}
 
-type CreateBoostReceiptCredentialsRequest struct {
+type CreateBoostReceiptCredentialRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// a payment ID from the processor
 	PaymentIntentId string `protobuf:"bytes,1,opt,name=payment_intent_id,json=paymentIntentId,proto3" json:"payment_intent_id,omitempty"`
@@ -805,20 +805,20 @@ type CreateBoostReceiptCredentialsRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateBoostReceiptCredentialsRequest) Reset() {
-	*x = CreateBoostReceiptCredentialsRequest{}
+func (x *CreateBoostReceiptCredentialRequest) Reset() {
+	*x = CreateBoostReceiptCredentialRequest{}
 	mi := &file_org_signal_chat_one_time_donations_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateBoostReceiptCredentialsRequest) String() string {
+func (x *CreateBoostReceiptCredentialRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateBoostReceiptCredentialsRequest) ProtoMessage() {}
+func (*CreateBoostReceiptCredentialRequest) ProtoMessage() {}
 
-func (x *CreateBoostReceiptCredentialsRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateBoostReceiptCredentialRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_one_time_donations_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -830,60 +830,60 @@ func (x *CreateBoostReceiptCredentialsRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBoostReceiptCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*CreateBoostReceiptCredentialsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateBoostReceiptCredentialRequest.ProtoReflect.Descriptor instead.
+func (*CreateBoostReceiptCredentialRequest) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_one_time_donations_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *CreateBoostReceiptCredentialsRequest) GetPaymentIntentId() string {
+func (x *CreateBoostReceiptCredentialRequest) GetPaymentIntentId() string {
 	if x != nil {
 		return x.PaymentIntentId
 	}
 	return ""
 }
 
-func (x *CreateBoostReceiptCredentialsRequest) GetReceiptCredentialRequest() []byte {
+func (x *CreateBoostReceiptCredentialRequest) GetReceiptCredentialRequest() []byte {
 	if x != nil {
 		return x.ReceiptCredentialRequest
 	}
 	return nil
 }
 
-func (x *CreateBoostReceiptCredentialsRequest) GetProcessor() subscriptions.PaymentProvider {
+func (x *CreateBoostReceiptCredentialRequest) GetProcessor() subscriptions.PaymentProvider {
 	if x != nil {
 		return x.Processor
 	}
 	return subscriptions.PaymentProvider(0)
 }
 
-type CreateBoostReceiptCredentialsResponse struct {
+type CreateBoostReceiptCredentialResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Response:
 	//
-	//	*CreateBoostReceiptCredentialsResponse_Result
-	//	*CreateBoostReceiptCredentialsResponse_PaymentStillProcessing
-	//	*CreateBoostReceiptCredentialsResponse_PaymentRequired
-	//	*CreateBoostReceiptCredentialsResponse_PaymentNotFound
-	//	*CreateBoostReceiptCredentialsResponse_ReceiptAlreadyIssued
-	Response      isCreateBoostReceiptCredentialsResponse_Response `protobuf_oneof:"response"`
+	//	*CreateBoostReceiptCredentialResponse_Result
+	//	*CreateBoostReceiptCredentialResponse_PaymentStillProcessing
+	//	*CreateBoostReceiptCredentialResponse_PaymentRequired
+	//	*CreateBoostReceiptCredentialResponse_PaymentNotFound
+	//	*CreateBoostReceiptCredentialResponse_ReceiptAlreadyIssued
+	Response      isCreateBoostReceiptCredentialResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) Reset() {
-	*x = CreateBoostReceiptCredentialsResponse{}
+func (x *CreateBoostReceiptCredentialResponse) Reset() {
+	*x = CreateBoostReceiptCredentialResponse{}
 	mi := &file_org_signal_chat_one_time_donations_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) String() string {
+func (x *CreateBoostReceiptCredentialResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateBoostReceiptCredentialsResponse) ProtoMessage() {}
+func (*CreateBoostReceiptCredentialResponse) ProtoMessage() {}
 
-func (x *CreateBoostReceiptCredentialsResponse) ProtoReflect() protoreflect.Message {
+func (x *CreateBoostReceiptCredentialResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_one_time_donations_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -895,104 +895,104 @@ func (x *CreateBoostReceiptCredentialsResponse) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBoostReceiptCredentialsResponse.ProtoReflect.Descriptor instead.
-func (*CreateBoostReceiptCredentialsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateBoostReceiptCredentialResponse.ProtoReflect.Descriptor instead.
+func (*CreateBoostReceiptCredentialResponse) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_one_time_donations_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) GetResponse() isCreateBoostReceiptCredentialsResponse_Response {
+func (x *CreateBoostReceiptCredentialResponse) GetResponse() isCreateBoostReceiptCredentialResponse_Response {
 	if x != nil {
 		return x.Response
 	}
 	return nil
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) GetResult() *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult {
+func (x *CreateBoostReceiptCredentialResponse) GetResult() *CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult {
 	if x != nil {
-		if x, ok := x.Response.(*CreateBoostReceiptCredentialsResponse_Result); ok {
+		if x, ok := x.Response.(*CreateBoostReceiptCredentialResponse_Result); ok {
 			return x.Result
 		}
 	}
 	return nil
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) GetPaymentStillProcessing() *errors.FailedPrecondition {
+func (x *CreateBoostReceiptCredentialResponse) GetPaymentStillProcessing() *errors.FailedPrecondition {
 	if x != nil {
-		if x, ok := x.Response.(*CreateBoostReceiptCredentialsResponse_PaymentStillProcessing); ok {
+		if x, ok := x.Response.(*CreateBoostReceiptCredentialResponse_PaymentStillProcessing); ok {
 			return x.PaymentStillProcessing
 		}
 	}
 	return nil
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) GetPaymentRequired() *subscriptions.PaymentRequired {
+func (x *CreateBoostReceiptCredentialResponse) GetPaymentRequired() *subscriptions.PaymentRequired {
 	if x != nil {
-		if x, ok := x.Response.(*CreateBoostReceiptCredentialsResponse_PaymentRequired); ok {
+		if x, ok := x.Response.(*CreateBoostReceiptCredentialResponse_PaymentRequired); ok {
 			return x.PaymentRequired
 		}
 	}
 	return nil
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) GetPaymentNotFound() *errors.NotFound {
+func (x *CreateBoostReceiptCredentialResponse) GetPaymentNotFound() *errors.NotFound {
 	if x != nil {
-		if x, ok := x.Response.(*CreateBoostReceiptCredentialsResponse_PaymentNotFound); ok {
+		if x, ok := x.Response.(*CreateBoostReceiptCredentialResponse_PaymentNotFound); ok {
 			return x.PaymentNotFound
 		}
 	}
 	return nil
 }
 
-func (x *CreateBoostReceiptCredentialsResponse) GetReceiptAlreadyIssued() *errors.FailedPrecondition {
+func (x *CreateBoostReceiptCredentialResponse) GetReceiptAlreadyIssued() *errors.FailedPrecondition {
 	if x != nil {
-		if x, ok := x.Response.(*CreateBoostReceiptCredentialsResponse_ReceiptAlreadyIssued); ok {
+		if x, ok := x.Response.(*CreateBoostReceiptCredentialResponse_ReceiptAlreadyIssued); ok {
 			return x.ReceiptAlreadyIssued
 		}
 	}
 	return nil
 }
 
-type isCreateBoostReceiptCredentialsResponse_Response interface {
-	isCreateBoostReceiptCredentialsResponse_Response()
+type isCreateBoostReceiptCredentialResponse_Response interface {
+	isCreateBoostReceiptCredentialResponse_Response()
 }
 
-type CreateBoostReceiptCredentialsResponse_Result struct {
-	Result *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult `protobuf:"bytes,1,opt,name=result,proto3,oneof"`
+type CreateBoostReceiptCredentialResponse_Result struct {
+	Result *CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult `protobuf:"bytes,1,opt,name=result,proto3,oneof"`
 }
 
-type CreateBoostReceiptCredentialsResponse_PaymentStillProcessing struct {
+type CreateBoostReceiptCredentialResponse_PaymentStillProcessing struct {
 	// Payment is still processing; client should retry
 	PaymentStillProcessing *errors.FailedPrecondition `protobuf:"bytes,2,opt,name=payment_still_processing,json=paymentStillProcessing,proto3,oneof"`
 }
 
-type CreateBoostReceiptCredentialsResponse_PaymentRequired struct {
+type CreateBoostReceiptCredentialResponse_PaymentRequired struct {
 	// Payment failed
 	PaymentRequired *subscriptions.PaymentRequired `protobuf:"bytes,3,opt,name=payment_required,json=paymentRequired,proto3,oneof"`
 }
 
-type CreateBoostReceiptCredentialsResponse_PaymentNotFound struct {
+type CreateBoostReceiptCredentialResponse_PaymentNotFound struct {
 	// Payment intent not found
 	PaymentNotFound *errors.NotFound `protobuf:"bytes,4,opt,name=payment_not_found,json=paymentNotFound,proto3,oneof"`
 }
 
-type CreateBoostReceiptCredentialsResponse_ReceiptAlreadyIssued struct {
+type CreateBoostReceiptCredentialResponse_ReceiptAlreadyIssued struct {
 	// A receipt credential was already issued for this payment
 	ReceiptAlreadyIssued *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=receipt_already_issued,json=receiptAlreadyIssued,proto3,oneof"`
 }
 
-func (*CreateBoostReceiptCredentialsResponse_Result) isCreateBoostReceiptCredentialsResponse_Response() {
+func (*CreateBoostReceiptCredentialResponse_Result) isCreateBoostReceiptCredentialResponse_Response() {
 }
 
-func (*CreateBoostReceiptCredentialsResponse_PaymentStillProcessing) isCreateBoostReceiptCredentialsResponse_Response() {
+func (*CreateBoostReceiptCredentialResponse_PaymentStillProcessing) isCreateBoostReceiptCredentialResponse_Response() {
 }
 
-func (*CreateBoostReceiptCredentialsResponse_PaymentRequired) isCreateBoostReceiptCredentialsResponse_Response() {
+func (*CreateBoostReceiptCredentialResponse_PaymentRequired) isCreateBoostReceiptCredentialResponse_Response() {
 }
 
-func (*CreateBoostReceiptCredentialsResponse_PaymentNotFound) isCreateBoostReceiptCredentialsResponse_Response() {
+func (*CreateBoostReceiptCredentialResponse_PaymentNotFound) isCreateBoostReceiptCredentialResponse_Response() {
 }
 
-func (*CreateBoostReceiptCredentialsResponse_ReceiptAlreadyIssued) isCreateBoostReceiptCredentialsResponse_Response() {
+func (*CreateBoostReceiptCredentialResponse_ReceiptAlreadyIssued) isCreateBoostReceiptCredentialResponse_Response() {
 }
 
 type CreatePayPalBoostResponse_CreatePayPalBoostResult struct {
@@ -1091,27 +1091,27 @@ func (x *ConfirmPayPalBoostResponse_ConfirmPayPalBoostResult) GetPaymentId() str
 	return ""
 }
 
-type CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult struct {
+type CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult struct {
 	state                     protoimpl.MessageState `protogen:"open.v1"`
 	ReceiptCredentialResponse []byte                 `protobuf:"bytes,1,opt,name=receipt_credential_response,json=receiptCredentialResponse,proto3" json:"receipt_credential_response,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
 
-func (x *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult) Reset() {
-	*x = CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult{}
+func (x *CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult) Reset() {
+	*x = CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult{}
 	mi := &file_org_signal_chat_one_time_donations_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult) String() string {
+func (x *CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult) ProtoMessage() {}
+func (*CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult) ProtoMessage() {}
 
-func (x *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult) ProtoReflect() protoreflect.Message {
+func (x *CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_one_time_donations_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1123,12 +1123,12 @@ func (x *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResu
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult.ProtoReflect.Descriptor instead.
-func (*CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult.ProtoReflect.Descriptor instead.
+func (*CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_one_time_donations_proto_rawDescGZIP(), []int{9, 0}
 }
 
-func (x *CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult) GetReceiptCredentialResponse() []byte {
+func (x *CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult) GetReceiptCredentialResponse() []byte {
 	if x != nil {
 		return x.ReceiptCredentialResponse
 	}
@@ -1141,9 +1141,9 @@ const file_org_signal_chat_one_time_donations_proto_rawDesc = "" +
 	"\n" +
 	"(org/signal/chat/one_time_donations.proto\x12\x18org.signal.chat.purchase\x1a\x1dorg/signal/chat/require.proto\x1a\x1corg/signal/chat/errors.proto\x1a\x19org/signal/chat/tag.proto\x1a#org/signal/chat/subscriptions.proto\"3\n" +
 	"\x17AmountBelowMinimumError\x12\x18\n" +
-	"\aminimum\x18\x01 \x01(\tR\aminimum\"5\n" +
+	"\aminimum\x18\x01 \x01(\x04R\aminimum\"5\n" +
 	"\x19AmountAboveSepaLimitError\x12\x18\n" +
-	"\amaximum\x18\x01 \x01(\tR\amaximum\"\xfa\x01\n" +
+	"\amaximum\x18\x01 \x01(\x04R\amaximum\"\xfa\x01\n" +
 	"\x12CreateBoostRequest\x12!\n" +
 	"\bcurrency\x18\x01 \x01(\tB\x05\xa2\x97\"\x01\x03R\bcurrency\x12\x1e\n" +
 	"\x06amount\x18\x02 \x01(\x04B\x06\xb2\x97\"\x02\b\x01R\x06amount\x12\x1c\n" +
@@ -1197,26 +1197,26 @@ const file_org_signal_chat_one_time_donations_proto_rawDesc = "" +
 	"\n" +
 	"payment_id\x18\x01 \x01(\tR\tpaymentIdB\n" +
 	"\n" +
-	"\bresponse\"\xeb\x01\n" +
-	"$CreateBoostReceiptCredentialsRequest\x120\n" +
+	"\bresponse\"\xea\x01\n" +
+	"#CreateBoostReceiptCredentialRequest\x120\n" +
 	"\x11payment_intent_id\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\x0fpaymentIntentId\x12B\n" +
 	"\x1areceipt_credential_request\x18\x02 \x01(\fB\x04\x88\x97\"\x01R\x18receiptCredentialRequest\x12M\n" +
-	"\tprocessor\x18\x03 \x01(\x0e2).org.signal.chat.purchase.PaymentProviderB\x04\x90\x97\"\x01R\tprocessor\"\xf5\x05\n" +
-	"%CreateBoostReceiptCredentialsResponse\x12}\n" +
-	"\x06result\x18\x01 \x01(\v2c.org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.CreateBoostReceiptCredentialsResultH\x00R\x06result\x12\x84\x01\n" +
+	"\tprocessor\x18\x03 \x01(\x0e2).org.signal.chat.purchase.PaymentProviderB\x04\x90\x97\"\x01R\tprocessor\"\xf1\x05\n" +
+	"$CreateBoostReceiptCredentialResponse\x12{\n" +
+	"\x06result\x18\x01 \x01(\v2a.org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.CreateBoostReceiptCredentialResultH\x00R\x06result\x12\x84\x01\n" +
 	"\x18payment_still_processing\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1c\xc2\xd5\"\x18payment_still_processingH\x00R\x16paymentStillProcessing\x12l\n" +
 	"\x10payment_required\x18\x03 \x01(\v2).org.signal.chat.purchase.PaymentRequiredB\x14\xc2\xd5\"\x10payment_requiredH\x00R\x0fpaymentRequired\x12e\n" +
 	"\x11payment_not_found\x18\x04 \x01(\v2 .org.signal.chat.errors.NotFoundB\x15\xc2\xd5\"\x11payment_not_foundH\x00R\x0fpaymentNotFound\x12~\n" +
-	"\x16receipt_already_issued\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1a\xc2\xd5\"\x16receipt_already_issuedH\x00R\x14receiptAlreadyIssued\x1ae\n" +
-	"#CreateBoostReceiptCredentialsResult\x12>\n" +
+	"\x16receipt_already_issued\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1a\xc2\xd5\"\x16receipt_already_issuedH\x00R\x14receiptAlreadyIssued\x1ad\n" +
+	"\"CreateBoostReceiptCredentialResult\x12>\n" +
 	"\x1breceipt_credential_response\x18\x01 \x01(\fR\x19receiptCredentialResponseB\n" +
 	"\n" +
-	"\bresponse2\xaf\x04\n" +
+	"\bresponse2\xac\x04\n" +
 	"\x10OneTimeDonations\x12l\n" +
 	"\vCreateBoost\x12,.org.signal.chat.purchase.CreateBoostRequest\x1a-.org.signal.chat.purchase.CreateBoostResponse\"\x00\x12~\n" +
 	"\x11CreatePayPalBoost\x122.org.signal.chat.purchase.CreatePayPalBoostRequest\x1a3.org.signal.chat.purchase.CreatePayPalBoostResponse\"\x00\x12\x81\x01\n" +
-	"\x12ConfirmPayPalBoost\x123.org.signal.chat.purchase.ConfirmPayPalBoostRequest\x1a4.org.signal.chat.purchase.ConfirmPayPalBoostResponse\"\x00\x12\xa2\x01\n" +
-	"\x1dCreateBoostReceiptCredentials\x12>.org.signal.chat.purchase.CreateBoostReceiptCredentialsRequest\x1a?.org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse\"\x00\x1a\x04\xc8\xd5\"\x02B\x02P\x01b\x06proto3"
+	"\x12ConfirmPayPalBoost\x123.org.signal.chat.purchase.ConfirmPayPalBoostRequest\x1a4.org.signal.chat.purchase.ConfirmPayPalBoostResponse\"\x00\x12\x9f\x01\n" +
+	"\x1cCreateBoostReceiptCredential\x12=.org.signal.chat.purchase.CreateBoostReceiptCredentialRequest\x1a>.org.signal.chat.purchase.CreateBoostReceiptCredentialResponse\"\x00\x1a\x04\xc8\xd5\"\x02B\x02P\x01b\x06proto3"
 
 var (
 	file_org_signal_chat_one_time_donations_proto_rawDescOnce sync.Once
@@ -1232,26 +1232,26 @@ func file_org_signal_chat_one_time_donations_proto_rawDescGZIP() []byte {
 
 var file_org_signal_chat_one_time_donations_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_org_signal_chat_one_time_donations_proto_goTypes = []any{
-	(*AmountBelowMinimumError)(nil),                                                   // 0: org.signal.chat.purchase.AmountBelowMinimumError
-	(*AmountAboveSepaLimitError)(nil),                                                 // 1: org.signal.chat.purchase.AmountAboveSepaLimitError
-	(*CreateBoostRequest)(nil),                                                        // 2: org.signal.chat.purchase.CreateBoostRequest
-	(*CreateBoostResponse)(nil),                                                       // 3: org.signal.chat.purchase.CreateBoostResponse
-	(*CreatePayPalBoostRequest)(nil),                                                  // 4: org.signal.chat.purchase.CreatePayPalBoostRequest
-	(*CreatePayPalBoostResponse)(nil),                                                 // 5: org.signal.chat.purchase.CreatePayPalBoostResponse
-	(*ConfirmPayPalBoostRequest)(nil),                                                 // 6: org.signal.chat.purchase.ConfirmPayPalBoostRequest
-	(*ConfirmPayPalBoostResponse)(nil),                                                // 7: org.signal.chat.purchase.ConfirmPayPalBoostResponse
-	(*CreateBoostReceiptCredentialsRequest)(nil),                                      // 8: org.signal.chat.purchase.CreateBoostReceiptCredentialsRequest
-	(*CreateBoostReceiptCredentialsResponse)(nil),                                     // 9: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse
-	(*CreatePayPalBoostResponse_CreatePayPalBoostResult)(nil),                         // 10: org.signal.chat.purchase.CreatePayPalBoostResponse.CreatePayPalBoostResult
-	(*ConfirmPayPalBoostResponse_ConfirmPayPalBoostResult)(nil),                       // 11: org.signal.chat.purchase.ConfirmPayPalBoostResponse.ConfirmPayPalBoostResult
-	(*CreateBoostReceiptCredentialsResponse_CreateBoostReceiptCredentialsResult)(nil), // 12: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.CreateBoostReceiptCredentialsResult
-	(subscriptions.PaymentMethod)(0),                                                  // 13: org.signal.chat.purchase.PaymentMethod
-	(*errors.FailedPrecondition)(nil),                                                 // 14: org.signal.chat.errors.FailedPrecondition
-	(*errors.FailedZkAuthentication)(nil),                                             // 15: org.signal.chat.errors.FailedZkAuthentication
-	(*subscriptions.ChargeFailure)(nil),                                               // 16: org.signal.chat.purchase.ChargeFailure
-	(subscriptions.PaymentProvider)(0),                                                // 17: org.signal.chat.purchase.PaymentProvider
-	(*subscriptions.PaymentRequired)(nil),                                             // 18: org.signal.chat.purchase.PaymentRequired
-	(*errors.NotFound)(nil),                                                           // 19: org.signal.chat.errors.NotFound
+	(*AmountBelowMinimumError)(nil),                                                 // 0: org.signal.chat.purchase.AmountBelowMinimumError
+	(*AmountAboveSepaLimitError)(nil),                                               // 1: org.signal.chat.purchase.AmountAboveSepaLimitError
+	(*CreateBoostRequest)(nil),                                                      // 2: org.signal.chat.purchase.CreateBoostRequest
+	(*CreateBoostResponse)(nil),                                                     // 3: org.signal.chat.purchase.CreateBoostResponse
+	(*CreatePayPalBoostRequest)(nil),                                                // 4: org.signal.chat.purchase.CreatePayPalBoostRequest
+	(*CreatePayPalBoostResponse)(nil),                                               // 5: org.signal.chat.purchase.CreatePayPalBoostResponse
+	(*ConfirmPayPalBoostRequest)(nil),                                               // 6: org.signal.chat.purchase.ConfirmPayPalBoostRequest
+	(*ConfirmPayPalBoostResponse)(nil),                                              // 7: org.signal.chat.purchase.ConfirmPayPalBoostResponse
+	(*CreateBoostReceiptCredentialRequest)(nil),                                     // 8: org.signal.chat.purchase.CreateBoostReceiptCredentialRequest
+	(*CreateBoostReceiptCredentialResponse)(nil),                                    // 9: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse
+	(*CreatePayPalBoostResponse_CreatePayPalBoostResult)(nil),                       // 10: org.signal.chat.purchase.CreatePayPalBoostResponse.CreatePayPalBoostResult
+	(*ConfirmPayPalBoostResponse_ConfirmPayPalBoostResult)(nil),                     // 11: org.signal.chat.purchase.ConfirmPayPalBoostResponse.ConfirmPayPalBoostResult
+	(*CreateBoostReceiptCredentialResponse_CreateBoostReceiptCredentialResult)(nil), // 12: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.CreateBoostReceiptCredentialResult
+	(subscriptions.PaymentMethod)(0),                                                // 13: org.signal.chat.purchase.PaymentMethod
+	(*errors.FailedPrecondition)(nil),                                               // 14: org.signal.chat.errors.FailedPrecondition
+	(*errors.FailedZkAuthentication)(nil),                                           // 15: org.signal.chat.errors.FailedZkAuthentication
+	(*subscriptions.ChargeFailure)(nil),                                             // 16: org.signal.chat.purchase.ChargeFailure
+	(subscriptions.PaymentProvider)(0),                                              // 17: org.signal.chat.purchase.PaymentProvider
+	(*subscriptions.PaymentRequired)(nil),                                           // 18: org.signal.chat.purchase.PaymentRequired
+	(*errors.NotFound)(nil),                                                         // 19: org.signal.chat.errors.NotFound
 }
 var file_org_signal_chat_one_time_donations_proto_depIdxs = []int32{
 	13, // 0: org.signal.chat.purchase.CreateBoostRequest.payment_method:type_name -> org.signal.chat.purchase.PaymentMethod
@@ -1270,20 +1270,20 @@ var file_org_signal_chat_one_time_donations_proto_depIdxs = []int32{
 	14, // 13: org.signal.chat.purchase.ConfirmPayPalBoostResponse.unsupported_currency:type_name -> org.signal.chat.errors.FailedPrecondition
 	14, // 14: org.signal.chat.purchase.ConfirmPayPalBoostResponse.unsupported_level:type_name -> org.signal.chat.errors.FailedPrecondition
 	16, // 15: org.signal.chat.purchase.ConfirmPayPalBoostResponse.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
-	17, // 16: org.signal.chat.purchase.CreateBoostReceiptCredentialsRequest.processor:type_name -> org.signal.chat.purchase.PaymentProvider
-	12, // 17: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.result:type_name -> org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.CreateBoostReceiptCredentialsResult
-	14, // 18: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.payment_still_processing:type_name -> org.signal.chat.errors.FailedPrecondition
-	18, // 19: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.payment_required:type_name -> org.signal.chat.purchase.PaymentRequired
-	19, // 20: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.payment_not_found:type_name -> org.signal.chat.errors.NotFound
-	14, // 21: org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse.receipt_already_issued:type_name -> org.signal.chat.errors.FailedPrecondition
+	17, // 16: org.signal.chat.purchase.CreateBoostReceiptCredentialRequest.processor:type_name -> org.signal.chat.purchase.PaymentProvider
+	12, // 17: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.result:type_name -> org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.CreateBoostReceiptCredentialResult
+	14, // 18: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.payment_still_processing:type_name -> org.signal.chat.errors.FailedPrecondition
+	18, // 19: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.payment_required:type_name -> org.signal.chat.purchase.PaymentRequired
+	19, // 20: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.payment_not_found:type_name -> org.signal.chat.errors.NotFound
+	14, // 21: org.signal.chat.purchase.CreateBoostReceiptCredentialResponse.receipt_already_issued:type_name -> org.signal.chat.errors.FailedPrecondition
 	2,  // 22: org.signal.chat.purchase.OneTimeDonations.CreateBoost:input_type -> org.signal.chat.purchase.CreateBoostRequest
 	4,  // 23: org.signal.chat.purchase.OneTimeDonations.CreatePayPalBoost:input_type -> org.signal.chat.purchase.CreatePayPalBoostRequest
 	6,  // 24: org.signal.chat.purchase.OneTimeDonations.ConfirmPayPalBoost:input_type -> org.signal.chat.purchase.ConfirmPayPalBoostRequest
-	8,  // 25: org.signal.chat.purchase.OneTimeDonations.CreateBoostReceiptCredentials:input_type -> org.signal.chat.purchase.CreateBoostReceiptCredentialsRequest
+	8,  // 25: org.signal.chat.purchase.OneTimeDonations.CreateBoostReceiptCredential:input_type -> org.signal.chat.purchase.CreateBoostReceiptCredentialRequest
 	3,  // 26: org.signal.chat.purchase.OneTimeDonations.CreateBoost:output_type -> org.signal.chat.purchase.CreateBoostResponse
 	5,  // 27: org.signal.chat.purchase.OneTimeDonations.CreatePayPalBoost:output_type -> org.signal.chat.purchase.CreatePayPalBoostResponse
 	7,  // 28: org.signal.chat.purchase.OneTimeDonations.ConfirmPayPalBoost:output_type -> org.signal.chat.purchase.ConfirmPayPalBoostResponse
-	9,  // 29: org.signal.chat.purchase.OneTimeDonations.CreateBoostReceiptCredentials:output_type -> org.signal.chat.purchase.CreateBoostReceiptCredentialsResponse
+	9,  // 29: org.signal.chat.purchase.OneTimeDonations.CreateBoostReceiptCredential:output_type -> org.signal.chat.purchase.CreateBoostReceiptCredentialResponse
 	26, // [26:30] is the sub-list for method output_type
 	22, // [22:26] is the sub-list for method input_type
 	22, // [22:22] is the sub-list for extension type_name
@@ -1319,11 +1319,11 @@ func file_org_signal_chat_one_time_donations_proto_init() {
 		(*ConfirmPayPalBoostResponse_ChargeFailure)(nil),
 	}
 	file_org_signal_chat_one_time_donations_proto_msgTypes[9].OneofWrappers = []any{
-		(*CreateBoostReceiptCredentialsResponse_Result)(nil),
-		(*CreateBoostReceiptCredentialsResponse_PaymentStillProcessing)(nil),
-		(*CreateBoostReceiptCredentialsResponse_PaymentRequired)(nil),
-		(*CreateBoostReceiptCredentialsResponse_PaymentNotFound)(nil),
-		(*CreateBoostReceiptCredentialsResponse_ReceiptAlreadyIssued)(nil),
+		(*CreateBoostReceiptCredentialResponse_Result)(nil),
+		(*CreateBoostReceiptCredentialResponse_PaymentStillProcessing)(nil),
+		(*CreateBoostReceiptCredentialResponse_PaymentRequired)(nil),
+		(*CreateBoostReceiptCredentialResponse_PaymentNotFound)(nil),
+		(*CreateBoostReceiptCredentialResponse_ReceiptAlreadyIssued)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

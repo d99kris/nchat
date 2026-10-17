@@ -43,7 +43,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var signalDate int = 20260918
+var signalDate int = 20261016
 
 type State int64
 
@@ -2171,7 +2171,7 @@ func SgLogin(connId int) int {
 	}
 
 	// Sync storage service (contact names, mute/pin/archive state)
-	client.SyncStorage(ctx)
+	client.StorageSync(ctx)
 
 	// Sync backup chats once (first login only)
 	if !GetChatsSynced(connId) {

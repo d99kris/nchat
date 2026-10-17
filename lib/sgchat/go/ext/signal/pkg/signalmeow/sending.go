@@ -36,6 +36,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/common"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/messages"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -310,6 +312,10 @@ func WrapSyncMessage(content *signalpb.SyncMessage) *signalpb.Content {
 }
 
 func syncSentMessage(sent *signalpb.SyncMessage_Sent) *signalpb.Content {
+	if sent.Message.GetIsViewOnce() {
+		sent.Message = proto.Clone(sent.Message).(*signalpb.DataMessage)
+		sent.Message.Attachments = nil
+	}
 	return WrapSyncMessage(&signalpb.SyncMessage{
 		Content: &signalpb.SyncMessage_Sent_{
 			Sent: sent,
@@ -384,7 +390,19 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 }
 
 func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender libsignalgo.ServiceID) *signalpb.Content {
-	if *receiptMessage.Type != signalpb.ReceiptMessage_READ || messageSender.Type != libsignalgo.ServiceIDTypeACI {
+	if messageSender.Type != libsignalgo.ServiceIDTypeACI {
+		return nil
+	}
+	if receiptMessage.GetType() == signalpb.ReceiptMessage_VIEWED && len(receiptMessage.Timestamp) == 1 {
+		return WrapSyncMessage(&signalpb.SyncMessage{
+			Content: &signalpb.SyncMessage_ViewOnceOpen_{
+				ViewOnceOpen: &signalpb.SyncMessage_ViewOnceOpen{
+					SenderAciBinary: messageSender.UUID[:],
+					Timestamp:       proto.Uint64(receiptMessage.Timestamp[0]),
+				},
+			},
+		})
+	} else if receiptMessage.GetType() != signalpb.ReceiptMessage_READ {
 		return nil
 	}
 	read := []*signalpb.SyncMessage_Read{}
@@ -412,6 +430,7 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 	}
 
 	cli.LastContactRequestTime = time.Now()
+	log.Info().Msg("Sending contact sync request")
 	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(time.Now().UnixMilli()), WrapSyncMessage(&signalpb.SyncMessage{
 		Content: &signalpb.SyncMessage_Request_{
 			Request: &signalpb.SyncMessage_Request{
@@ -725,7 +744,8 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		if content.GetDataMessage().GetFlags() == uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE) {
 			recipientData.Whitelisted = ptr.Ptr(true)
 		}
-		needsPNISignature := recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
+		needsPNISignature := recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature &&
+			cli.Store.PNI != uuid.Nil
 		if needsPNISignature && !isTypingOrReceipt && content.PniSignatureMessage == nil {
 			zerolog.Ctx(ctx).Debug().
 				Stringer("recipient", recipientID).
@@ -753,7 +773,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	if recipientData.ProbablyMessageRequest() && isTypingOrReceipt {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
 		res := SuccessfulSendResult{Recipient: recipientID}
-		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ || content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_VIEWED {
 			// Still send sync messages for read receipts
 			cli.sendSyncCopy(ctx, content, messageTimestamp, &res)
 		}
@@ -762,7 +782,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing message as typing indicators are disabled")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
-	} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ && cli.Store.DeviceData.AccountRecord != nil && !cli.Store.DeviceData.AccountRecord.GetReadReceipts() {
+	} else if (content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ || content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_VIEWED) && cli.Store.DeviceData.AccountRecord != nil && !cli.Store.DeviceData.AccountRecord.GetReadReceipts() {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending receipt message as read receipts are disabled")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		// Still send sync messages for read receipts
@@ -1170,4 +1190,20 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 	//	}
 	//}
 	return fmt.Errorf("got 428 error")
+}
+
+func (cli *Client) ReportSpam(ctx context.Context, aci uuid.UUID, serverGUID string, token []byte) error {
+	if cli.GRPC == nil {
+		return fmt.Errorf("gRPC client is not connected")
+	}
+	guid, err := uuid.Parse(serverGUID)
+	if err != nil {
+		return fmt.Errorf("invalid message server GUID: %w", err)
+	}
+	_, err = cli.GRPC.Messages.ReportMessage(ctx, &messages.ReportMessageRequest{
+		SourceServiceIdentifier: &common.ServiceIdentifier{IdentityType: common.IdentityType_IDENTITY_TYPE_ACI, Uuid: aci[:]},
+		MessageGuid:             guid[:],
+		ReportSpamToken:         token,
+	})
+	return err
 }

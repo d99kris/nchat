@@ -328,7 +328,7 @@ func (cli *Client) fetchNewGroupCreds(ctx context.Context, today time.Time) (*Gr
 		Str("action", "fetch new group creds").
 		Logger()
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
-	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d&pniAsServiceId=true", today.Unix(), sevenDaysOut.Unix())
+	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d&v101=true&zkcCredential=true", today.Unix(), sevenDaysOut.Unix())
 	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("SendRequest error: %w", err)
@@ -367,14 +367,27 @@ func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsi
 		return nil, err
 	}
 
-	// Receive the auth credential
-	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
-		prodServerPublicParams,
-		cli.Store.ACI,
-		cli.Store.PNI,
-		redemptionTime,
-		*authCredentialResponse,
-	)
+	var authCredential *libsignalgo.AuthCredentialWithPni
+	if cli.Store.PNI == uuid.Nil {
+		if cli.Store.AuthCredentialSalt == nil {
+			return nil, fmt.Errorf("missing auth credential salt for pni-less receive")
+		}
+		authCredential, err = libsignalgo.ReceiveAuthCredentialZKC(
+			prodServerPublicParams,
+			cli.Store.ACI,
+			cli.Store.AuthCredentialSalt,
+			redemptionTime,
+			*authCredentialResponse,
+		)
+	} else {
+		authCredential, err = libsignalgo.ReceiveAuthCredentialWithPni(
+			prodServerPublicParams,
+			cli.Store.ACI,
+			cli.Store.PNI,
+			redemptionTime,
+			*authCredentialResponse,
+		)
+	}
 	if err != nil {
 		log.Err(err).Msg("ReceiveAuthCredentialWithPni error")
 		return nil, err
@@ -521,7 +534,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	}
 
 	for _, bannedMember := range encryptedGroup.MembersBanned {
-		if bannedMember == nil {
+		if bannedMember == nil || len(bannedMember.UserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(bannedMember.UserId)
@@ -741,6 +754,9 @@ func (cli *Client) StoreMasterKey(ctx context.Context, groupMasterKey types.Seri
 }
 
 func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2) (*GroupChange, error) {
+	if len(groupContext.MasterKey) != libsignalgo.GroupMasterKeyLength {
+		return nil, fmt.Errorf("invalid group master key size: %d", len(groupContext.MasterKey))
+	}
 	masterKeyBytes := libsignalgo.GroupMasterKey(groupContext.MasterKey)
 	groupMasterKey := masterKeyFromBytes(masterKeyBytes)
 
@@ -786,6 +802,9 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	if err != nil {
 		log.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
+	}
+	if len(encryptedActions.SourceUserId) != libsignalgo.UUIDCiphertextLength {
+		return nil, fmt.Errorf("invalid source user ID length: %d", len(encryptedActions.SourceUserId))
 	}
 
 	sourceServiceID, err := groupSecretParams.DecryptServiceID(libsignalgo.UUIDCiphertext(encryptedActions.SourceUserId))
@@ -840,7 +859,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	for _, deleteMember := range encryptedActions.DeleteMembers {
-		if deleteMember == nil {
+		if deleteMember == nil || len(deleteMember.DeletedUserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(deleteMember.DeletedUserId)
@@ -856,6 +875,9 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	for _, modifyMemberRole := range encryptedActions.ModifyMemberRoles {
+		if len(modifyMemberRole.UserId) != libsignalgo.UUIDCiphertextLength {
+			continue
+		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(modifyMemberRole.UserId)
 		serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
 		if err != nil {
@@ -904,7 +926,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	for _, deletePendingMember := range encryptedActions.DeleteMembersPendingProfileKey {
-		if deletePendingMember == nil {
+		if deletePendingMember == nil || len(deletePendingMember.DeletedUserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(deletePendingMember.DeletedUserId)
@@ -937,7 +959,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 
 	for _, promotePendingPniAciMember := range encryptedActions.PromoteMembersPendingPniAciProfileKey {
 		// TODO: pretending this is a PendingMember should do for mautrix-signal, but we probably want to treat them separately at some point
-		if promotePendingPniAciMember == nil {
+		if promotePendingPniAciMember == nil || len(promotePendingPniAciMember.Pni) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, promotePendingPniAciMember.UserId, promotePendingPniAciMember.ProfileKey, promotePendingPniAciMember.Presentation, groupSecretParams)
@@ -982,7 +1004,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	for _, deleteRequestingMember := range encryptedActions.DeleteMembersPendingAdminApproval {
-		if deleteRequestingMember == nil {
+		if deleteRequestingMember == nil || len(deleteRequestingMember.DeletedUserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(deleteRequestingMember.DeletedUserId)
@@ -995,7 +1017,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	for _, promoteRequestingMember := range encryptedActions.PromoteMembersPendingAdminApproval {
-		if promoteRequestingMember == nil {
+		if promoteRequestingMember == nil || len(promoteRequestingMember.UserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(promoteRequestingMember.UserId)
@@ -1011,11 +1033,10 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	for _, addBannedMember := range encryptedActions.AddMembersBanned {
-		if addBannedMember == nil {
+		if addBannedMember == nil || addBannedMember.Added == nil || len(addBannedMember.Added.UserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
-		bannedMember := addBannedMember.Added
-		encryptedUserID := libsignalgo.UUIDCiphertext(bannedMember.UserId)
+		encryptedUserID := libsignalgo.UUIDCiphertext(addBannedMember.Added.UserId)
 		serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
 		if err != nil {
 			log.Err(err).Msg("DecryptUUID UserId error for addBannedMember")
@@ -1023,12 +1044,12 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		}
 		decryptedGroupChange.AddBannedMembers = append(decryptedGroupChange.AddBannedMembers, &BannedMember{
 			ServiceID: serviceID,
-			Timestamp: bannedMember.Timestamp,
+			Timestamp: addBannedMember.Added.Timestamp,
 		})
 	}
 
 	for _, deleteBannedMember := range encryptedActions.DeleteMembersBanned {
-		if deleteBannedMember == nil {
+		if deleteBannedMember == nil || len(deleteBannedMember.DeletedUserId) != libsignalgo.UUIDCiphertextLength {
 			continue
 		}
 		encryptedUserID := libsignalgo.UUIDCiphertext(deleteBannedMember.DeletedUserId)
@@ -1081,7 +1102,10 @@ func decryptPKeyAndIDorPresentation(ctx context.Context, userID []byte, profileK
 	log := zerolog.Ctx(ctx)
 	var encryptedUserID libsignalgo.UUIDCiphertext
 	var encryptedProfileKey libsignalgo.ProfileKeyCiphertext
-	if len(userID) == 0 || len(profileKeyBytes) == 0 {
+	if len(userID) == libsignalgo.UUIDCiphertextLength && len(profileKeyBytes) == libsignalgo.ProfileKeyCiphertextLength {
+		encryptedUserID = libsignalgo.UUIDCiphertext(userID)
+		encryptedProfileKey = libsignalgo.ProfileKeyCiphertext(profileKeyBytes)
+	} else if len(presentationBytes) > 0 {
 		presentation := libsignalgo.ProfileKeyCredentialPresentation(presentationBytes)
 		err := presentation.CheckValidContents()
 		if err != nil {
@@ -1099,8 +1123,7 @@ func decryptPKeyAndIDorPresentation(ctx context.Context, userID []byte, profileK
 			return nil, nil, err
 		}
 	} else {
-		encryptedUserID = libsignalgo.UUIDCiphertext(userID)
-		encryptedProfileKey = libsignalgo.ProfileKeyCiphertext(profileKeyBytes)
+		return nil, nil, fmt.Errorf("invalid member: missing profile key and presentation")
 	}
 	serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
 	if err != nil {
@@ -1132,6 +1155,9 @@ func decryptMember(ctx context.Context, member *signalpb.Member, groupSecretPara
 }
 
 func decryptPendingMember(ctx context.Context, pendingMember *signalpb.MemberPendingProfileKey, groupSecretParams libsignalgo.GroupSecretParams) (*PendingMember, error) {
+	if len(pendingMember.Member.UserId) != libsignalgo.UUIDCiphertextLength {
+		return nil, fmt.Errorf("invalid pending member user ID length: %d", len(pendingMember.Member.UserId))
+	}
 	log := zerolog.Ctx(ctx)
 	encryptedUserID := libsignalgo.UUIDCiphertext(pendingMember.Member.UserId)
 	userID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
@@ -1141,6 +1167,9 @@ func decryptPendingMember(ctx context.Context, pendingMember *signalpb.MemberPen
 	}
 	// pendingMembers don't have profile keys
 	encryptedAddedByUserID := pendingMember.AddedByUserId
+	if len(encryptedAddedByUserID) != libsignalgo.UUIDCiphertextLength {
+		return nil, fmt.Errorf("invalid pending member addedByUserId length: %d", len(encryptedAddedByUserID))
+	}
 	addedByServiceId, err := groupSecretParams.DecryptServiceID(libsignalgo.UUIDCiphertext(encryptedAddedByUserID))
 	if err != nil {
 		log.Err(err).Msg("DecryptUUID addedByUserId error for pendingMember")

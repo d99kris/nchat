@@ -38,9 +38,13 @@ const (
 	Accounts_GetCapabilities_FullMethodName                 = "/org.signal.chat.account.Accounts/GetCapabilities"
 	Accounts_GenerateTotpKey_FullMethodName                 = "/org.signal.chat.account.Accounts/GenerateTotpKey"
 	Accounts_ConfirmTotpKey_FullMethodName                  = "/org.signal.chat.account.Accounts/ConfirmTotpKey"
-	Accounts_ListTotpKeys_FullMethodName                    = "/org.signal.chat.account.Accounts/ListTotpKeys"
-	Accounts_SetTotpKeyMetadata_FullMethodName              = "/org.signal.chat.account.Accounts/SetTotpKeyMetadata"
-	Accounts_RemoveTotpKey_FullMethodName                   = "/org.signal.chat.account.Accounts/RemoveTotpKey"
+	Accounts_StartWebAuthnRegistration_FullMethodName       = "/org.signal.chat.account.Accounts/StartWebAuthnRegistration"
+	Accounts_FinishWebAuthnRegistration_FullMethodName      = "/org.signal.chat.account.Accounts/FinishWebAuthnRegistration"
+	Accounts_ListMfaKeys_FullMethodName                     = "/org.signal.chat.account.Accounts/ListMfaKeys"
+	Accounts_SetMfaKeyMetadata_FullMethodName               = "/org.signal.chat.account.Accounts/SetMfaKeyMetadata"
+	Accounts_RemoveMfaKey_FullMethodName                    = "/org.signal.chat.account.Accounts/RemoveMfaKey"
+	Accounts_StartMfaVerification_FullMethodName            = "/org.signal.chat.account.Accounts/StartMfaVerification"
+	Accounts_FinishMfaVerification_FullMethodName           = "/org.signal.chat.account.Accounts/FinishMfaVerification"
 )
 
 // AccountsClient is the client API for Accounts service.
@@ -96,18 +100,34 @@ type AccountsClient interface {
 	GetCapabilities(ctx context.Context, in *GetCapabilitiesRequest, opts ...grpc.CallOption) (*GetCapabilitiesResponse, error)
 	// Generates and stores a pending TOTP key for the authenticated account.
 	// To "activate" the key, callers must call the `ConfirmTotpKey` endpoint.
+	//
+	// TOTP keys may only be generated for accounts without phone numbers.
 	GenerateTotpKey(ctx context.Context, in *GenerateTotpKeyRequest, opts ...grpc.CallOption) (*GenerateTotpKeyResponse, error)
 	// Confirms that the caller has stored and can derive one-time passwords from
 	// a pending TOTP key generated via `GenerateTotpKey` and stores/activates the
 	// key for the caller's account
+	//
+	// TOTP keys may only be generated for accounts without phone numbers.
 	ConfirmTotpKey(ctx context.Context, in *ConfirmTotpKeyRequest, opts ...grpc.CallOption) (*ConfirmTotpKeyResponse, error)
-	// Returns a list of confirmed TOTP keys for the authenticated account
-	ListTotpKeys(ctx context.Context, in *ListTotpKeysRequest, opts ...grpc.CallOption) (*ListTotpKeysResponse, error)
+	// Returns parameters for initiating a WebAuthn registration ceremony
+	//
+	// WebAuthn credentials may only be registered for accounts without phone numbers
+	StartWebAuthnRegistration(ctx context.Context, in *StartWebAuthnRegistrationRequest, opts ...grpc.CallOption) (*StartWebAuthnRegistrationResponse, error)
+	// Concludes a WebAuthn registration ceremony to add a passkey to the authenticated account
+	//
+	// WebAuthn credentials may only be registered for accounts without phone numbers
+	FinishWebAuthnRegistration(ctx context.Context, in *FinishWebAuthnRegistrationRequest, opts ...grpc.CallOption) (*FinishWebAuthnRegistrationResponse, error)
+	// Returns a list of confirmed MFA keys for the authenticated account
+	ListMfaKeys(ctx context.Context, in *ListMfaKeysRequest, opts ...grpc.CallOption) (*ListMfaKeysResponse, error)
 	// Updates encrypted, user-supplied metadata (e.g. a human-readable name and
-	// creation timestamp) for an existing, confirmed TOTP key
-	SetTotpKeyMetadata(ctx context.Context, in *SetTotpKeyMetadataRequest, opts ...grpc.CallOption) (*SetTotpKeyMetadataResponse, error)
-	// Removes a TOTP from the authenticated account
-	RemoveTotpKey(ctx context.Context, in *RemoveTotpKeyRequest, opts ...grpc.CallOption) (*RemoveTotpKeyResponse, error)
+	// creation timestamp) for an existing, confirmed MFA key
+	SetMfaKeyMetadata(ctx context.Context, in *SetMfaKeyMetadataRequest, opts ...grpc.CallOption) (*SetMfaKeyMetadataResponse, error)
+	// Removes an MFA key from the authenticated account
+	RemoveMfaKey(ctx context.Context, in *RemoveMfaKeyRequest, opts ...grpc.CallOption) (*RemoveMfaKeyResponse, error)
+	// Requests the parameters needed to verify with an MFA factor associated with this account.
+	StartMfaVerification(ctx context.Context, in *StartMfaVerificationRequest, opts ...grpc.CallOption) (*StartMfaVerificationResponse, error)
+	// Attemps to verify an MFA factor associated with this account.
+	FinishMfaVerification(ctx context.Context, in *FinishMfaVerificationRequest, opts ...grpc.CallOption) (*FinishMfaVerificationResponse, error)
 }
 
 type accountsClient struct {
@@ -308,30 +328,70 @@ func (c *accountsClient) ConfirmTotpKey(ctx context.Context, in *ConfirmTotpKeyR
 	return out, nil
 }
 
-func (c *accountsClient) ListTotpKeys(ctx context.Context, in *ListTotpKeysRequest, opts ...grpc.CallOption) (*ListTotpKeysResponse, error) {
+func (c *accountsClient) StartWebAuthnRegistration(ctx context.Context, in *StartWebAuthnRegistrationRequest, opts ...grpc.CallOption) (*StartWebAuthnRegistrationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListTotpKeysResponse)
-	err := c.cc.Invoke(ctx, Accounts_ListTotpKeys_FullMethodName, in, out, cOpts...)
+	out := new(StartWebAuthnRegistrationResponse)
+	err := c.cc.Invoke(ctx, Accounts_StartWebAuthnRegistration_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountsClient) SetTotpKeyMetadata(ctx context.Context, in *SetTotpKeyMetadataRequest, opts ...grpc.CallOption) (*SetTotpKeyMetadataResponse, error) {
+func (c *accountsClient) FinishWebAuthnRegistration(ctx context.Context, in *FinishWebAuthnRegistrationRequest, opts ...grpc.CallOption) (*FinishWebAuthnRegistrationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SetTotpKeyMetadataResponse)
-	err := c.cc.Invoke(ctx, Accounts_SetTotpKeyMetadata_FullMethodName, in, out, cOpts...)
+	out := new(FinishWebAuthnRegistrationResponse)
+	err := c.cc.Invoke(ctx, Accounts_FinishWebAuthnRegistration_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountsClient) RemoveTotpKey(ctx context.Context, in *RemoveTotpKeyRequest, opts ...grpc.CallOption) (*RemoveTotpKeyResponse, error) {
+func (c *accountsClient) ListMfaKeys(ctx context.Context, in *ListMfaKeysRequest, opts ...grpc.CallOption) (*ListMfaKeysResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemoveTotpKeyResponse)
-	err := c.cc.Invoke(ctx, Accounts_RemoveTotpKey_FullMethodName, in, out, cOpts...)
+	out := new(ListMfaKeysResponse)
+	err := c.cc.Invoke(ctx, Accounts_ListMfaKeys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountsClient) SetMfaKeyMetadata(ctx context.Context, in *SetMfaKeyMetadataRequest, opts ...grpc.CallOption) (*SetMfaKeyMetadataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMfaKeyMetadataResponse)
+	err := c.cc.Invoke(ctx, Accounts_SetMfaKeyMetadata_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountsClient) RemoveMfaKey(ctx context.Context, in *RemoveMfaKeyRequest, opts ...grpc.CallOption) (*RemoveMfaKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveMfaKeyResponse)
+	err := c.cc.Invoke(ctx, Accounts_RemoveMfaKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountsClient) StartMfaVerification(ctx context.Context, in *StartMfaVerificationRequest, opts ...grpc.CallOption) (*StartMfaVerificationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartMfaVerificationResponse)
+	err := c.cc.Invoke(ctx, Accounts_StartMfaVerification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountsClient) FinishMfaVerification(ctx context.Context, in *FinishMfaVerificationRequest, opts ...grpc.CallOption) (*FinishMfaVerificationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FinishMfaVerificationResponse)
+	err := c.cc.Invoke(ctx, Accounts_FinishMfaVerification_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -391,18 +451,34 @@ type AccountsServer interface {
 	GetCapabilities(context.Context, *GetCapabilitiesRequest) (*GetCapabilitiesResponse, error)
 	// Generates and stores a pending TOTP key for the authenticated account.
 	// To "activate" the key, callers must call the `ConfirmTotpKey` endpoint.
+	//
+	// TOTP keys may only be generated for accounts without phone numbers.
 	GenerateTotpKey(context.Context, *GenerateTotpKeyRequest) (*GenerateTotpKeyResponse, error)
 	// Confirms that the caller has stored and can derive one-time passwords from
 	// a pending TOTP key generated via `GenerateTotpKey` and stores/activates the
 	// key for the caller's account
+	//
+	// TOTP keys may only be generated for accounts without phone numbers.
 	ConfirmTotpKey(context.Context, *ConfirmTotpKeyRequest) (*ConfirmTotpKeyResponse, error)
-	// Returns a list of confirmed TOTP keys for the authenticated account
-	ListTotpKeys(context.Context, *ListTotpKeysRequest) (*ListTotpKeysResponse, error)
+	// Returns parameters for initiating a WebAuthn registration ceremony
+	//
+	// WebAuthn credentials may only be registered for accounts without phone numbers
+	StartWebAuthnRegistration(context.Context, *StartWebAuthnRegistrationRequest) (*StartWebAuthnRegistrationResponse, error)
+	// Concludes a WebAuthn registration ceremony to add a passkey to the authenticated account
+	//
+	// WebAuthn credentials may only be registered for accounts without phone numbers
+	FinishWebAuthnRegistration(context.Context, *FinishWebAuthnRegistrationRequest) (*FinishWebAuthnRegistrationResponse, error)
+	// Returns a list of confirmed MFA keys for the authenticated account
+	ListMfaKeys(context.Context, *ListMfaKeysRequest) (*ListMfaKeysResponse, error)
 	// Updates encrypted, user-supplied metadata (e.g. a human-readable name and
-	// creation timestamp) for an existing, confirmed TOTP key
-	SetTotpKeyMetadata(context.Context, *SetTotpKeyMetadataRequest) (*SetTotpKeyMetadataResponse, error)
-	// Removes a TOTP from the authenticated account
-	RemoveTotpKey(context.Context, *RemoveTotpKeyRequest) (*RemoveTotpKeyResponse, error)
+	// creation timestamp) for an existing, confirmed MFA key
+	SetMfaKeyMetadata(context.Context, *SetMfaKeyMetadataRequest) (*SetMfaKeyMetadataResponse, error)
+	// Removes an MFA key from the authenticated account
+	RemoveMfaKey(context.Context, *RemoveMfaKeyRequest) (*RemoveMfaKeyResponse, error)
+	// Requests the parameters needed to verify with an MFA factor associated with this account.
+	StartMfaVerification(context.Context, *StartMfaVerificationRequest) (*StartMfaVerificationResponse, error)
+	// Attemps to verify an MFA factor associated with this account.
+	FinishMfaVerification(context.Context, *FinishMfaVerificationRequest) (*FinishMfaVerificationResponse, error)
 	mustEmbedUnimplementedAccountsServer()
 }
 
@@ -470,14 +546,26 @@ func (UnimplementedAccountsServer) GenerateTotpKey(context.Context, *GenerateTot
 func (UnimplementedAccountsServer) ConfirmTotpKey(context.Context, *ConfirmTotpKeyRequest) (*ConfirmTotpKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConfirmTotpKey not implemented")
 }
-func (UnimplementedAccountsServer) ListTotpKeys(context.Context, *ListTotpKeysRequest) (*ListTotpKeysResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListTotpKeys not implemented")
+func (UnimplementedAccountsServer) StartWebAuthnRegistration(context.Context, *StartWebAuthnRegistrationRequest) (*StartWebAuthnRegistrationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartWebAuthnRegistration not implemented")
 }
-func (UnimplementedAccountsServer) SetTotpKeyMetadata(context.Context, *SetTotpKeyMetadataRequest) (*SetTotpKeyMetadataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SetTotpKeyMetadata not implemented")
+func (UnimplementedAccountsServer) FinishWebAuthnRegistration(context.Context, *FinishWebAuthnRegistrationRequest) (*FinishWebAuthnRegistrationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FinishWebAuthnRegistration not implemented")
 }
-func (UnimplementedAccountsServer) RemoveTotpKey(context.Context, *RemoveTotpKeyRequest) (*RemoveTotpKeyResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RemoveTotpKey not implemented")
+func (UnimplementedAccountsServer) ListMfaKeys(context.Context, *ListMfaKeysRequest) (*ListMfaKeysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMfaKeys not implemented")
+}
+func (UnimplementedAccountsServer) SetMfaKeyMetadata(context.Context, *SetMfaKeyMetadataRequest) (*SetMfaKeyMetadataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMfaKeyMetadata not implemented")
+}
+func (UnimplementedAccountsServer) RemoveMfaKey(context.Context, *RemoveMfaKeyRequest) (*RemoveMfaKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveMfaKey not implemented")
+}
+func (UnimplementedAccountsServer) StartMfaVerification(context.Context, *StartMfaVerificationRequest) (*StartMfaVerificationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartMfaVerification not implemented")
+}
+func (UnimplementedAccountsServer) FinishMfaVerification(context.Context, *FinishMfaVerificationRequest) (*FinishMfaVerificationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FinishMfaVerification not implemented")
 }
 func (UnimplementedAccountsServer) mustEmbedUnimplementedAccountsServer() {}
 func (UnimplementedAccountsServer) testEmbeddedByValue()                  {}
@@ -842,56 +930,128 @@ func _Accounts_ConfirmTotpKey_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Accounts_ListTotpKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListTotpKeysRequest)
+func _Accounts_StartWebAuthnRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartWebAuthnRegistrationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServer).ListTotpKeys(ctx, in)
+		return srv.(AccountsServer).StartWebAuthnRegistration(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Accounts_ListTotpKeys_FullMethodName,
+		FullMethod: Accounts_StartWebAuthnRegistration_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServer).ListTotpKeys(ctx, req.(*ListTotpKeysRequest))
+		return srv.(AccountsServer).StartWebAuthnRegistration(ctx, req.(*StartWebAuthnRegistrationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Accounts_SetTotpKeyMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SetTotpKeyMetadataRequest)
+func _Accounts_FinishWebAuthnRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FinishWebAuthnRegistrationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServer).SetTotpKeyMetadata(ctx, in)
+		return srv.(AccountsServer).FinishWebAuthnRegistration(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Accounts_SetTotpKeyMetadata_FullMethodName,
+		FullMethod: Accounts_FinishWebAuthnRegistration_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServer).SetTotpKeyMetadata(ctx, req.(*SetTotpKeyMetadataRequest))
+		return srv.(AccountsServer).FinishWebAuthnRegistration(ctx, req.(*FinishWebAuthnRegistrationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Accounts_RemoveTotpKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveTotpKeyRequest)
+func _Accounts_ListMfaKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMfaKeysRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServer).RemoveTotpKey(ctx, in)
+		return srv.(AccountsServer).ListMfaKeys(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Accounts_RemoveTotpKey_FullMethodName,
+		FullMethod: Accounts_ListMfaKeys_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServer).RemoveTotpKey(ctx, req.(*RemoveTotpKeyRequest))
+		return srv.(AccountsServer).ListMfaKeys(ctx, req.(*ListMfaKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Accounts_SetMfaKeyMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMfaKeyMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsServer).SetMfaKeyMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Accounts_SetMfaKeyMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsServer).SetMfaKeyMetadata(ctx, req.(*SetMfaKeyMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Accounts_RemoveMfaKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveMfaKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsServer).RemoveMfaKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Accounts_RemoveMfaKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsServer).RemoveMfaKey(ctx, req.(*RemoveMfaKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Accounts_StartMfaVerification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartMfaVerificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsServer).StartMfaVerification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Accounts_StartMfaVerification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsServer).StartMfaVerification(ctx, req.(*StartMfaVerificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Accounts_FinishMfaVerification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FinishMfaVerificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsServer).FinishMfaVerification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Accounts_FinishMfaVerification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsServer).FinishMfaVerification(ctx, req.(*FinishMfaVerificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -980,16 +1140,32 @@ var Accounts_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Accounts_ConfirmTotpKey_Handler,
 		},
 		{
-			MethodName: "ListTotpKeys",
-			Handler:    _Accounts_ListTotpKeys_Handler,
+			MethodName: "StartWebAuthnRegistration",
+			Handler:    _Accounts_StartWebAuthnRegistration_Handler,
 		},
 		{
-			MethodName: "SetTotpKeyMetadata",
-			Handler:    _Accounts_SetTotpKeyMetadata_Handler,
+			MethodName: "FinishWebAuthnRegistration",
+			Handler:    _Accounts_FinishWebAuthnRegistration_Handler,
 		},
 		{
-			MethodName: "RemoveTotpKey",
-			Handler:    _Accounts_RemoveTotpKey_Handler,
+			MethodName: "ListMfaKeys",
+			Handler:    _Accounts_ListMfaKeys_Handler,
+		},
+		{
+			MethodName: "SetMfaKeyMetadata",
+			Handler:    _Accounts_SetMfaKeyMetadata_Handler,
+		},
+		{
+			MethodName: "RemoveMfaKey",
+			Handler:    _Accounts_RemoveMfaKey_Handler,
+		},
+		{
+			MethodName: "StartMfaVerification",
+			Handler:    _Accounts_StartMfaVerification_Handler,
+		},
+		{
+			MethodName: "FinishMfaVerification",
+			Handler:    _Accounts_FinishMfaVerification_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

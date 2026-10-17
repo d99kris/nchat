@@ -23,11 +23,13 @@ import (
 	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/ptr"
-
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
+
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 )
 
 func supportedIfFFmpeg() event.CapabilitySupportLevel {
@@ -38,7 +40,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2026_07_22"
+	base := "fi.mau.signal.capabilities.2026_10_16"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -46,7 +48,7 @@ func capID() string {
 }
 
 const MaxFileSize = 100 * 1024 * 1024
-const MaxTextLength = 2000
+const MaxTextLength = 64 * 1024
 
 var signalCaps = &event.RoomFeatures{
 	ID: capID(),
@@ -81,6 +83,7 @@ var signalCaps = &event.RoomFeatures{
 			},
 			MaxWidth:         4096,
 			MaxHeight:        4096,
+			ViewLimitedTypes: []*event.BeeperViewLimitedMedia{{Type: "count", Count: 1}},
 			MaxSize:          MaxFileSize,
 			Caption:          event.CapLevelFullySupported,
 			MaxCaptionLength: MaxTextLength,
@@ -91,6 +94,7 @@ var signalCaps = &event.RoomFeatures{
 				"video/ogg":  event.CapLevelFullySupported,
 				"video/webm": event.CapLevelFullySupported,
 			},
+			ViewLimitedTypes: []*event.BeeperViewLimitedMedia{{Type: "count", Count: 1}},
 			MaxSize:          MaxFileSize,
 			Caption:          event.CapLevelFullySupported,
 			MaxCaptionLength: MaxTextLength,
@@ -154,7 +158,7 @@ var signalCaps = &event.RoomFeatures{
 		event.MemberActionBan:          event.CapLevelFullySupported,
 		event.MemberActionKick:         event.CapLevelFullySupported,
 	},
-	MaxTextLength:        MaxTextLength, // TODO support arbitrary sized text messages with files
+	MaxTextLength:        MaxTextLength,
 	LocationMessage:      event.CapLevelPartialSupport,
 	Poll:                 event.CapLevelFullySupported,
 	PollEnd:              event.CapLevelUnsupported,
@@ -192,6 +196,7 @@ var signalDisappearingCap = &event.DisappearingTimerCapability{
 
 var signalCapsNoteToSelf *event.RoomFeatures
 var signalCapsDM *event.RoomFeatures
+var signalCapsPNIDM *event.RoomFeatures
 
 func init() {
 	signalCapsDM = ptr.Clone(signalCaps)
@@ -200,7 +205,16 @@ func init() {
 	signalCapsDM.State = event.StateFeatureMap{
 		event.StateBeeperDisappearingTimer.Type: {Level: event.CapLevelFullySupported},
 	}
+
+	signalCapsPNIDM = ptr.Clone(signalCapsDM)
+	signalCapsPNIDM.ID += "+pni"
+
+	signalCapsDM.BlockUser = true
+	signalCapsDM.ReportSpam = true
+
 	signalCapsNoteToSelf = ptr.Clone(signalCapsDM)
+	signalCapsNoteToSelf.BlockUser = false
+	signalCapsNoteToSelf.ReportSpam = false
 	signalCapsNoteToSelf.EditMaxAge = nil
 	signalCapsNoteToSelf.DeleteMaxAge = nil
 	signalCapsNoteToSelf.ID = capID() + "+note_to_self"
@@ -210,6 +224,10 @@ func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Por
 	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
 		return signalCapsNoteToSelf
 	} else if portal.RoomType == database.RoomTypeDM {
+		userID, _, _ := signalid.ParsePortalID(portal.ID)
+		if userID.Type == libsignalgo.ServiceIDTypePNI {
+			return signalCapsPNIDM
+		}
 		return signalCapsDM
 	}
 	return signalCaps
@@ -224,7 +242,7 @@ var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 		ResolveIdentifier: bridgev2.ResolveIdentifierCapabilities{
 			CreateDM:       true,
 			LookupPhone:    true,
-			LookupUsername: false, // TODO implement
+			LookupUsername: true,
 			ContactList:    true,
 		},
 		GroupCreation: map[string]bridgev2.GroupTypeCapabilities{
@@ -245,5 +263,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 11
+	return 1, 14
 }

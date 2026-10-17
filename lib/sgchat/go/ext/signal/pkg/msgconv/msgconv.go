@@ -18,6 +18,7 @@ package msgconv
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"maunium.net/go/mautrix/bridgev2"
@@ -28,6 +29,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 )
 
 type contextKey int
@@ -44,11 +46,10 @@ type MessageConverter struct {
 	SignalFmtParams *signalfmt.FormatParams
 	MatrixFmtParams *matrixfmt.HTMLParser
 
-	MaxFileSize       int64
-	LocationFormat    string
-	DisappearViewOnce bool
-	DirectMedia       bool
-	ExtEvPolls        bool
+	MaxFileSize    int64
+	LocationFormat string
+	DirectMedia    bool
+	ExtEvPolls     bool
 }
 
 func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {
@@ -95,6 +96,14 @@ func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {
 		},
 		MaxFileSize: 50 * 1024 * 1024,
 	}
+}
+
+const LongTextContentType = "text/x-signal-plain"
+
+func ContainsAttachments(dm *signalpb.DataMessage) bool {
+	return slices.ContainsFunc(dm.GetAttachments(), func(att *signalpb.AttachmentPointer) bool {
+		return att.GetContentType() != LongTextContentType
+	})
 }
 
 func getClient(ctx context.Context) *signalmeow.Client {

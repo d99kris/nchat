@@ -52,7 +52,7 @@ var (
 )
 
 func calculateLength(dm *signalpb.DataMessage) int {
-	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
+	if dm.GetIsViewOnce() || dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		return 1
 	}
 	if dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil {
@@ -78,7 +78,6 @@ func CanConvertSignal(dm *signalpb.DataMessage) bool {
 	return calculateLength(dm) > 0
 }
 
-const ViewOnceDisappearTimer = 5 * time.Minute
 const matrixTextMaxLength = 30000 // approximate value to avoid hitting 64 KiB PDU size limit with HTML duplication
 
 func (mc *MessageConverter) ToMatrix(
@@ -97,6 +96,32 @@ func (mc *MessageConverter) ToMatrix(
 		ReplyTo:    nil,
 		ThreadRoot: nil,
 		Parts:      make([]*bridgev2.ConvertedMessagePart, 0, calculateLength(dm)),
+	}
+	if dm.GetIsViewOnce() {
+		var unavailableReason string
+		if len(dm.GetAttachments()) == 0 || sender == client.Store.ACI ||
+			!time.UnixMilli(int64(dm.GetTimestamp())).Add(45*24*time.Hour).After(time.Now()) {
+			unavailableReason = "View-once media is no longer available."
+		} else if len(dm.GetAttachments()) != 1 || dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil ||
+			len(dm.GetContact()) != 0 || dm.Payment != nil || dm.GiftBadge != nil || dm.GetBody() != "" || len(dm.Preview) != 0 || dm.Quote != nil || dm.GetFlags() != 0 {
+			unavailableReason = "Invalid view-once media message."
+		} else {
+			attachmentMime, _, _ := mime.ParseMediaType(dm.Attachments[0].GetContentType())
+			if attachmentMime != "" && !strings.HasPrefix(attachmentMime, "image/") && !strings.HasPrefix(attachmentMime, "video/") {
+				unavailableReason = "Invalid view-once media message."
+			}
+		}
+		if unavailableReason != "" {
+			cm.Parts = []*bridgev2.ConvertedMessagePart{{
+				Type:       event.EventMessage,
+				DBMetadata: &signalid.MessageMetadata{ViewOnce: true},
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    unavailableReason,
+				},
+			}}
+			return cm
+		}
 	}
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(
@@ -126,9 +151,38 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Parts = append(cm.Parts, mc.convertPollTerminateToMatrix(ctx, sender, dm.PollTerminate))
 		return cm
 	}
+	if dm.GetIsViewOnce() {
+		if !mc.Bridge.Config.ViewLimitedMedia && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > 5*time.Minute) {
+			cm.Disappear = database.DisappearingSetting{
+				Type:  event.DisappearingTypeAfterRead,
+				Timer: 5 * time.Minute,
+			}
+			cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgText,
+					Body:    "This is a view-once message. It will disappear in 5 minutes.",
+				},
+			})
+		} else {
+			cm.Disappear.DisappearAt = time.UnixMilli(int64(dm.GetTimestamp())).Add(45 * 24 * time.Hour)
+			if cm.Disappear.Timer == 0 {
+				cm.Disappear.Type = event.DisappearingTypeAfterSend
+				cm.Disappear.Timer = 45 * 24 * time.Hour
+			}
+		}
+	}
 	for i, att := range dm.GetAttachments() {
-		if att.GetContentType() != "text/x-signal-plain" || att.GetSize() > matrixTextMaxLength {
-			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att, attMap))
+		if att.GetContentType() != LongTextContentType || att.GetSize() > matrixTextMaxLength {
+			part := mc.convertAttachmentToMatrix(ctx, i, att, attMap)
+			if dm.GetIsViewOnce() {
+				if part.Content.MsgType == event.MsgImage || part.Content.MsgType == event.MsgVideo {
+					part.Content.BeeperViewLimited = &event.BeeperViewLimitedMedia{Type: "count", Count: 1}
+				} else if part.Content.MsgType != event.MsgNotice {
+					part.Content = &event.MessageEventContent{MsgType: event.MsgNotice, Body: "Invalid view-once media message."}
+				}
+			}
+			cm.Parts = append(cm.Parts, part)
 		} else {
 			longBody, err := mc.downloadSignalLongText(ctx, att, attMap)
 			if err == nil {
@@ -159,23 +213,17 @@ func (mc *MessageConverter) ToMatrix(
 			},
 		})
 	}
-	if dm.GetIsViewOnce() && mc.DisappearViewOnce && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > ViewOnceDisappearTimer) {
-		cm.Disappear.Type = event.DisappearingTypeAfterRead
-		cm.Disappear.Timer = ViewOnceDisappearTimer
-		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
-			Type: event.EventMessage,
-			Content: &event.MessageEventContent{
-				MsgType: event.MsgText,
-				Body:    "This is a view-once message. It will disappear in 5 minutes.",
-			},
-		})
-	}
 	cm.MergeCaption()
 	for i, part := range cm.Parts {
 		part.ID = signalid.MakeMessagePartID(i)
-		part.DBMetadata = &signalid.MessageMetadata{
-			ContainsAttachments: len(dm.GetAttachments()) > 0,
+		meta := &signalid.MessageMetadata{
+			ContainsAttachments: ContainsAttachments(dm),
+			ViewOnce:            dm.GetIsViewOnce(),
 		}
+		if meta.ViewOnce {
+			meta.ContainsAttachments = part.Content.BeeperViewLimited != nil
+		}
+		part.DBMetadata = meta
 	}
 	if dm.Quote != nil {
 		authorACI, err := signalmeow.ParseStringOrBinaryUUID(dm.Quote.GetAuthorAci(), dm.Quote.GetAuthorAciBinary())

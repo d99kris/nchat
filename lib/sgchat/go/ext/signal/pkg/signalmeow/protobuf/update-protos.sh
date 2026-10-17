@@ -2,7 +2,7 @@
 cd $(dirname "$0")
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-46d6eeb2f3d3e12e6938151a8dbd2a33b5604b1f}
+ANDROID_GIT_REVISION=${1:-ac1d5938947be53577de6052db55e2c35c41b85a}
 
 update_proto() {
   case "$1" in

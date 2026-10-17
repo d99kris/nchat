@@ -53,6 +53,7 @@ type SessionStore interface {
 	// RemoveSession removes the session for the given address.
 	RemoveSession(ctx context.Context, address *libsignalgo.Address) error
 	RemoveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error
+	ArchiveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error
 	// RemoveAllSessions removes all sessions for our ACI UUID
 	RemoveAllSessions(ctx context.Context) error
 }
@@ -93,7 +94,37 @@ func (s *scopedSQLStore) AllSessionsForServiceID(ctx context.Context, theirID li
 	if err != nil {
 		return nil, err
 	}
-	return dbutil.NewRowIterWithError(rows, scanSessionRecord, err).AsList()
+	var out []SessionAddressTuple
+	err = dbutil.NewRowIterWithError(rows, scanSessionRecord, err).Iter(func(tuple SessionAddressTuple) (bool, error) {
+		hasState, err := tuple.Record.HasCurrentState()
+		if err != nil {
+			return false, fmt.Errorf("failed to check if session record has current state: %w", err)
+		} else if hasState {
+			out = append(out, tuple)
+		}
+		return true, nil
+	})
+	return out, err
+}
+
+func (s *scopedSQLStore) ArchiveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error {
+	return s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
+		rows, err := s.AllSessionsForServiceID(ctx, theirID)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			err = row.Record.ArchiveCurrentState()
+			if err != nil {
+				return fmt.Errorf("failed to archive session record for device %d: %w", row.DeviceID, err)
+			}
+			err = s.StoreSession(ctx, row.Address, row.Record)
+			if err != nil {
+				return fmt.Errorf("failed to store archived session record for device %d: %w", row.DeviceID, err)
+			}
+		}
+		return nil
+	})
 }
 
 func (s *scopedSQLStore) RemoveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error {

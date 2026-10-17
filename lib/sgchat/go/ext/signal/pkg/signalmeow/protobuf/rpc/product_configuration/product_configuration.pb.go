@@ -71,8 +71,8 @@ type GetConfigurationResponse struct {
 	BadgeLevels map[uint64]*LevelConfiguration `protobuf:"bytes,2,rep,name=badge_levels,json=badgeLevels,proto3" json:"badge_levels,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Configuration for backup subscription options
 	Backup *BackupConfiguration `protobuf:"bytes,3,opt,name=backup,proto3" json:"backup,omitempty"`
-	// Maximum value of a one-time SEPA donation
-	SepaMaximumEuros string `protobuf:"bytes,4,opt,name=sepa_maximum_euros,json=sepaMaximumEuros,proto3" json:"sepa_maximum_euros,omitempty"`
+	// Maximum value of a one-time SEPA donation, in EUR [minor units](https://docs.stripe.com/currencies#minor-units)
+	SepaMaximumEuros uint64 `protobuf:"varint,4,opt,name=sepa_maximum_euros,json=sepaMaximumEuros,proto3" json:"sepa_maximum_euros,omitempty"`
 	// Configuration for one-time Signal Login purchases
 	Login         *LoginConfiguration `protobuf:"bytes,5,opt,name=login,proto3" json:"login,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -130,11 +130,11 @@ func (x *GetConfigurationResponse) GetBackup() *BackupConfiguration {
 	return nil
 }
 
-func (x *GetConfigurationResponse) GetSepaMaximumEuros() string {
+func (x *GetConfigurationResponse) GetSepaMaximumEuros() uint64 {
 	if x != nil {
 		return x.SepaMaximumEuros
 	}
-	return ""
+	return 0
 }
 
 func (x *GetConfigurationResponse) GetLogin() *LoginConfiguration {
@@ -146,9 +146,11 @@ func (x *GetConfigurationResponse) GetLogin() *LoginConfiguration {
 
 type AmountList struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// NOTE: this is a string instead of a numeric type because it is intended
-	// for display purposes only
-	Amounts       []string `protobuf:"bytes,1,rep,name=amounts,proto3" json:"amounts,omitempty"`
+	// Amount in the currency's minor unit. Unless otherwise noted, currencies are
+	// two-decimal: divide by 100 to get the value in the specified currency.
+	// Some currencies are [zero-decimal](https://docs.stripe.com/currencies#zero-decimal);
+	// for zero-decimal currencies no multiplication is required.
+	Amounts       []uint64 `protobuf:"varint,1,rep,packed,name=amounts,proto3" json:"amounts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,7 +185,7 @@ func (*AmountList) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_product_configuration_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *AmountList) GetAmounts() []string {
+func (x *AmountList) GetAmounts() []uint64 {
 	if x != nil {
 		return x.Amounts
 	}
@@ -192,16 +194,16 @@ func (x *AmountList) GetAmounts() []string {
 
 type CurrencyConfiguration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Minimum one-time donation
-	// NOTE: this is a string instead of a numeric type because it is intended
-	// for display purposes only
-	Minimum string `protobuf:"bytes,1,opt,name=minimum,proto3" json:"minimum,omitempty"`
+	// Minimum one-time donation in the currency's minor unit
+	Minimum uint64 `protobuf:"varint,1,opt,name=minimum,proto3" json:"minimum,omitempty"`
 	// Map of one-time donation level IDs to suggested amounts
 	OneTime map[uint64]*AmountList `protobuf:"bytes,2,rep,name=one_time,json=oneTime,proto3" json:"one_time,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Map of subscription level IDs to the amount charged
-	Subscription map[uint64]string `protobuf:"bytes,3,rep,name=subscription,proto3" json:"subscription,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Map of backup subscription level IDs to the amount charged
-	BackupSubscription      map[uint64]string             `protobuf:"bytes,4,rep,name=backup_subscription,json=backupSubscription,proto3" json:"backup_subscription,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Map of subscription level IDs to the amount charged in the currency's minor
+	// unit
+	Subscription map[uint64]uint64 `protobuf:"bytes,3,rep,name=subscription,proto3" json:"subscription,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// Map of backup subscription level IDs to the amount charged in the
+	// currency's minor unit
+	BackupSubscription      map[uint64]uint64             `protobuf:"bytes,4,rep,name=backup_subscription,json=backupSubscription,proto3" json:"backup_subscription,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	SupportedPaymentMethods []subscriptions.PaymentMethod `protobuf:"varint,5,rep,packed,name=supported_payment_methods,json=supportedPaymentMethods,proto3,enum=org.signal.chat.purchase.PaymentMethod" json:"supported_payment_methods,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
@@ -237,11 +239,11 @@ func (*CurrencyConfiguration) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_product_configuration_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *CurrencyConfiguration) GetMinimum() string {
+func (x *CurrencyConfiguration) GetMinimum() uint64 {
 	if x != nil {
 		return x.Minimum
 	}
-	return ""
+	return 0
 }
 
 func (x *CurrencyConfiguration) GetOneTime() map[uint64]*AmountList {
@@ -251,14 +253,14 @@ func (x *CurrencyConfiguration) GetOneTime() map[uint64]*AmountList {
 	return nil
 }
 
-func (x *CurrencyConfiguration) GetSubscription() map[uint64]string {
+func (x *CurrencyConfiguration) GetSubscription() map[uint64]uint64 {
 	if x != nil {
 		return x.Subscription
 	}
 	return nil
 }
 
-func (x *CurrencyConfiguration) GetBackupSubscription() map[uint64]string {
+func (x *CurrencyConfiguration) GetBackupSubscription() map[uint64]uint64 {
 	if x != nil {
 		return x.BackupSubscription
 	}
@@ -453,6 +455,8 @@ type LoginConfiguration struct {
 	Level uint64 `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
 	// The play billing productID associated with a Signal Login purchase
 	PlayProductId string `protobuf:"bytes,2,opt,name=play_product_id,json=playProductId,proto3" json:"play_product_id,omitempty"`
+	// The play billing optionID to use to purchase a Signal Login
+	PlayOptionId string `protobuf:"bytes,4,opt,name=play_option_id,json=playOptionId,proto3" json:"play_option_id,omitempty"`
 	// The App Store productID associated with a Signal Login purchase
 	AppStoreProductId string `protobuf:"bytes,3,opt,name=app_store_product_id,json=appStoreProductId,proto3" json:"app_store_product_id,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -503,6 +507,13 @@ func (x *LoginConfiguration) GetPlayProductId() string {
 	return ""
 }
 
+func (x *LoginConfiguration) GetPlayOptionId() string {
+	if x != nil {
+		return x.PlayOptionId
+	}
+	return ""
+}
+
 func (x *LoginConfiguration) GetAppStoreProductId() string {
 	if x != nil {
 		return x.AppStoreProductId
@@ -522,7 +533,7 @@ const file_org_signal_chat_product_configuration_proto_rawDesc = "" +
 	"currencies\x12f\n" +
 	"\fbadge_levels\x18\x02 \x03(\v2C.org.signal.chat.purchase.GetConfigurationResponse.BadgeLevelsEntryR\vbadgeLevels\x12E\n" +
 	"\x06backup\x18\x03 \x01(\v2-.org.signal.chat.purchase.BackupConfigurationR\x06backup\x12,\n" +
-	"\x12sepa_maximum_euros\x18\x04 \x01(\tR\x10sepaMaximumEuros\x12B\n" +
+	"\x12sepa_maximum_euros\x18\x04 \x01(\x04R\x10sepaMaximumEuros\x12B\n" +
 	"\x05login\x18\x05 \x01(\v2,.org.signal.chat.purchase.LoginConfigurationR\x05login\x1an\n" +
 	"\x0fCurrenciesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12E\n" +
@@ -532,9 +543,9 @@ const file_org_signal_chat_product_configuration_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2,.org.signal.chat.purchase.LevelConfigurationR\x05value:\x028\x01\"&\n" +
 	"\n" +
 	"AmountList\x12\x18\n" +
-	"\aamounts\x18\x01 \x03(\tR\aamounts\"\xba\x05\n" +
+	"\aamounts\x18\x01 \x03(\x04R\aamounts\"\xba\x05\n" +
 	"\x15CurrencyConfiguration\x12\x18\n" +
-	"\aminimum\x18\x01 \x01(\tR\aminimum\x12W\n" +
+	"\aminimum\x18\x01 \x01(\x04R\aminimum\x12W\n" +
 	"\bone_time\x18\x02 \x03(\v2<.org.signal.chat.purchase.CurrencyConfiguration.OneTimeEntryR\aoneTime\x12e\n" +
 	"\fsubscription\x18\x03 \x03(\v2A.org.signal.chat.purchase.CurrencyConfiguration.SubscriptionEntryR\fsubscription\x12x\n" +
 	"\x13backup_subscription\x18\x04 \x03(\v2G.org.signal.chat.purchase.CurrencyConfiguration.BackupSubscriptionEntryR\x12backupSubscription\x12c\n" +
@@ -544,10 +555,10 @@ const file_org_signal_chat_product_configuration_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2$.org.signal.chat.purchase.AmountListR\x05value:\x028\x01\x1a?\n" +
 	"\x11SubscriptionEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x04R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aE\n" +
+	"\x05value\x18\x02 \x01(\x04R\x05value:\x028\x01\x1aE\n" +
 	"\x17BackupSubscriptionEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x04R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x85\x01\n" +
+	"\x05value\x18\x02 \x01(\x04R\x05value:\x028\x01\"\x85\x01\n" +
 	"\x12LevelConfiguration\x12\x19\n" +
 	"\bbadge_id\x18\x01 \x01(\tR\abadgeId\x129\n" +
 	"\x16badge_duration_seconds\x18\x02 \x01(\x04H\x00R\x14badgeDurationSeconds\x88\x01\x01B\x19\n" +
@@ -561,10 +572,11 @@ const file_org_signal_chat_product_configuration_proto_rawDesc = "" +
 	"\x14free_tier_media_days\x18\x02 \x01(\x04R\x11freeTierMediaDays\x1am\n" +
 	"\vLevelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x04R\x03key\x12H\n" +
-	"\x05value\x18\x02 \x01(\v22.org.signal.chat.purchase.BackupLevelConfigurationR\x05value:\x028\x01\"\x83\x01\n" +
+	"\x05value\x18\x02 \x01(\v22.org.signal.chat.purchase.BackupLevelConfigurationR\x05value:\x028\x01\"\xa9\x01\n" +
 	"\x12LoginConfiguration\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x04R\x05level\x12&\n" +
-	"\x0fplay_product_id\x18\x02 \x01(\tR\rplayProductId\x12/\n" +
+	"\x0fplay_product_id\x18\x02 \x01(\tR\rplayProductId\x12$\n" +
+	"\x0eplay_option_id\x18\x04 \x01(\tR\fplayOptionId\x12/\n" +
 	"\x14app_store_product_id\x18\x03 \x01(\tR\x11appStoreProductId2\x99\x01\n" +
 	"\x14ProductConfiguration\x12{\n" +
 	"\x10GetConfiguration\x121.org.signal.chat.purchase.GetConfigurationRequest\x1a2.org.signal.chat.purchase.GetConfigurationResponse\"\x00\x1a\x04\xc8\xd5\"\x02B\x02P\x01b\x06proto3"

@@ -61,8 +61,7 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	assert.NoError(t, err)
 
 	bobPublicIdentityKey := bobIdentityKeyPair.GetPublicKey()
-	bobIdentityKey, err := libsignalgo.NewIdentityKeyFromPublicKey(bobPublicIdentityKey)
-	assert.NoError(t, err)
+	bobIdentityKey := libsignalgo.NewIdentityKeyFromPublicKey(bobPublicIdentityKey)
 
 	var prekeyID uint32 = 4570
 	var signedPreKeyID uint32 = 3006

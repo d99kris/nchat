@@ -172,21 +172,23 @@ const (
 	ManifestRecord_Identifier_CALL_LINK               ManifestRecord_Identifier_Type = 7
 	ManifestRecord_Identifier_CHAT_FOLDER             ManifestRecord_Identifier_Type = 8
 	ManifestRecord_Identifier_NOTIFICATION_PROFILE    ManifestRecord_Identifier_Type = 9
+	ManifestRecord_Identifier_FAVORITE_STICKER        ManifestRecord_Identifier_Type = 11
 )
 
 // Enum value maps for ManifestRecord_Identifier_Type.
 var (
 	ManifestRecord_Identifier_Type_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "CONTACT",
-		2: "GROUPV1",
-		3: "GROUPV2",
-		4: "ACCOUNT",
-		5: "STORY_DISTRIBUTION_LIST",
-		6: "STICKER_PACK",
-		7: "CALL_LINK",
-		8: "CHAT_FOLDER",
-		9: "NOTIFICATION_PROFILE",
+		0:  "UNKNOWN",
+		1:  "CONTACT",
+		2:  "GROUPV1",
+		3:  "GROUPV2",
+		4:  "ACCOUNT",
+		5:  "STORY_DISTRIBUTION_LIST",
+		6:  "STICKER_PACK",
+		7:  "CALL_LINK",
+		8:  "CHAT_FOLDER",
+		9:  "NOTIFICATION_PROFILE",
+		11: "FAVORITE_STICKER",
 	}
 	ManifestRecord_Identifier_Type_value = map[string]int32{
 		"UNKNOWN":                 0,
@@ -199,6 +201,7 @@ var (
 		"CALL_LINK":               7,
 		"CHAT_FOLDER":             8,
 		"NOTIFICATION_PROFILE":    9,
+		"FAVORITE_STICKER":        11,
 	}
 )
 
@@ -539,7 +542,7 @@ func (x ChatFolderRecord_FolderType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ChatFolderRecord_FolderType.Descriptor instead.
 func (ChatFolderRecord_FolderType) EnumDescriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{16, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{17, 0}
 }
 
 type NotificationProfile_DayOfWeek int32
@@ -603,7 +606,7 @@ func (x NotificationProfile_DayOfWeek) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use NotificationProfile_DayOfWeek.Descriptor instead.
 func (NotificationProfile_DayOfWeek) EnumDescriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{17, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{18, 0}
 }
 
 type StorageManifest struct {
@@ -947,6 +950,7 @@ type StorageRecord struct {
 	//	*StorageRecord_CallLink
 	//	*StorageRecord_ChatFolder
 	//	*StorageRecord_NotificationProfile
+	//	*StorageRecord_FavoriteSticker
 	Record        isStorageRecord_Record `protobuf_oneof:"record"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1070,6 +1074,15 @@ func (x *StorageRecord) GetNotificationProfile() *NotificationProfile {
 	return nil
 }
 
+func (x *StorageRecord) GetFavoriteSticker() *FavoriteStickerRecord {
+	if x != nil {
+		if x, ok := x.Record.(*StorageRecord_FavoriteSticker); ok {
+			return x.FavoriteSticker
+		}
+	}
+	return nil
+}
+
 type isStorageRecord_Record interface {
 	isStorageRecord_Record()
 }
@@ -1110,6 +1123,10 @@ type StorageRecord_NotificationProfile struct {
 	NotificationProfile *NotificationProfile `protobuf:"bytes,9,opt,name=notificationProfile,proto3,oneof"`
 }
 
+type StorageRecord_FavoriteSticker struct {
+	FavoriteSticker *FavoriteStickerRecord `protobuf:"bytes,11,opt,name=favoriteSticker,proto3,oneof"`
+}
+
 func (*StorageRecord_Contact) isStorageRecord_Record() {}
 
 func (*StorageRecord_GroupV1) isStorageRecord_Record() {}
@@ -1127,6 +1144,8 @@ func (*StorageRecord_CallLink) isStorageRecord_Record() {}
 func (*StorageRecord_ChatFolder) isStorageRecord_Record() {}
 
 func (*StorageRecord_NotificationProfile) isStorageRecord_Record() {}
+
+func (*StorageRecord_FavoriteSticker) isStorageRecord_Record() {}
 
 type ContactRecord struct {
 	state                   protoimpl.MessageState      `protogen:"open.v1"`
@@ -1159,6 +1178,7 @@ type ContactRecord struct {
 	BlockedAtTimestamp      uint64                      `protobuf:"varint,27,opt,name=blockedAtTimestamp,proto3" json:"blockedAtTimestamp,omitempty"`                                       // 0 means the blocked time is unknown
 	NotifyForCallsIfMuted   OptionalBool                `protobuf:"varint,28,opt,name=notifyForCallsIfMuted,proto3,enum=signalservice.OptionalBool" json:"notifyForCallsIfMuted,omitempty"` // If unset, use the default settings
 	ShowUnreadReminders     OptionalBool                `protobuf:"varint,29,opt,name=showUnreadReminders,proto3,enum=signalservice.OptionalBool" json:"showUnreadReminders,omitempty"`     // If unset, use the default settings
+	SharedName              *ContactRecord_Name         `protobuf:"bytes,30,opt,name=sharedName,proto3" json:"sharedName,omitempty"`                                                        // Name shared from a third party
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1394,6 +1414,13 @@ func (x *ContactRecord) GetShowUnreadReminders() OptionalBool {
 		return x.ShowUnreadReminders
 	}
 	return OptionalBool_UNSET
+}
+
+func (x *ContactRecord) GetSharedName() *ContactRecord_Name {
+	if x != nil {
+		return x.SharedName
+	}
+	return nil
 }
 
 type GroupV1Record struct {
@@ -2314,6 +2341,89 @@ func (x *StickerPackRecord) GetDeletedAtTimestamp() uint64 {
 	return 0
 }
 
+type FavoriteStickerRecord struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	PackId  []byte                 `protobuf:"bytes,1,opt,name=packId,proto3" json:"packId,omitempty"`   // 16 bytes
+	PackKey []byte                 `protobuf:"bytes,2,opt,name=packKey,proto3" json:"packKey,omitempty"` // 32 bytes, used to derive the AES-256 key
+	// aesKey = HKDF(
+	//
+	//	input = packKey,
+	//	salt = 32 zero bytes,
+	//	info = "Sticker Pack"
+	//
+	// )
+	StickerId            uint32 `protobuf:"varint,3,opt,name=stickerId,proto3" json:"stickerId,omitempty"`
+	FavoritedAtTimestamp uint64 `protobuf:"varint,4,opt,name=favoritedAtTimestamp,proto3" json:"favoritedAtTimestamp,omitempty"` // Sorted by newest timestamp first. Can be mutated if sticker is reordered via 'Move to top'
+	DeletedAtTimestamp   uint64 `protobuf:"varint,5,opt,name=deletedAtTimestamp,proto3" json:"deletedAtTimestamp,omitempty"`     // Timestamp in milliseconds. When present and
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *FavoriteStickerRecord) Reset() {
+	*x = FavoriteStickerRecord{}
+	mi := &file_signalpb_StorageService_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FavoriteStickerRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FavoriteStickerRecord) ProtoMessage() {}
+
+func (x *FavoriteStickerRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_signalpb_StorageService_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FavoriteStickerRecord.ProtoReflect.Descriptor instead.
+func (*FavoriteStickerRecord) Descriptor() ([]byte, []int) {
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *FavoriteStickerRecord) GetPackId() []byte {
+	if x != nil {
+		return x.PackId
+	}
+	return nil
+}
+
+func (x *FavoriteStickerRecord) GetPackKey() []byte {
+	if x != nil {
+		return x.PackKey
+	}
+	return nil
+}
+
+func (x *FavoriteStickerRecord) GetStickerId() uint32 {
+	if x != nil {
+		return x.StickerId
+	}
+	return 0
+}
+
+func (x *FavoriteStickerRecord) GetFavoritedAtTimestamp() uint64 {
+	if x != nil {
+		return x.FavoritedAtTimestamp
+	}
+	return 0
+}
+
+func (x *FavoriteStickerRecord) GetDeletedAtTimestamp() uint64 {
+	if x != nil {
+		return x.DeletedAtTimestamp
+	}
+	return 0
+}
+
 type CallLinkRecord struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	RootKey              []byte                 `protobuf:"bytes,1,opt,name=rootKey,proto3" json:"rootKey,omitempty"`
@@ -2325,7 +2435,7 @@ type CallLinkRecord struct {
 
 func (x *CallLinkRecord) Reset() {
 	*x = CallLinkRecord{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[14]
+	mi := &file_signalpb_StorageService_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2337,7 +2447,7 @@ func (x *CallLinkRecord) String() string {
 func (*CallLinkRecord) ProtoMessage() {}
 
 func (x *CallLinkRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[14]
+	mi := &file_signalpb_StorageService_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2350,7 +2460,7 @@ func (x *CallLinkRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallLinkRecord.ProtoReflect.Descriptor instead.
 func (*CallLinkRecord) Descriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{14}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CallLinkRecord) GetRootKey() []byte {
@@ -2388,7 +2498,7 @@ type Recipient struct {
 
 func (x *Recipient) Reset() {
 	*x = Recipient{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[15]
+	mi := &file_signalpb_StorageService_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2400,7 +2510,7 @@ func (x *Recipient) String() string {
 func (*Recipient) ProtoMessage() {}
 
 func (x *Recipient) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[15]
+	mi := &file_signalpb_StorageService_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2413,7 +2523,7 @@ func (x *Recipient) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Recipient.ProtoReflect.Descriptor instead.
 func (*Recipient) Descriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{15}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Recipient) GetIdentifier() isRecipient_Identifier {
@@ -2491,7 +2601,7 @@ type ChatFolderRecord struct {
 
 func (x *ChatFolderRecord) Reset() {
 	*x = ChatFolderRecord{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[16]
+	mi := &file_signalpb_StorageService_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2503,7 +2613,7 @@ func (x *ChatFolderRecord) String() string {
 func (*ChatFolderRecord) ProtoMessage() {}
 
 func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[16]
+	mi := &file_signalpb_StorageService_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2516,7 +2626,7 @@ func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatFolderRecord.ProtoReflect.Descriptor instead.
 func (*ChatFolderRecord) Descriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{16}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ChatFolderRecord) GetIdentifier() []byte {
@@ -2617,7 +2727,7 @@ type NotificationProfile struct {
 
 func (x *NotificationProfile) Reset() {
 	*x = NotificationProfile{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[17]
+	mi := &file_signalpb_StorageService_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2629,7 +2739,7 @@ func (x *NotificationProfile) String() string {
 func (*NotificationProfile) ProtoMessage() {}
 
 func (x *NotificationProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[17]
+	mi := &file_signalpb_StorageService_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2642,7 +2752,7 @@ func (x *NotificationProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotificationProfile.ProtoReflect.Descriptor instead.
 func (*NotificationProfile) Descriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{17}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *NotificationProfile) GetId() []byte {
@@ -2746,7 +2856,7 @@ type ManifestRecord_Identifier struct {
 
 func (x *ManifestRecord_Identifier) Reset() {
 	*x = ManifestRecord_Identifier{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[18]
+	mi := &file_signalpb_StorageService_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2758,7 +2868,7 @@ func (x *ManifestRecord_Identifier) String() string {
 func (*ManifestRecord_Identifier) ProtoMessage() {}
 
 func (x *ManifestRecord_Identifier) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[18]
+	mi := &file_signalpb_StorageService_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2798,7 +2908,7 @@ type ContactRecord_Name struct {
 
 func (x *ContactRecord_Name) Reset() {
 	*x = ContactRecord_Name{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[19]
+	mi := &file_signalpb_StorageService_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2810,7 +2920,7 @@ func (x *ContactRecord_Name) String() string {
 func (*ContactRecord_Name) ProtoMessage() {}
 
 func (x *ContactRecord_Name) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[19]
+	mi := &file_signalpb_StorageService_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2855,7 +2965,7 @@ type AccountRecord_PinnedConversation struct {
 
 func (x *AccountRecord_PinnedConversation) Reset() {
 	*x = AccountRecord_PinnedConversation{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[20]
+	mi := &file_signalpb_StorageService_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +2977,7 @@ func (x *AccountRecord_PinnedConversation) String() string {
 func (*AccountRecord_PinnedConversation) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[20]
+	mi := &file_signalpb_StorageService_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2968,7 +3078,7 @@ type AccountRecord_UsernameLink struct {
 
 func (x *AccountRecord_UsernameLink) Reset() {
 	*x = AccountRecord_UsernameLink{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[21]
+	mi := &file_signalpb_StorageService_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2980,7 +3090,7 @@ func (x *AccountRecord_UsernameLink) String() string {
 func (*AccountRecord_UsernameLink) ProtoMessage() {}
 
 func (x *AccountRecord_UsernameLink) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[21]
+	mi := &file_signalpb_StorageService_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3141,7 @@ type AccountRecord_IAPSubscriberData struct {
 
 func (x *AccountRecord_IAPSubscriberData) Reset() {
 	*x = AccountRecord_IAPSubscriberData{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[22]
+	mi := &file_signalpb_StorageService_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3043,7 +3153,7 @@ func (x *AccountRecord_IAPSubscriberData) String() string {
 func (*AccountRecord_IAPSubscriberData) ProtoMessage() {}
 
 func (x *AccountRecord_IAPSubscriberData) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[22]
+	mi := &file_signalpb_StorageService_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3124,7 +3234,7 @@ type AccountRecord_NotificationProfileManualOverride struct {
 
 func (x *AccountRecord_NotificationProfileManualOverride) Reset() {
 	*x = AccountRecord_NotificationProfileManualOverride{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[23]
+	mi := &file_signalpb_StorageService_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3136,7 +3246,7 @@ func (x *AccountRecord_NotificationProfileManualOverride) String() string {
 func (*AccountRecord_NotificationProfileManualOverride) ProtoMessage() {}
 
 func (x *AccountRecord_NotificationProfileManualOverride) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[23]
+	mi := &file_signalpb_StorageService_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3206,7 +3316,7 @@ type AccountRecord_PinnedConversation_Contact struct {
 
 func (x *AccountRecord_PinnedConversation_Contact) Reset() {
 	*x = AccountRecord_PinnedConversation_Contact{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[24]
+	mi := &file_signalpb_StorageService_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3218,7 +3328,7 @@ func (x *AccountRecord_PinnedConversation_Contact) String() string {
 func (*AccountRecord_PinnedConversation_Contact) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[24]
+	mi := &file_signalpb_StorageService_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3263,7 +3373,7 @@ type AccountRecord_PinnedConversation_ReleaseNotes struct {
 
 func (x *AccountRecord_PinnedConversation_ReleaseNotes) Reset() {
 	*x = AccountRecord_PinnedConversation_ReleaseNotes{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[25]
+	mi := &file_signalpb_StorageService_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3275,7 +3385,7 @@ func (x *AccountRecord_PinnedConversation_ReleaseNotes) String() string {
 func (*AccountRecord_PinnedConversation_ReleaseNotes) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_ReleaseNotes) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[25]
+	mi := &file_signalpb_StorageService_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3302,7 +3412,7 @@ type AccountRecord_NotificationProfileManualOverride_ManuallyEnabled struct {
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) Reset() {
 	*x = AccountRecord_NotificationProfileManualOverride_ManuallyEnabled{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[26]
+	mi := &file_signalpb_StorageService_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3314,7 +3424,7 @@ func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) String
 func (*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoMessage() {}
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[26]
+	mi := &file_signalpb_StorageService_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3355,7 +3465,7 @@ type Recipient_Contact struct {
 
 func (x *Recipient_Contact) Reset() {
 	*x = Recipient_Contact{}
-	mi := &file_signalpb_StorageService_proto_msgTypes[27]
+	mi := &file_signalpb_StorageService_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3367,7 +3477,7 @@ func (x *Recipient_Contact) String() string {
 func (*Recipient_Contact) ProtoMessage() {}
 
 func (x *Recipient_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_signalpb_StorageService_proto_msgTypes[27]
+	mi := &file_signalpb_StorageService_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3380,7 +3490,7 @@ func (x *Recipient_Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Recipient_Contact.ProtoReflect.Descriptor instead.
 func (*Recipient_Contact) Descriptor() ([]byte, []int) {
-	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{15, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{16, 0}
 }
 
 func (x *Recipient_Contact) GetServiceId() string {
@@ -3425,16 +3535,16 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"insertItem\x18\x02 \x03(\v2\x1a.signalservice.StorageItemR\n" +
 	"insertItem\x12\x1c\n" +
 	"\tdeleteKey\x18\x03 \x03(\fR\tdeleteKey\x12\x1a\n" +
-	"\bclearAll\x18\x04 \x01(\bR\bclearAll\"\xcf\x03\n" +
+	"\bclearAll\x18\x04 \x01(\bR\bclearAll\"\xe5\x03\n" +
 	"\x0eManifestRecord\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x04R\aversion\x12\"\n" +
 	"\fsourceDevice\x18\x03 \x01(\rR\fsourceDevice\x12J\n" +
 	"\videntifiers\x18\x02 \x03(\v2(.signalservice.ManifestRecord.IdentifierR\videntifiers\x12\x1c\n" +
-	"\trecordIkm\x18\x04 \x01(\fR\trecordIkm\x1a\x94\x02\n" +
+	"\trecordIkm\x18\x04 \x01(\fR\trecordIkm\x1a\xaa\x02\n" +
 	"\n" +
 	"Identifier\x12\x10\n" +
 	"\x03raw\x18\x01 \x01(\fR\x03raw\x12A\n" +
-	"\x04type\x18\x02 \x01(\x0e2-.signalservice.ManifestRecord.Identifier.TypeR\x04type\"\xb0\x01\n" +
+	"\x04type\x18\x02 \x01(\x0e2-.signalservice.ManifestRecord.Identifier.TypeR\x04type\"\xc6\x01\n" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aCONTACT\x10\x01\x12\v\n" +
@@ -3445,7 +3555,8 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"\fSTICKER_PACK\x10\x06\x12\r\n" +
 	"\tCALL_LINK\x10\a\x12\x0f\n" +
 	"\vCHAT_FOLDER\x10\b\x12\x18\n" +
-	"\x14NOTIFICATION_PROFILE\x10\t\"\x83\x05\n" +
+	"\x14NOTIFICATION_PROFILE\x10\t\x12\x14\n" +
+	"\x10FAVORITE_STICKER\x10\v\"\xd5\x05\n" +
 	"\rStorageRecord\x128\n" +
 	"\acontact\x18\x01 \x01(\v2\x1c.signalservice.ContactRecordH\x00R\acontact\x128\n" +
 	"\agroupV1\x18\x02 \x01(\v2\x1c.signalservice.GroupV1RecordH\x00R\agroupV1\x128\n" +
@@ -3457,8 +3568,9 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"\n" +
 	"chatFolder\x18\b \x01(\v2\x1f.signalservice.ChatFolderRecordH\x00R\n" +
 	"chatFolder\x12V\n" +
-	"\x13notificationProfile\x18\t \x01(\v2\".signalservice.NotificationProfileH\x00R\x13notificationProfileB\b\n" +
-	"\x06record\"\xab\n" +
+	"\x13notificationProfile\x18\t \x01(\v2\".signalservice.NotificationProfileH\x00R\x13notificationProfile\x12P\n" +
+	"\x0ffavoriteSticker\x18\v \x01(\v2$.signalservice.FavoriteStickerRecordH\x00R\x0ffavoriteStickerB\b\n" +
+	"\x06record\"\xee\n" +
 	"\n" +
 	"\rContactRecord\x12\x10\n" +
 	"\x03aci\x18\x01 \x01(\tR\x03aci\x12\x12\n" +
@@ -3494,7 +3606,10 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"\tpniBinary\x18\x1a \x01(\fR\tpniBinary\x12.\n" +
 	"\x12blockedAtTimestamp\x18\x1b \x01(\x04R\x12blockedAtTimestamp\x12Q\n" +
 	"\x15notifyForCallsIfMuted\x18\x1c \x01(\x0e2\x1b.signalservice.OptionalBoolR\x15notifyForCallsIfMuted\x12M\n" +
-	"\x13showUnreadReminders\x18\x1d \x01(\x0e2\x1b.signalservice.OptionalBoolR\x13showUnreadReminders\x1a4\n" +
+	"\x13showUnreadReminders\x18\x1d \x01(\x0e2\x1b.signalservice.OptionalBoolR\x13showUnreadReminders\x12A\n" +
+	"\n" +
+	"sharedName\x18\x1e \x01(\v2!.signalservice.ContactRecord.NameR\n" +
+	"sharedName\x1a4\n" +
 	"\x04Name\x12\x14\n" +
 	"\x05given\x18\x01 \x01(\tR\x05given\x12\x16\n" +
 	"\x06family\x18\x02 \x01(\tR\x06family\":\n" +
@@ -3669,7 +3784,13 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"\x06packId\x18\x01 \x01(\fR\x06packId\x12\x18\n" +
 	"\apackKey\x18\x02 \x01(\fR\apackKey\x12\x1a\n" +
 	"\bposition\x18\x03 \x01(\rR\bposition\x12.\n" +
-	"\x12deletedAtTimestamp\x18\x04 \x01(\x04R\x12deletedAtTimestamp\"\x88\x01\n" +
+	"\x12deletedAtTimestamp\x18\x04 \x01(\x04R\x12deletedAtTimestamp\"\xcb\x01\n" +
+	"\x15FavoriteStickerRecord\x12\x16\n" +
+	"\x06packId\x18\x01 \x01(\fR\x06packId\x12\x18\n" +
+	"\apackKey\x18\x02 \x01(\fR\apackKey\x12\x1c\n" +
+	"\tstickerId\x18\x03 \x01(\rR\tstickerId\x122\n" +
+	"\x14favoritedAtTimestamp\x18\x04 \x01(\x04R\x14favoritedAtTimestamp\x12.\n" +
+	"\x12deletedAtTimestamp\x18\x05 \x01(\x04R\x12deletedAtTimestamp\"\x88\x01\n" +
 	"\x0eCallLinkRecord\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\"\n" +
 	"\fadminPasskey\x18\x02 \x01(\fR\fadminPasskey\x122\n" +
@@ -3768,7 +3889,7 @@ func file_signalpb_StorageService_proto_rawDescGZIP() []byte {
 }
 
 var file_signalpb_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_signalpb_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_signalpb_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_signalpb_StorageService_proto_goTypes = []any{
 	(OptionalBool)(0),                                       // 0: signalservice.OptionalBool
 	(AvatarColor)(0),                                        // 1: signalservice.AvatarColor
@@ -3794,78 +3915,81 @@ var file_signalpb_StorageService_proto_goTypes = []any{
 	(*AccountRecord)(nil),                                   // 21: signalservice.AccountRecord
 	(*StoryDistributionListRecord)(nil),                     // 22: signalservice.StoryDistributionListRecord
 	(*StickerPackRecord)(nil),                               // 23: signalservice.StickerPackRecord
-	(*CallLinkRecord)(nil),                                  // 24: signalservice.CallLinkRecord
-	(*Recipient)(nil),                                       // 25: signalservice.Recipient
-	(*ChatFolderRecord)(nil),                                // 26: signalservice.ChatFolderRecord
-	(*NotificationProfile)(nil),                             // 27: signalservice.NotificationProfile
-	(*ManifestRecord_Identifier)(nil),                       // 28: signalservice.ManifestRecord.Identifier
-	(*ContactRecord_Name)(nil),                              // 29: signalservice.ContactRecord.Name
-	(*AccountRecord_PinnedConversation)(nil),                // 30: signalservice.AccountRecord.PinnedConversation
-	(*AccountRecord_UsernameLink)(nil),                      // 31: signalservice.AccountRecord.UsernameLink
-	(*AccountRecord_IAPSubscriberData)(nil),                 // 32: signalservice.AccountRecord.IAPSubscriberData
-	(*AccountRecord_NotificationProfileManualOverride)(nil), // 33: signalservice.AccountRecord.NotificationProfileManualOverride
-	(*AccountRecord_PinnedConversation_Contact)(nil),        // 34: signalservice.AccountRecord.PinnedConversation.Contact
-	(*AccountRecord_PinnedConversation_ReleaseNotes)(nil),   // 35: signalservice.AccountRecord.PinnedConversation.ReleaseNotes
-	(*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled)(nil), // 36: signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
-	(*Recipient_Contact)(nil), // 37: signalservice.Recipient.Contact
+	(*FavoriteStickerRecord)(nil),                           // 24: signalservice.FavoriteStickerRecord
+	(*CallLinkRecord)(nil),                                  // 25: signalservice.CallLinkRecord
+	(*Recipient)(nil),                                       // 26: signalservice.Recipient
+	(*ChatFolderRecord)(nil),                                // 27: signalservice.ChatFolderRecord
+	(*NotificationProfile)(nil),                             // 28: signalservice.NotificationProfile
+	(*ManifestRecord_Identifier)(nil),                       // 29: signalservice.ManifestRecord.Identifier
+	(*ContactRecord_Name)(nil),                              // 30: signalservice.ContactRecord.Name
+	(*AccountRecord_PinnedConversation)(nil),                // 31: signalservice.AccountRecord.PinnedConversation
+	(*AccountRecord_UsernameLink)(nil),                      // 32: signalservice.AccountRecord.UsernameLink
+	(*AccountRecord_IAPSubscriberData)(nil),                 // 33: signalservice.AccountRecord.IAPSubscriberData
+	(*AccountRecord_NotificationProfileManualOverride)(nil), // 34: signalservice.AccountRecord.NotificationProfileManualOverride
+	(*AccountRecord_PinnedConversation_Contact)(nil),        // 35: signalservice.AccountRecord.PinnedConversation.Contact
+	(*AccountRecord_PinnedConversation_ReleaseNotes)(nil),   // 36: signalservice.AccountRecord.PinnedConversation.ReleaseNotes
+	(*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled)(nil), // 37: signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	(*Recipient_Contact)(nil), // 38: signalservice.Recipient.Contact
 }
 var file_signalpb_StorageService_proto_depIdxs = []int32{
 	11, // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
 	10, // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
 	11, // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
-	28, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
+	29, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
 	17, // 4: signalservice.StorageRecord.contact:type_name -> signalservice.ContactRecord
 	18, // 5: signalservice.StorageRecord.groupV1:type_name -> signalservice.GroupV1Record
 	19, // 6: signalservice.StorageRecord.groupV2:type_name -> signalservice.GroupV2Record
 	21, // 7: signalservice.StorageRecord.account:type_name -> signalservice.AccountRecord
 	22, // 8: signalservice.StorageRecord.storyDistributionList:type_name -> signalservice.StoryDistributionListRecord
 	23, // 9: signalservice.StorageRecord.stickerPack:type_name -> signalservice.StickerPackRecord
-	24, // 10: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
-	26, // 11: signalservice.StorageRecord.chatFolder:type_name -> signalservice.ChatFolderRecord
-	27, // 12: signalservice.StorageRecord.notificationProfile:type_name -> signalservice.NotificationProfile
-	3,  // 13: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
-	29, // 14: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
-	1,  // 15: signalservice.ContactRecord.avatarColor:type_name -> signalservice.AvatarColor
-	0,  // 16: signalservice.ContactRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 17: signalservice.ContactRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
-	4,  // 18: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
-	1,  // 19: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
-	0,  // 20: signalservice.GroupV2Record.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 21: signalservice.GroupV2Record.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 22: signalservice.GroupV2Record.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 23: signalservice.GroupV2Record.showUnreadReminders:type_name -> signalservice.OptionalBool
-	6,  // 24: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
-	30, // 25: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
-	20, // 26: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
-	0,  // 27: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
-	31, // 28: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
-	32, // 29: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
-	1,  // 30: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
-	33, // 31: signalservice.AccountRecord.notificationProfileManualOverride:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride
-	5,  // 32: signalservice.AccountRecord.unreadBadgeType:type_name -> signalservice.AccountRecord.UnreadBadgeType
-	0,  // 33: signalservice.AccountRecord.includeMutedChatsInBadge:type_name -> signalservice.OptionalBool
-	0,  // 34: signalservice.AccountRecord.reactionNotifications:type_name -> signalservice.OptionalBool
-	0,  // 35: signalservice.AccountRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 36: signalservice.AccountRecord.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 37: signalservice.AccountRecord.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 38: signalservice.AccountRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
-	0,  // 39: signalservice.AccountRecord.notifyWhenContactJoins:type_name -> signalservice.OptionalBool
-	37, // 40: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
-	8,  // 41: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
-	25, // 42: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.Recipient
-	25, // 43: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.Recipient
-	25, // 44: signalservice.NotificationProfile.allowedMembers:type_name -> signalservice.Recipient
-	9,  // 45: signalservice.NotificationProfile.scheduleDaysEnabled:type_name -> signalservice.NotificationProfile.DayOfWeek
-	2,  // 46: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
-	34, // 47: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	35, // 48: signalservice.AccountRecord.PinnedConversation.releaseNotes:type_name -> signalservice.AccountRecord.PinnedConversation.ReleaseNotes
-	7,  // 49: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	36, // 50: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
-	51, // [51:51] is the sub-list for method output_type
-	51, // [51:51] is the sub-list for method input_type
-	51, // [51:51] is the sub-list for extension type_name
-	51, // [51:51] is the sub-list for extension extendee
-	0,  // [0:51] is the sub-list for field type_name
+	25, // 10: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
+	27, // 11: signalservice.StorageRecord.chatFolder:type_name -> signalservice.ChatFolderRecord
+	28, // 12: signalservice.StorageRecord.notificationProfile:type_name -> signalservice.NotificationProfile
+	24, // 13: signalservice.StorageRecord.favoriteSticker:type_name -> signalservice.FavoriteStickerRecord
+	3,  // 14: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
+	30, // 15: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
+	1,  // 16: signalservice.ContactRecord.avatarColor:type_name -> signalservice.AvatarColor
+	0,  // 17: signalservice.ContactRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 18: signalservice.ContactRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
+	30, // 19: signalservice.ContactRecord.sharedName:type_name -> signalservice.ContactRecord.Name
+	4,  // 20: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
+	1,  // 21: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
+	0,  // 22: signalservice.GroupV2Record.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 23: signalservice.GroupV2Record.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 24: signalservice.GroupV2Record.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 25: signalservice.GroupV2Record.showUnreadReminders:type_name -> signalservice.OptionalBool
+	6,  // 26: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
+	31, // 27: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
+	20, // 28: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
+	0,  // 29: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
+	32, // 30: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
+	33, // 31: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
+	1,  // 32: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
+	34, // 33: signalservice.AccountRecord.notificationProfileManualOverride:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride
+	5,  // 34: signalservice.AccountRecord.unreadBadgeType:type_name -> signalservice.AccountRecord.UnreadBadgeType
+	0,  // 35: signalservice.AccountRecord.includeMutedChatsInBadge:type_name -> signalservice.OptionalBool
+	0,  // 36: signalservice.AccountRecord.reactionNotifications:type_name -> signalservice.OptionalBool
+	0,  // 37: signalservice.AccountRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 38: signalservice.AccountRecord.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 39: signalservice.AccountRecord.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 40: signalservice.AccountRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
+	0,  // 41: signalservice.AccountRecord.notifyWhenContactJoins:type_name -> signalservice.OptionalBool
+	38, // 42: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
+	8,  // 43: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
+	26, // 44: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.Recipient
+	26, // 45: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.Recipient
+	26, // 46: signalservice.NotificationProfile.allowedMembers:type_name -> signalservice.Recipient
+	9,  // 47: signalservice.NotificationProfile.scheduleDaysEnabled:type_name -> signalservice.NotificationProfile.DayOfWeek
+	2,  // 48: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
+	35, // 49: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
+	36, // 50: signalservice.AccountRecord.PinnedConversation.releaseNotes:type_name -> signalservice.AccountRecord.PinnedConversation.ReleaseNotes
+	7,  // 51: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	37, // 52: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	53, // [53:53] is the sub-list for method output_type
+	53, // [53:53] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_signalpb_StorageService_proto_init() }
@@ -3883,27 +4007,28 @@ func file_signalpb_StorageService_proto_init() {
 		(*StorageRecord_CallLink)(nil),
 		(*StorageRecord_ChatFolder)(nil),
 		(*StorageRecord_NotificationProfile)(nil),
+		(*StorageRecord_FavoriteSticker)(nil),
 	}
 	file_signalpb_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
 	file_signalpb_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
 	file_signalpb_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
-	file_signalpb_StorageService_proto_msgTypes[15].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[16].OneofWrappers = []any{
 		(*Recipient_Contact_)(nil),
 		(*Recipient_LegacyGroupId)(nil),
 		(*Recipient_GroupMasterKey)(nil),
 	}
-	file_signalpb_StorageService_proto_msgTypes[17].OneofWrappers = []any{}
-	file_signalpb_StorageService_proto_msgTypes[20].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[18].OneofWrappers = []any{}
+	file_signalpb_StorageService_proto_msgTypes[21].OneofWrappers = []any{
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
 		(*AccountRecord_PinnedConversation_ReleaseNotes_)(nil),
 	}
-	file_signalpb_StorageService_proto_msgTypes[22].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[23].OneofWrappers = []any{
 		(*AccountRecord_IAPSubscriberData_PurchaseToken)(nil),
 		(*AccountRecord_IAPSubscriberData_OriginalTransactionId)(nil),
 	}
-	file_signalpb_StorageService_proto_msgTypes[23].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[24].OneofWrappers = []any{
 		(*AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs)(nil),
 		(*AccountRecord_NotificationProfileManualOverride_Enabled)(nil),
 	}
@@ -3913,7 +4038,7 @@ func file_signalpb_StorageService_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_StorageService_proto_rawDesc), len(file_signalpb_StorageService_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   28,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

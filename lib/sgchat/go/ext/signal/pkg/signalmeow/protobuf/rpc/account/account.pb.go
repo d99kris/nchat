@@ -27,6 +27,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType int32
+
+const (
+	ListMfaKeysResponse_MfaKeyMetadata_MFA_KEY_TYPE_UNSPECIFIED ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType = 0
+	ListMfaKeysResponse_MfaKeyMetadata_MFA_KEY_TYPE_TOTP        ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType = 1
+	ListMfaKeysResponse_MfaKeyMetadata_MFA_KEY_TYPE_WEBAUTHN    ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType = 2
+)
+
+// Enum value maps for ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType.
+var (
+	ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType_name = map[int32]string{
+		0: "MFA_KEY_TYPE_UNSPECIFIED",
+		1: "MFA_KEY_TYPE_TOTP",
+		2: "MFA_KEY_TYPE_WEBAUTHN",
+	}
+	ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType_value = map[string]int32{
+		"MFA_KEY_TYPE_UNSPECIFIED": 0,
+		"MFA_KEY_TYPE_TOTP":        1,
+		"MFA_KEY_TYPE_WEBAUTHN":    2,
+	}
+)
+
+func (x ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType) Enum() *ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType {
+	p := new(ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType)
+	*p = x
+	return p
+}
+
+func (x ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType) Descriptor() protoreflect.EnumDescriptor {
+	return file_org_signal_chat_account_proto_enumTypes[0].Descriptor()
+}
+
+func (ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType) Type() protoreflect.EnumType {
+	return &file_org_signal_chat_account_proto_enumTypes[0]
+}
+
+func (x ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType.Descriptor instead.
+func (ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType) EnumDescriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{57, 0, 0}
+}
+
 type GetAccountIdentityRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2801,6 +2850,7 @@ type GenerateTotpKeyResponse struct {
 	//
 	//	*GenerateTotpKeyResponse_KeyGenerated_
 	//	*GenerateTotpKeyResponse_TooManyTotpKeys
+	//	*GenerateTotpKeyResponse_TooManyMfaKeys
 	Response      isGenerateTotpKeyResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2861,6 +2911,15 @@ func (x *GenerateTotpKeyResponse) GetTooManyTotpKeys() *errors.FailedPreconditio
 	return nil
 }
 
+func (x *GenerateTotpKeyResponse) GetTooManyMfaKeys() *errors.FailedPrecondition {
+	if x != nil {
+		if x, ok := x.Response.(*GenerateTotpKeyResponse_TooManyMfaKeys); ok {
+			return x.TooManyMfaKeys
+		}
+	}
+	return nil
+}
+
 type isGenerateTotpKeyResponse_Response interface {
 	isGenerateTotpKeyResponse_Response()
 }
@@ -2877,9 +2936,17 @@ type GenerateTotpKeyResponse_TooManyTotpKeys struct {
 	TooManyTotpKeys *errors.FailedPrecondition `protobuf:"bytes,2,opt,name=too_many_totp_keys,json=tooManyTotpKeys,proto3,oneof"`
 }
 
+type GenerateTotpKeyResponse_TooManyMfaKeys struct {
+	// The authenticated account already has too many MFA keys of all types, and
+	// the caller must remove one before adding more
+	TooManyMfaKeys *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=too_many_mfa_keys,json=tooManyMfaKeys,proto3,oneof"`
+}
+
 func (*GenerateTotpKeyResponse_KeyGenerated_) isGenerateTotpKeyResponse_Response() {}
 
 func (*GenerateTotpKeyResponse_TooManyTotpKeys) isGenerateTotpKeyResponse_Response() {}
+
+func (*GenerateTotpKeyResponse_TooManyMfaKeys) isGenerateTotpKeyResponse_Response() {}
 
 type ConfirmTotpKeyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2943,6 +3010,7 @@ type ConfirmTotpKeyResponse struct {
 	//
 	//	*ConfirmTotpKeyResponse_KeyConfirmed_
 	//	*ConfirmTotpKeyResponse_OneTimePasswordNotVerified
+	//	*ConfirmTotpKeyResponse_TooManyMfaKeys
 	Response      isConfirmTotpKeyResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3003,6 +3071,15 @@ func (x *ConfirmTotpKeyResponse) GetOneTimePasswordNotVerified() *errors.FailedP
 	return nil
 }
 
+func (x *ConfirmTotpKeyResponse) GetTooManyMfaKeys() *errors.FailedPrecondition {
+	if x != nil {
+		if x, ok := x.Response.(*ConfirmTotpKeyResponse_TooManyMfaKeys); ok {
+			return x.TooManyMfaKeys
+		}
+	}
+	return nil
+}
+
 type isConfirmTotpKeyResponse_Response interface {
 	isConfirmTotpKeyResponse_Response()
 }
@@ -3019,30 +3096,38 @@ type ConfirmTotpKeyResponse_OneTimePasswordNotVerified struct {
 	OneTimePasswordNotVerified *errors.FailedPrecondition `protobuf:"bytes,2,opt,name=one_time_password_not_verified,json=oneTimePasswordNotVerified,proto3,oneof"`
 }
 
+type ConfirmTotpKeyResponse_TooManyMfaKeys struct {
+	// The authenticated account already has too many MFA keys of all types, and
+	// the caller must remove one before adding more
+	TooManyMfaKeys *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=too_many_mfa_keys,json=tooManyMfaKeys,proto3,oneof"`
+}
+
 func (*ConfirmTotpKeyResponse_KeyConfirmed_) isConfirmTotpKeyResponse_Response() {}
 
 func (*ConfirmTotpKeyResponse_OneTimePasswordNotVerified) isConfirmTotpKeyResponse_Response() {}
 
-type ListTotpKeysRequest struct {
+func (*ConfirmTotpKeyResponse_TooManyMfaKeys) isConfirmTotpKeyResponse_Response() {}
+
+type StartWebAuthnRegistrationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListTotpKeysRequest) Reset() {
-	*x = ListTotpKeysRequest{}
+func (x *StartWebAuthnRegistrationRequest) Reset() {
+	*x = StartWebAuthnRegistrationRequest{}
 	mi := &file_org_signal_chat_account_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListTotpKeysRequest) String() string {
+func (x *StartWebAuthnRegistrationRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListTotpKeysRequest) ProtoMessage() {}
+func (*StartWebAuthnRegistrationRequest) ProtoMessage() {}
 
-func (x *ListTotpKeysRequest) ProtoReflect() protoreflect.Message {
+func (x *StartWebAuthnRegistrationRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_account_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3054,32 +3139,36 @@ func (x *ListTotpKeysRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListTotpKeysRequest.ProtoReflect.Descriptor instead.
-func (*ListTotpKeysRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use StartWebAuthnRegistrationRequest.ProtoReflect.Descriptor instead.
+func (*StartWebAuthnRegistrationRequest) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{52}
 }
 
-type ListTotpKeysResponse struct {
-	state         protoimpl.MessageState                          `protogen:"open.v1"`
-	Keys          map[int32]*ListTotpKeysResponse_TotpKeyMetadata `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+type StartWebAuthnRegistrationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Response:
+	//
+	//	*StartWebAuthnRegistrationResponse_Params
+	//	*StartWebAuthnRegistrationResponse_TooManyMfaKeys
+	Response      isStartWebAuthnRegistrationResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListTotpKeysResponse) Reset() {
-	*x = ListTotpKeysResponse{}
+func (x *StartWebAuthnRegistrationResponse) Reset() {
+	*x = StartWebAuthnRegistrationResponse{}
 	mi := &file_org_signal_chat_account_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListTotpKeysResponse) String() string {
+func (x *StartWebAuthnRegistrationResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListTotpKeysResponse) ProtoMessage() {}
+func (*StartWebAuthnRegistrationResponse) ProtoMessage() {}
 
-func (x *ListTotpKeysResponse) ProtoReflect() protoreflect.Message {
+func (x *StartWebAuthnRegistrationResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_account_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3091,21 +3180,313 @@ func (x *ListTotpKeysResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListTotpKeysResponse.ProtoReflect.Descriptor instead.
-func (*ListTotpKeysResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use StartWebAuthnRegistrationResponse.ProtoReflect.Descriptor instead.
+func (*StartWebAuthnRegistrationResponse) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{53}
 }
 
-func (x *ListTotpKeysResponse) GetKeys() map[int32]*ListTotpKeysResponse_TotpKeyMetadata {
+func (x *StartWebAuthnRegistrationResponse) GetResponse() isStartWebAuthnRegistrationResponse_Response {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+func (x *StartWebAuthnRegistrationResponse) GetParams() *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters {
+	if x != nil {
+		if x, ok := x.Response.(*StartWebAuthnRegistrationResponse_Params); ok {
+			return x.Params
+		}
+	}
+	return nil
+}
+
+func (x *StartWebAuthnRegistrationResponse) GetTooManyMfaKeys() *errors.FailedPrecondition {
+	if x != nil {
+		if x, ok := x.Response.(*StartWebAuthnRegistrationResponse_TooManyMfaKeys); ok {
+			return x.TooManyMfaKeys
+		}
+	}
+	return nil
+}
+
+type isStartWebAuthnRegistrationResponse_Response interface {
+	isStartWebAuthnRegistrationResponse_Response()
+}
+
+type StartWebAuthnRegistrationResponse_Params struct {
+	// The parameters to use for a WebAuthn registration ceremony
+	Params *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters `protobuf:"bytes,1,opt,name=params,proto3,oneof"`
+}
+
+type StartWebAuthnRegistrationResponse_TooManyMfaKeys struct {
+	// The authenticated account already has too many MFA keys, and the
+	// caller must remove one before adding one
+	TooManyMfaKeys *errors.FailedPrecondition `protobuf:"bytes,2,opt,name=too_many_mfa_keys,json=tooManyMfaKeys,proto3,oneof"`
+}
+
+func (*StartWebAuthnRegistrationResponse_Params) isStartWebAuthnRegistrationResponse_Response() {}
+
+func (*StartWebAuthnRegistrationResponse_TooManyMfaKeys) isStartWebAuthnRegistrationResponse_Response() {
+}
+
+type FinishWebAuthnRegistrationRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The attestation object from a completed registration ceremony, serialized
+	// as specified in https://www.w3.org/TR/webauthn/#attestation-object
+	AttestationObject []byte `protobuf:"bytes,1,opt,name=attestation_object,json=attestationObject,proto3" json:"attestation_object,omitempty"`
+	// The "collected client data" map used in the registration ceremony, as the
+	// exact JSON map that was hashed for the authenticator
+	CollectedClientDataJson string `protobuf:"bytes,2,opt,name=collected_client_data_json,json=collectedClientDataJson,proto3" json:"collected_client_data_json,omitempty"`
+	// The ciphertext of user-provided metadata (presumably including a
+	// human-readable name and creation timestamp) to be attached to the
+	// newly-confirmed key
+	MetadataCiphertext []byte `protobuf:"bytes,3,opt,name=metadata_ciphertext,json=metadataCiphertext,proto3" json:"metadata_ciphertext,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *FinishWebAuthnRegistrationRequest) Reset() {
+	*x = FinishWebAuthnRegistrationRequest{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishWebAuthnRegistrationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishWebAuthnRegistrationRequest) ProtoMessage() {}
+
+func (x *FinishWebAuthnRegistrationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishWebAuthnRegistrationRequest.ProtoReflect.Descriptor instead.
+func (*FinishWebAuthnRegistrationRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *FinishWebAuthnRegistrationRequest) GetAttestationObject() []byte {
+	if x != nil {
+		return x.AttestationObject
+	}
+	return nil
+}
+
+func (x *FinishWebAuthnRegistrationRequest) GetCollectedClientDataJson() string {
+	if x != nil {
+		return x.CollectedClientDataJson
+	}
+	return ""
+}
+
+func (x *FinishWebAuthnRegistrationRequest) GetMetadataCiphertext() []byte {
+	if x != nil {
+		return x.MetadataCiphertext
+	}
+	return nil
+}
+
+type FinishWebAuthnRegistrationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Response:
+	//
+	//	*FinishWebAuthnRegistrationResponse_KeyConfirmed_
+	//	*FinishWebAuthnRegistrationResponse_KeyNotConfirmed
+	//	*FinishWebAuthnRegistrationResponse_TooManyMfaKeys
+	Response      isFinishWebAuthnRegistrationResponse_Response `protobuf_oneof:"response"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishWebAuthnRegistrationResponse) Reset() {
+	*x = FinishWebAuthnRegistrationResponse{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishWebAuthnRegistrationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishWebAuthnRegistrationResponse) ProtoMessage() {}
+
+func (x *FinishWebAuthnRegistrationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishWebAuthnRegistrationResponse.ProtoReflect.Descriptor instead.
+func (*FinishWebAuthnRegistrationResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *FinishWebAuthnRegistrationResponse) GetResponse() isFinishWebAuthnRegistrationResponse_Response {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+func (x *FinishWebAuthnRegistrationResponse) GetKeyConfirmed() *FinishWebAuthnRegistrationResponse_KeyConfirmed {
+	if x != nil {
+		if x, ok := x.Response.(*FinishWebAuthnRegistrationResponse_KeyConfirmed_); ok {
+			return x.KeyConfirmed
+		}
+	}
+	return nil
+}
+
+func (x *FinishWebAuthnRegistrationResponse) GetKeyNotConfirmed() *errors.FailedPrecondition {
+	if x != nil {
+		if x, ok := x.Response.(*FinishWebAuthnRegistrationResponse_KeyNotConfirmed); ok {
+			return x.KeyNotConfirmed
+		}
+	}
+	return nil
+}
+
+func (x *FinishWebAuthnRegistrationResponse) GetTooManyMfaKeys() *errors.FailedPrecondition {
+	if x != nil {
+		if x, ok := x.Response.(*FinishWebAuthnRegistrationResponse_TooManyMfaKeys); ok {
+			return x.TooManyMfaKeys
+		}
+	}
+	return nil
+}
+
+type isFinishWebAuthnRegistrationResponse_Response interface {
+	isFinishWebAuthnRegistrationResponse_Response()
+}
+
+type FinishWebAuthnRegistrationResponse_KeyConfirmed_ struct {
+	// The provided public key has been registered for the account
+	KeyConfirmed *FinishWebAuthnRegistrationResponse_KeyConfirmed `protobuf:"bytes,1,opt,name=key_confirmed,json=keyConfirmed,proto3,oneof"`
+}
+
+type FinishWebAuthnRegistrationResponse_KeyNotConfirmed struct {
+	// The registration response was not verified successfully for any reason
+	KeyNotConfirmed *errors.FailedPrecondition `protobuf:"bytes,2,opt,name=key_not_confirmed,json=keyNotConfirmed,proto3,oneof"`
+}
+
+type FinishWebAuthnRegistrationResponse_TooManyMfaKeys struct {
+	// The authenticated account already has too many MFA keys, and the
+	// caller must remove one before adding one (this can be true even if it
+	// was not when starting the request, since there is nothing to prevent
+	// multiple registrations from occurring in parallel)
+	TooManyMfaKeys *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=too_many_mfa_keys,json=tooManyMfaKeys,proto3,oneof"`
+}
+
+func (*FinishWebAuthnRegistrationResponse_KeyConfirmed_) isFinishWebAuthnRegistrationResponse_Response() {
+}
+
+func (*FinishWebAuthnRegistrationResponse_KeyNotConfirmed) isFinishWebAuthnRegistrationResponse_Response() {
+}
+
+func (*FinishWebAuthnRegistrationResponse_TooManyMfaKeys) isFinishWebAuthnRegistrationResponse_Response() {
+}
+
+type ListMfaKeysRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMfaKeysRequest) Reset() {
+	*x = ListMfaKeysRequest{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMfaKeysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMfaKeysRequest) ProtoMessage() {}
+
+func (x *ListMfaKeysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMfaKeysRequest.ProtoReflect.Descriptor instead.
+func (*ListMfaKeysRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{56}
+}
+
+type ListMfaKeysResponse struct {
+	state         protoimpl.MessageState                         `protogen:"open.v1"`
+	Keys          map[uint32]*ListMfaKeysResponse_MfaKeyMetadata `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMfaKeysResponse) Reset() {
+	*x = ListMfaKeysResponse{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMfaKeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMfaKeysResponse) ProtoMessage() {}
+
+func (x *ListMfaKeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMfaKeysResponse.ProtoReflect.Descriptor instead.
+func (*ListMfaKeysResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *ListMfaKeysResponse) GetKeys() map[uint32]*ListMfaKeysResponse_MfaKeyMetadata {
 	if x != nil {
 		return x.Keys
 	}
 	return nil
 }
 
-type SetTotpKeyMetadataRequest struct {
+type SetMfaKeyMetadataRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The account-specific identifier of the TOTP key to modify
+	// The account-specific identifier of the MFA key to modify
 	KeyId uint32 `protobuf:"varint,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
 	// The ciphertext of the new user-provided metadata to be attached to the
 	// identified key
@@ -3114,21 +3495,21 @@ type SetTotpKeyMetadataRequest struct {
 	sizeCache          protoimpl.SizeCache
 }
 
-func (x *SetTotpKeyMetadataRequest) Reset() {
-	*x = SetTotpKeyMetadataRequest{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[54]
+func (x *SetMfaKeyMetadataRequest) Reset() {
+	*x = SetMfaKeyMetadataRequest{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SetTotpKeyMetadataRequest) String() string {
+func (x *SetMfaKeyMetadataRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SetTotpKeyMetadataRequest) ProtoMessage() {}
+func (*SetMfaKeyMetadataRequest) ProtoMessage() {}
 
-func (x *SetTotpKeyMetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[54]
+func (x *SetMfaKeyMetadataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3139,51 +3520,51 @@ func (x *SetTotpKeyMetadataRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetTotpKeyMetadataRequest.ProtoReflect.Descriptor instead.
-func (*SetTotpKeyMetadataRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{54}
+// Deprecated: Use SetMfaKeyMetadataRequest.ProtoReflect.Descriptor instead.
+func (*SetMfaKeyMetadataRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{58}
 }
 
-func (x *SetTotpKeyMetadataRequest) GetKeyId() uint32 {
+func (x *SetMfaKeyMetadataRequest) GetKeyId() uint32 {
 	if x != nil {
 		return x.KeyId
 	}
 	return 0
 }
 
-func (x *SetTotpKeyMetadataRequest) GetMetadataCiphertext() []byte {
+func (x *SetMfaKeyMetadataRequest) GetMetadataCiphertext() []byte {
 	if x != nil {
 		return x.MetadataCiphertext
 	}
 	return nil
 }
 
-type SetTotpKeyMetadataResponse struct {
+type SetMfaKeyMetadataResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Response:
 	//
-	//	*SetTotpKeyMetadataResponse_MetadataUpdated_
-	//	*SetTotpKeyMetadataResponse_KeyNotFound
-	Response      isSetTotpKeyMetadataResponse_Response `protobuf_oneof:"response"`
+	//	*SetMfaKeyMetadataResponse_Success
+	//	*SetMfaKeyMetadataResponse_KeyNotFound
+	Response      isSetMfaKeyMetadataResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SetTotpKeyMetadataResponse) Reset() {
-	*x = SetTotpKeyMetadataResponse{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[55]
+func (x *SetMfaKeyMetadataResponse) Reset() {
+	*x = SetMfaKeyMetadataResponse{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SetTotpKeyMetadataResponse) String() string {
+func (x *SetMfaKeyMetadataResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SetTotpKeyMetadataResponse) ProtoMessage() {}
+func (*SetMfaKeyMetadataResponse) ProtoMessage() {}
 
-func (x *SetTotpKeyMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[55]
+func (x *SetMfaKeyMetadataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3194,77 +3575,77 @@ func (x *SetTotpKeyMetadataResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetTotpKeyMetadataResponse.ProtoReflect.Descriptor instead.
-func (*SetTotpKeyMetadataResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{55}
+// Deprecated: Use SetMfaKeyMetadataResponse.ProtoReflect.Descriptor instead.
+func (*SetMfaKeyMetadataResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{59}
 }
 
-func (x *SetTotpKeyMetadataResponse) GetResponse() isSetTotpKeyMetadataResponse_Response {
+func (x *SetMfaKeyMetadataResponse) GetResponse() isSetMfaKeyMetadataResponse_Response {
 	if x != nil {
 		return x.Response
 	}
 	return nil
 }
 
-func (x *SetTotpKeyMetadataResponse) GetMetadataUpdated() *SetTotpKeyMetadataResponse_MetadataUpdated {
+func (x *SetMfaKeyMetadataResponse) GetSuccess() *SetMfaKeyMetadataResponse_MetadataUpdated {
 	if x != nil {
-		if x, ok := x.Response.(*SetTotpKeyMetadataResponse_MetadataUpdated_); ok {
-			return x.MetadataUpdated
+		if x, ok := x.Response.(*SetMfaKeyMetadataResponse_Success); ok {
+			return x.Success
 		}
 	}
 	return nil
 }
 
-func (x *SetTotpKeyMetadataResponse) GetKeyNotFound() *errors.NotFound {
+func (x *SetMfaKeyMetadataResponse) GetKeyNotFound() *errors.NotFound {
 	if x != nil {
-		if x, ok := x.Response.(*SetTotpKeyMetadataResponse_KeyNotFound); ok {
+		if x, ok := x.Response.(*SetMfaKeyMetadataResponse_KeyNotFound); ok {
 			return x.KeyNotFound
 		}
 	}
 	return nil
 }
 
-type isSetTotpKeyMetadataResponse_Response interface {
-	isSetTotpKeyMetadataResponse_Response()
+type isSetMfaKeyMetadataResponse_Response interface {
+	isSetMfaKeyMetadataResponse_Response()
 }
 
-type SetTotpKeyMetadataResponse_MetadataUpdated_ struct {
-	// New metadata was stored for the identified TOTP key
-	MetadataUpdated *SetTotpKeyMetadataResponse_MetadataUpdated `protobuf:"bytes,1,opt,name=metadata_updated,json=metadataUpdated,proto3,oneof"`
+type SetMfaKeyMetadataResponse_Success struct {
+	// New metadata was stored for the identified key
+	Success *SetMfaKeyMetadataResponse_MetadataUpdated `protobuf:"bytes,1,opt,name=success,proto3,oneof"`
 }
 
-type SetTotpKeyMetadataResponse_KeyNotFound struct {
+type SetMfaKeyMetadataResponse_KeyNotFound struct {
 	// No TOTP was found with the given ID
 	KeyNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=key_not_found,json=keyNotFound,proto3,oneof"`
 }
 
-func (*SetTotpKeyMetadataResponse_MetadataUpdated_) isSetTotpKeyMetadataResponse_Response() {}
+func (*SetMfaKeyMetadataResponse_Success) isSetMfaKeyMetadataResponse_Response() {}
 
-func (*SetTotpKeyMetadataResponse_KeyNotFound) isSetTotpKeyMetadataResponse_Response() {}
+func (*SetMfaKeyMetadataResponse_KeyNotFound) isSetMfaKeyMetadataResponse_Response() {}
 
-type RemoveTotpKeyRequest struct {
+type RemoveMfaKeyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The account-specific identifier of the TOTP key to remove
+	// The account-specific identifier of the MFA key to remove
 	KeyId         uint32 `protobuf:"varint,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RemoveTotpKeyRequest) Reset() {
-	*x = RemoveTotpKeyRequest{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[56]
+func (x *RemoveMfaKeyRequest) Reset() {
+	*x = RemoveMfaKeyRequest{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RemoveTotpKeyRequest) String() string {
+func (x *RemoveMfaKeyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RemoveTotpKeyRequest) ProtoMessage() {}
+func (*RemoveMfaKeyRequest) ProtoMessage() {}
 
-func (x *RemoveTotpKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[56]
+func (x *RemoveMfaKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3275,39 +3656,39 @@ func (x *RemoveTotpKeyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RemoveTotpKeyRequest.ProtoReflect.Descriptor instead.
-func (*RemoveTotpKeyRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{56}
+// Deprecated: Use RemoveMfaKeyRequest.ProtoReflect.Descriptor instead.
+func (*RemoveMfaKeyRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{60}
 }
 
-func (x *RemoveTotpKeyRequest) GetKeyId() uint32 {
+func (x *RemoveMfaKeyRequest) GetKeyId() uint32 {
 	if x != nil {
 		return x.KeyId
 	}
 	return 0
 }
 
-type RemoveTotpKeyResponse struct {
+type RemoveMfaKeyResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RemoveTotpKeyResponse) Reset() {
-	*x = RemoveTotpKeyResponse{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[57]
+func (x *RemoveMfaKeyResponse) Reset() {
+	*x = RemoveMfaKeyResponse{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RemoveTotpKeyResponse) String() string {
+func (x *RemoveMfaKeyResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RemoveTotpKeyResponse) ProtoMessage() {}
+func (*RemoveMfaKeyResponse) ProtoMessage() {}
 
-func (x *RemoveTotpKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[57]
+func (x *RemoveMfaKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3318,9 +3699,229 @@ func (x *RemoveTotpKeyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RemoveTotpKeyResponse.ProtoReflect.Descriptor instead.
-func (*RemoveTotpKeyResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{57}
+// Deprecated: Use RemoveMfaKeyResponse.ProtoReflect.Descriptor instead.
+func (*RemoveMfaKeyResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{61}
+}
+
+type StartMfaVerificationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartMfaVerificationRequest) Reset() {
+	*x = StartMfaVerificationRequest{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartMfaVerificationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartMfaVerificationRequest) ProtoMessage() {}
+
+func (x *StartMfaVerificationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartMfaVerificationRequest.ProtoReflect.Descriptor instead.
+func (*StartMfaVerificationRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{62}
+}
+
+type StartMfaVerificationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// / If true, a TOTP password will be accepted for verification
+	HasTotp bool `protobuf:"varint,1,opt,name=has_totp,json=hasTotp,proto3" json:"has_totp,omitempty"`
+	// / If present, information required to complete a WebAuthn authentication
+	WebauthnAuthenticationParameters *StartMfaVerificationResponse_WebAuthnAuthenticationParameters `protobuf:"bytes,2,opt,name=webauthn_authentication_parameters,json=webauthnAuthenticationParameters,proto3,oneof" json:"webauthn_authentication_parameters,omitempty"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
+}
+
+func (x *StartMfaVerificationResponse) Reset() {
+	*x = StartMfaVerificationResponse{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartMfaVerificationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartMfaVerificationResponse) ProtoMessage() {}
+
+func (x *StartMfaVerificationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartMfaVerificationResponse.ProtoReflect.Descriptor instead.
+func (*StartMfaVerificationResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *StartMfaVerificationResponse) GetHasTotp() bool {
+	if x != nil {
+		return x.HasTotp
+	}
+	return false
+}
+
+func (x *StartMfaVerificationResponse) GetWebauthnAuthenticationParameters() *StartMfaVerificationResponse_WebAuthnAuthenticationParameters {
+	if x != nil {
+		return x.WebauthnAuthenticationParameters
+	}
+	return nil
+}
+
+type FinishMfaVerificationRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Credential:
+	//
+	//	*FinishMfaVerificationRequest_TotpPassword
+	//	*FinishMfaVerificationRequest_WebauthnAuthenticationResponseJson
+	Credential    isFinishMfaVerificationRequest_Credential `protobuf_oneof:"credential"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishMfaVerificationRequest) Reset() {
+	*x = FinishMfaVerificationRequest{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishMfaVerificationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishMfaVerificationRequest) ProtoMessage() {}
+
+func (x *FinishMfaVerificationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishMfaVerificationRequest.ProtoReflect.Descriptor instead.
+func (*FinishMfaVerificationRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *FinishMfaVerificationRequest) GetCredential() isFinishMfaVerificationRequest_Credential {
+	if x != nil {
+		return x.Credential
+	}
+	return nil
+}
+
+func (x *FinishMfaVerificationRequest) GetTotpPassword() uint32 {
+	if x != nil {
+		if x, ok := x.Credential.(*FinishMfaVerificationRequest_TotpPassword); ok {
+			return x.TotpPassword
+		}
+	}
+	return 0
+}
+
+func (x *FinishMfaVerificationRequest) GetWebauthnAuthenticationResponseJson() string {
+	if x != nil {
+		if x, ok := x.Credential.(*FinishMfaVerificationRequest_WebauthnAuthenticationResponseJson); ok {
+			return x.WebauthnAuthenticationResponseJson
+		}
+	}
+	return ""
+}
+
+type isFinishMfaVerificationRequest_Credential interface {
+	isFinishMfaVerificationRequest_Credential()
+}
+
+type FinishMfaVerificationRequest_TotpPassword struct {
+	// / A 6-digit TOTP password to validate
+	TotpPassword uint32 `protobuf:"varint,1,opt,name=totp_password,json=totpPassword,proto3,oneof"`
+}
+
+type FinishMfaVerificationRequest_WebauthnAuthenticationResponseJson struct {
+	// / A WebAuthn-compatible JSON-serialized authentication response
+	WebauthnAuthenticationResponseJson string `protobuf:"bytes,2,opt,name=webauthn_authentication_response_json,json=webauthnAuthenticationResponseJson,proto3,oneof"`
+}
+
+func (*FinishMfaVerificationRequest_TotpPassword) isFinishMfaVerificationRequest_Credential() {}
+
+func (*FinishMfaVerificationRequest_WebauthnAuthenticationResponseJson) isFinishMfaVerificationRequest_Credential() {
+}
+
+type FinishMfaVerificationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// / If true, the selected authentication factor was verified correctly.
+	Success       bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishMfaVerificationResponse) Reset() {
+	*x = FinishMfaVerificationResponse{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishMfaVerificationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishMfaVerificationResponse) ProtoMessage() {}
+
+func (x *FinishMfaVerificationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishMfaVerificationResponse.ProtoReflect.Descriptor instead.
+func (*FinishMfaVerificationResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *FinishMfaVerificationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
 }
 
 type GetEntitlementsResponse_BadgeEntitlement struct {
@@ -3339,7 +3940,7 @@ type GetEntitlementsResponse_BadgeEntitlement struct {
 
 func (x *GetEntitlementsResponse_BadgeEntitlement) Reset() {
 	*x = GetEntitlementsResponse_BadgeEntitlement{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[58]
+	mi := &file_org_signal_chat_account_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3351,7 +3952,7 @@ func (x *GetEntitlementsResponse_BadgeEntitlement) String() string {
 func (*GetEntitlementsResponse_BadgeEntitlement) ProtoMessage() {}
 
 func (x *GetEntitlementsResponse_BadgeEntitlement) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[58]
+	mi := &file_org_signal_chat_account_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3400,7 +4001,7 @@ type GetEntitlementsResponse_BackupEntitlement struct {
 
 func (x *GetEntitlementsResponse_BackupEntitlement) Reset() {
 	*x = GetEntitlementsResponse_BackupEntitlement{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[59]
+	mi := &file_org_signal_chat_account_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3412,7 +4013,7 @@ func (x *GetEntitlementsResponse_BackupEntitlement) String() string {
 func (*GetEntitlementsResponse_BackupEntitlement) ProtoMessage() {}
 
 func (x *GetEntitlementsResponse_BackupEntitlement) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[59]
+	mi := &file_org_signal_chat_account_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3452,7 +4053,7 @@ type ConfirmUsernameHashResponse_ConfirmedUsernameHash struct {
 
 func (x *ConfirmUsernameHashResponse_ConfirmedUsernameHash) Reset() {
 	*x = ConfirmUsernameHashResponse_ConfirmedUsernameHash{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[60]
+	mi := &file_org_signal_chat_account_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3464,7 +4065,7 @@ func (x *ConfirmUsernameHashResponse_ConfirmedUsernameHash) String() string {
 func (*ConfirmUsernameHashResponse_ConfirmedUsernameHash) ProtoMessage() {}
 
 func (x *ConfirmUsernameHashResponse_ConfirmedUsernameHash) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[60]
+	mi := &file_org_signal_chat_account_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3499,7 +4100,7 @@ type GenerateTotpKeyResponse_KeyGenerated struct {
 
 func (x *GenerateTotpKeyResponse_KeyGenerated) Reset() {
 	*x = GenerateTotpKeyResponse_KeyGenerated{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[64]
+	mi := &file_org_signal_chat_account_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3511,7 +4112,7 @@ func (x *GenerateTotpKeyResponse_KeyGenerated) String() string {
 func (*GenerateTotpKeyResponse_KeyGenerated) ProtoMessage() {}
 
 func (x *GenerateTotpKeyResponse_KeyGenerated) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[64]
+	mi := &file_org_signal_chat_account_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3551,7 +4152,7 @@ type ConfirmTotpKeyResponse_KeyConfirmed struct {
 
 func (x *ConfirmTotpKeyResponse_KeyConfirmed) Reset() {
 	*x = ConfirmTotpKeyResponse_KeyConfirmed{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[65]
+	mi := &file_org_signal_chat_account_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3563,7 +4164,7 @@ func (x *ConfirmTotpKeyResponse_KeyConfirmed) String() string {
 func (*ConfirmTotpKeyResponse_KeyConfirmed) ProtoMessage() {}
 
 func (x *ConfirmTotpKeyResponse_KeyConfirmed) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[65]
+	mi := &file_org_signal_chat_account_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3586,31 +4187,36 @@ func (x *ConfirmTotpKeyResponse_KeyConfirmed) GetKeyId() uint32 {
 	return 0
 }
 
-type ListTotpKeysResponse_TotpKeyMetadata struct {
+type StartWebAuthnRegistrationResponse_WebAuthnCreateParameters struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The user-provided ciphertext for metadata associated with this TOTP key
-	MetadataCiphertext []byte `protobuf:"bytes,1,opt,name=metadata_ciphertext,json=metadataCiphertext,proto3" json:"metadata_ciphertext,omitempty"`
-	// The TOTP parameters associated with this key
-	TotpParameters *TotpParameters `protobuf:"bytes,2,opt,name=totp_parameters,json=totpParameters,proto3" json:"totp_parameters,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The "user handle" (user.id) that should be handed to the authenticator
+	UserHandle []byte `protobuf:"bytes,1,opt,name=user_handle,json=userHandle,proto3" json:"user_handle,omitempty"`
+	// The COSE IDs (https://www.iana.org/assignments/cose#algorithms) of
+	// acceptable algorithms for the created key
+	AllowedAlgorithms []int64 `protobuf:"varint,2,rep,packed,name=allowed_algorithms,json=allowedAlgorithms,proto3" json:"allowed_algorithms,omitempty"`
+	// A list of the credential IDs already registered for this account; these
+	// can be passed to candidate authenticators to tell them not to create a
+	// new key if they already have a private key matching one of these
+	ExcludeCredentialIds [][]byte `protobuf:"bytes,3,rep,name=exclude_credential_ids,json=excludeCredentialIds,proto3" json:"exclude_credential_ids,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
-func (x *ListTotpKeysResponse_TotpKeyMetadata) Reset() {
-	*x = ListTotpKeysResponse_TotpKeyMetadata{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[66]
+func (x *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) Reset() {
+	*x = StartWebAuthnRegistrationResponse_WebAuthnCreateParameters{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListTotpKeysResponse_TotpKeyMetadata) String() string {
+func (x *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListTotpKeysResponse_TotpKeyMetadata) ProtoMessage() {}
+func (*StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) ProtoMessage() {}
 
-func (x *ListTotpKeysResponse_TotpKeyMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[66]
+func (x *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3621,46 +4227,152 @@ func (x *ListTotpKeysResponse_TotpKeyMetadata) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListTotpKeysResponse_TotpKeyMetadata.ProtoReflect.Descriptor instead.
-func (*ListTotpKeysResponse_TotpKeyMetadata) Descriptor() ([]byte, []int) {
+// Deprecated: Use StartWebAuthnRegistrationResponse_WebAuthnCreateParameters.ProtoReflect.Descriptor instead.
+func (*StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{53, 0}
 }
 
-func (x *ListTotpKeysResponse_TotpKeyMetadata) GetMetadataCiphertext() []byte {
+func (x *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) GetUserHandle() []byte {
+	if x != nil {
+		return x.UserHandle
+	}
+	return nil
+}
+
+func (x *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) GetAllowedAlgorithms() []int64 {
+	if x != nil {
+		return x.AllowedAlgorithms
+	}
+	return nil
+}
+
+func (x *StartWebAuthnRegistrationResponse_WebAuthnCreateParameters) GetExcludeCredentialIds() [][]byte {
+	if x != nil {
+		return x.ExcludeCredentialIds
+	}
+	return nil
+}
+
+type FinishWebAuthnRegistrationResponse_KeyConfirmed struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// An account-specific identifier for the new WebAuthn key
+	KeyId         uint32 `protobuf:"varint,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishWebAuthnRegistrationResponse_KeyConfirmed) Reset() {
+	*x = FinishWebAuthnRegistrationResponse_KeyConfirmed{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishWebAuthnRegistrationResponse_KeyConfirmed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishWebAuthnRegistrationResponse_KeyConfirmed) ProtoMessage() {}
+
+func (x *FinishWebAuthnRegistrationResponse_KeyConfirmed) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishWebAuthnRegistrationResponse_KeyConfirmed.ProtoReflect.Descriptor instead.
+func (*FinishWebAuthnRegistrationResponse_KeyConfirmed) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{55, 0}
+}
+
+func (x *FinishWebAuthnRegistrationResponse_KeyConfirmed) GetKeyId() uint32 {
+	if x != nil {
+		return x.KeyId
+	}
+	return 0
+}
+
+type ListMfaKeysResponse_MfaKeyMetadata struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The user-provided ciphertext for metadata associated with this MFA key
+	MetadataCiphertext []byte `protobuf:"bytes,1,opt,name=metadata_ciphertext,json=metadataCiphertext,proto3" json:"metadata_ciphertext,omitempty"`
+	// The type of MFA factor this key is for
+	Type          ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType `protobuf:"varint,2,opt,name=type,proto3,enum=org.signal.chat.account.ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMfaKeysResponse_MfaKeyMetadata) Reset() {
+	*x = ListMfaKeysResponse_MfaKeyMetadata{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMfaKeysResponse_MfaKeyMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMfaKeysResponse_MfaKeyMetadata) ProtoMessage() {}
+
+func (x *ListMfaKeysResponse_MfaKeyMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMfaKeysResponse_MfaKeyMetadata.ProtoReflect.Descriptor instead.
+func (*ListMfaKeysResponse_MfaKeyMetadata) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{57, 0}
+}
+
+func (x *ListMfaKeysResponse_MfaKeyMetadata) GetMetadataCiphertext() []byte {
 	if x != nil {
 		return x.MetadataCiphertext
 	}
 	return nil
 }
 
-func (x *ListTotpKeysResponse_TotpKeyMetadata) GetTotpParameters() *TotpParameters {
+func (x *ListMfaKeysResponse_MfaKeyMetadata) GetType() ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType {
 	if x != nil {
-		return x.TotpParameters
+		return x.Type
 	}
-	return nil
+	return ListMfaKeysResponse_MfaKeyMetadata_MFA_KEY_TYPE_UNSPECIFIED
 }
 
-type SetTotpKeyMetadataResponse_MetadataUpdated struct {
+type SetMfaKeyMetadataResponse_MetadataUpdated struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SetTotpKeyMetadataResponse_MetadataUpdated) Reset() {
-	*x = SetTotpKeyMetadataResponse_MetadataUpdated{}
-	mi := &file_org_signal_chat_account_proto_msgTypes[68]
+func (x *SetMfaKeyMetadataResponse_MetadataUpdated) Reset() {
+	*x = SetMfaKeyMetadataResponse_MetadataUpdated{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SetTotpKeyMetadataResponse_MetadataUpdated) String() string {
+func (x *SetMfaKeyMetadataResponse_MetadataUpdated) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SetTotpKeyMetadataResponse_MetadataUpdated) ProtoMessage() {}
+func (*SetMfaKeyMetadataResponse_MetadataUpdated) ProtoMessage() {}
 
-func (x *SetTotpKeyMetadataResponse_MetadataUpdated) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_account_proto_msgTypes[68]
+func (x *SetMfaKeyMetadataResponse_MetadataUpdated) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3671,9 +4383,72 @@ func (x *SetTotpKeyMetadataResponse_MetadataUpdated) ProtoReflect() protoreflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetTotpKeyMetadataResponse_MetadataUpdated.ProtoReflect.Descriptor instead.
-func (*SetTotpKeyMetadataResponse_MetadataUpdated) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{55, 0}
+// Deprecated: Use SetMfaKeyMetadataResponse_MetadataUpdated.ProtoReflect.Descriptor instead.
+func (*SetMfaKeyMetadataResponse_MetadataUpdated) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{59, 0}
+}
+
+type StartMfaVerificationResponse_WebAuthnAuthenticationParameters struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// / A random challenge that must be included in the authenticator response, to prevent replay attacks
+	Challenge []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	// / The estimated amount of time, in seconds, after which an otherwise-valid response will be rejected
+	TimeoutSeconds uint32 `protobuf:"varint,2,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// / A list of credential IDs associated with this account
+	AllowedCredentialIds [][]byte `protobuf:"bytes,3,rep,name=allowed_credential_ids,json=allowedCredentialIds,proto3" json:"allowed_credential_ids,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *StartMfaVerificationResponse_WebAuthnAuthenticationParameters) Reset() {
+	*x = StartMfaVerificationResponse_WebAuthnAuthenticationParameters{}
+	mi := &file_org_signal_chat_account_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartMfaVerificationResponse_WebAuthnAuthenticationParameters) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartMfaVerificationResponse_WebAuthnAuthenticationParameters) ProtoMessage() {}
+
+func (x *StartMfaVerificationResponse_WebAuthnAuthenticationParameters) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_account_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartMfaVerificationResponse_WebAuthnAuthenticationParameters.ProtoReflect.Descriptor instead.
+func (*StartMfaVerificationResponse_WebAuthnAuthenticationParameters) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_account_proto_rawDescGZIP(), []int{63, 0}
+}
+
+func (x *StartMfaVerificationResponse_WebAuthnAuthenticationParameters) GetChallenge() []byte {
+	if x != nil {
+		return x.Challenge
+	}
+	return nil
+}
+
+func (x *StartMfaVerificationResponse_WebAuthnAuthenticationParameters) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *StartMfaVerificationResponse_WebAuthnAuthenticationParameters) GetAllowedCredentialIds() [][]byte {
+	if x != nil {
+		return x.AllowedCredentialIds
+	}
+	return nil
 }
 
 var File_org_signal_chat_account_proto protoreflect.FileDescriptor
@@ -3833,10 +4608,11 @@ const file_org_signal_chat_account_proto_rawDesc = "" +
 	"\talgorithm\x18\x01 \x01(\tR\talgorithm\x12'\n" +
 	"\x0fpassword_length\x18\x02 \x01(\rR\x0epasswordLength\x12*\n" +
 	"\x11time_step_seconds\x18\x03 \x01(\rR\x0ftimeStepSeconds\"\x18\n" +
-	"\x16GenerateTotpKeyRequest\"\xf2\x02\n" +
+	"\x16GenerateTotpKeyRequest\"\xe2\x03\n" +
 	"\x17GenerateTotpKeyResponse\x12d\n" +
 	"\rkey_generated\x18\x01 \x01(\v2=.org.signal.chat.account.GenerateTotpKeyResponse.KeyGeneratedH\x00R\fkeyGenerated\x12q\n" +
-	"\x12too_many_totp_keys\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x16\xc2\xd5\"\x12too_many_totp_keysH\x00R\x0ftooManyTotpKeys\x1ar\n" +
+	"\x12too_many_totp_keys\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x16\xc2\xd5\"\x12too_many_totp_keysH\x00R\x0ftooManyTotpKeys\x12n\n" +
+	"\x11too_many_mfa_keys\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x15\xc2\xd5\"\x11too_many_mfa_keysH\x00R\x0etooManyMfaKeys\x1ar\n" +
 	"\fKeyGenerated\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\fR\x03key\x12P\n" +
 	"\x0ftotp_parameters\x18\x02 \x01(\v2'.org.signal.chat.account.TotpParametersR\x0etotpParametersB\n" +
@@ -3844,35 +4620,80 @@ const file_org_signal_chat_account_proto_rawDesc = "" +
 	"\bresponse\"|\n" +
 	"\x15ConfirmTotpKeyRequest\x12*\n" +
 	"\x11one_time_password\x18\x01 \x01(\rR\x0foneTimePassword\x127\n" +
-	"\x13metadata_ciphertext\x18\x02 \x01(\fB\x06\xa2\x97\"\x02\xa0\x01R\x12metadataCiphertext\"\xc7\x02\n" +
+	"\x13metadata_ciphertext\x18\x02 \x01(\fB\x06\xa2\x97\"\x02\xa0\x01R\x12metadataCiphertext\"\xc1\x03\n" +
 	"\x16ConfirmTotpKeyResponse\x12c\n" +
 	"\rkey_confirmed\x18\x01 \x01(\v2<.org.signal.chat.account.ConfirmTotpKeyResponse.KeyConfirmedH\x00R\fkeyConfirmed\x12\x94\x01\n" +
-	"\x1eone_time_password_not_verified\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\"\xc2\xd5\"\x1eone_time_password_not_verifiedH\x00R\x1aoneTimePasswordNotVerified\x1a%\n" +
-	"\fKeyConfirmed\x12\x15\n" +
-	"\x06key_id\x18\x01 \x01(\rR\x05keyIdB\n" +
+	"\x1eone_time_password_not_verified\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\"\xc2\xd5\"\x1eone_time_password_not_verifiedH\x00R\x1aoneTimePasswordNotVerified\x12n\n" +
+	"\x11too_many_mfa_keys\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x15\xc2\xd5\"\x11too_many_mfa_keysH\x00R\x0etooManyMfaKeys\x1a/\n" +
+	"\fKeyConfirmed\x12\x1f\n" +
+	"\x06key_id\x18\x01 \x01(\rB\b\xb2\x97\"\x04\b\x00\x10\x7fR\x05keyIdB\n" +
 	"\n" +
-	"\bresponse\"\x15\n" +
-	"\x13ListTotpKeysRequest\"\xf2\x02\n" +
-	"\x14ListTotpKeysResponse\x12K\n" +
-	"\x04keys\x18\x01 \x03(\v27.org.signal.chat.account.ListTotpKeysResponse.KeysEntryR\x04keys\x1a\x94\x01\n" +
-	"\x0fTotpKeyMetadata\x12/\n" +
-	"\x13metadata_ciphertext\x18\x01 \x01(\fR\x12metadataCiphertext\x12P\n" +
-	"\x0ftotp_parameters\x18\x02 \x01(\v2'.org.signal.chat.account.TotpParametersR\x0etotpParameters\x1av\n" +
+	"\bresponse\"\"\n" +
+	" StartWebAuthnRegistrationRequest\"\xb1\x03\n" +
+	"!StartWebAuthnRegistrationResponse\x12m\n" +
+	"\x06params\x18\x01 \x01(\v2S.org.signal.chat.account.StartWebAuthnRegistrationResponse.WebAuthnCreateParametersH\x00R\x06params\x12n\n" +
+	"\x11too_many_mfa_keys\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x15\xc2\xd5\"\x11too_many_mfa_keysH\x00R\x0etooManyMfaKeys\x1a\xa0\x01\n" +
+	"\x18WebAuthnCreateParameters\x12\x1f\n" +
+	"\vuser_handle\x18\x01 \x01(\fR\n" +
+	"userHandle\x12-\n" +
+	"\x12allowed_algorithms\x18\x02 \x03(\x03R\x11allowedAlgorithms\x124\n" +
+	"\x16exclude_credential_ids\x18\x03 \x03(\fR\x14excludeCredentialIdsB\n" +
+	"\n" +
+	"\bresponse\"\xc8\x01\n" +
+	"!FinishWebAuthnRegistrationRequest\x12-\n" +
+	"\x12attestation_object\x18\x01 \x01(\fR\x11attestationObject\x12;\n" +
+	"\x1acollected_client_data_json\x18\x02 \x01(\tR\x17collectedClientDataJson\x127\n" +
+	"\x13metadata_ciphertext\x18\x03 \x01(\fB\x06\xa2\x97\"\x02\xa0\x01R\x12metadataCiphertext\"\xc5\x03\n" +
+	"\"FinishWebAuthnRegistrationResponse\x12o\n" +
+	"\rkey_confirmed\x18\x01 \x01(\v2H.org.signal.chat.account.FinishWebAuthnRegistrationResponse.KeyConfirmedH\x00R\fkeyConfirmed\x12\x80\x01\n" +
+	"\x11key_not_confirmed\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB&\xc2\xd5\"\"registration_ceremony_unsuccessfulH\x00R\x0fkeyNotConfirmed\x12n\n" +
+	"\x11too_many_mfa_keys\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x15\xc2\xd5\"\x11too_many_mfa_keysH\x00R\x0etooManyMfaKeys\x1a/\n" +
+	"\fKeyConfirmed\x12\x1f\n" +
+	"\x06key_id\x18\x01 \x01(\rB\b\xb2\x97\"\x04\b\x00\x10\x7fR\x05keyIdB\n" +
+	"\n" +
+	"\bresponse\"\x14\n" +
+	"\x12ListMfaKeysRequest\"\xdd\x03\n" +
+	"\x13ListMfaKeysResponse\x12J\n" +
+	"\x04keys\x18\x01 \x03(\v26.org.signal.chat.account.ListMfaKeysResponse.KeysEntryR\x04keys\x1a\x83\x02\n" +
+	"\x0eMfaKeyMetadata\x127\n" +
+	"\x13metadata_ciphertext\x18\x01 \x01(\fB\x06\xa2\x97\"\x02\xa0\x01R\x12metadataCiphertext\x12Z\n" +
+	"\x04type\x18\x02 \x01(\x0e2F.org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadata.MfaKeyTypeR\x04type\"\\\n" +
+	"\n" +
+	"MfaKeyType\x12\x1c\n" +
+	"\x18MFA_KEY_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11MFA_KEY_TYPE_TOTP\x10\x01\x12\x19\n" +
+	"\x15MFA_KEY_TYPE_WEBAUTHN\x10\x02\x1at\n" +
 	"\tKeysEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\x05R\x03key\x12S\n" +
-	"\x05value\x18\x02 \x01(\v2=.org.signal.chat.account.ListTotpKeysResponse.TotpKeyMetadataR\x05value:\x028\x01\"k\n" +
-	"\x19SetTotpKeyMetadataRequest\x12\x15\n" +
-	"\x06key_id\x18\x01 \x01(\rR\x05keyId\x127\n" +
-	"\x13metadata_ciphertext\x18\x02 \x01(\fB\x06\xa2\x97\"\x02\xa0\x01R\x12metadataCiphertext\"\x88\x02\n" +
-	"\x1aSetTotpKeyMetadataResponse\x12p\n" +
-	"\x10metadata_updated\x18\x01 \x01(\v2C.org.signal.chat.account.SetTotpKeyMetadataResponse.MetadataUpdatedH\x00R\x0fmetadataUpdated\x12Y\n" +
+	"\x03key\x18\x01 \x01(\rR\x03key\x12Q\n" +
+	"\x05value\x18\x02 \x01(\v2;.org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadataR\x05value:\x028\x01\"t\n" +
+	"\x18SetMfaKeyMetadataRequest\x12\x1f\n" +
+	"\x06key_id\x18\x01 \x01(\rB\b\xb2\x97\"\x04\b\x00\x10\x7fR\x05keyId\x127\n" +
+	"\x13metadata_ciphertext\x18\x02 \x01(\fB\x06\xa2\x97\"\x02\xa0\x01R\x12metadataCiphertext\"\xf5\x01\n" +
+	"\x19SetMfaKeyMetadataResponse\x12^\n" +
+	"\asuccess\x18\x01 \x01(\v2B.org.signal.chat.account.SetMfaKeyMetadataResponse.MetadataUpdatedH\x00R\asuccess\x12Y\n" +
 	"\rkey_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x11\xc2\xd5\"\rkey_not_foundH\x00R\vkeyNotFound\x1a\x11\n" +
 	"\x0fMetadataUpdatedB\n" +
 	"\n" +
-	"\bresponse\"-\n" +
-	"\x14RemoveTotpKeyRequest\x12\x15\n" +
-	"\x06key_id\x18\x01 \x01(\rR\x05keyId\"\x17\n" +
-	"\x15RemoveTotpKeyResponse2\xb4\x16\n" +
+	"\bresponse\"6\n" +
+	"\x13RemoveMfaKeyRequest\x12\x1f\n" +
+	"\x06key_id\x18\x01 \x01(\rB\b\xb2\x97\"\x04\b\x00\x10\x7fR\x05keyId\"\x16\n" +
+	"\x14RemoveMfaKeyResponse\"\x1d\n" +
+	"\x1bStartMfaVerificationRequest\"\xae\x03\n" +
+	"\x1cStartMfaVerificationResponse\x12\x19\n" +
+	"\bhas_totp\x18\x01 \x01(\bR\ahasTotp\x12\xa9\x01\n" +
+	"\"webauthn_authentication_parameters\x18\x02 \x01(\v2V.org.signal.chat.account.StartMfaVerificationResponse.WebAuthnAuthenticationParametersH\x00R webauthnAuthenticationParameters\x88\x01\x01\x1a\x9f\x01\n" +
+	" WebAuthnAuthenticationParameters\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\fR\tchallenge\x12'\n" +
+	"\x0ftimeout_seconds\x18\x02 \x01(\rR\x0etimeoutSeconds\x124\n" +
+	"\x16allowed_credential_ids\x18\x03 \x03(\fR\x14allowedCredentialIdsB%\n" +
+	"#_webauthn_authentication_parameters\"\xa8\x01\n" +
+	"\x1cFinishMfaVerificationRequest\x12%\n" +
+	"\rtotp_password\x18\x01 \x01(\rH\x00R\ftotpPassword\x12S\n" +
+	"%webauthn_authentication_response_json\x18\x02 \x01(\tH\x00R\"webauthnAuthenticationResponseJsonB\f\n" +
+	"\n" +
+	"credential\"9\n" +
+	"\x1dFinishMfaVerificationResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xef\x1a\n" +
 	"\bAccounts\x12\x7f\n" +
 	"\x12GetAccountIdentity\x122.org.signal.chat.account.GetAccountIdentityRequest\x1a3.org.signal.chat.account.GetAccountIdentityResponse\"\x00\x12v\n" +
 	"\x0fGetEntitlements\x12/.org.signal.chat.account.GetEntitlementsRequest\x1a0.org.signal.chat.account.GetEntitlementsResponse\"\x00\x12p\n" +
@@ -3892,10 +4713,14 @@ const file_org_signal_chat_account_proto_rawDesc = "" +
 	"\x14GetAccountDataReport\x124.org.signal.chat.account.GetAccountDataReportRequest\x1a5.org.signal.chat.account.GetAccountDataReportResponse\"\x00\x12v\n" +
 	"\x0fGetCapabilities\x12/.org.signal.chat.account.GetCapabilitiesRequest\x1a0.org.signal.chat.account.GetCapabilitiesResponse\"\x00\x12v\n" +
 	"\x0fGenerateTotpKey\x12/.org.signal.chat.account.GenerateTotpKeyRequest\x1a0.org.signal.chat.account.GenerateTotpKeyResponse\"\x00\x12s\n" +
-	"\x0eConfirmTotpKey\x12..org.signal.chat.account.ConfirmTotpKeyRequest\x1a/.org.signal.chat.account.ConfirmTotpKeyResponse\"\x00\x12m\n" +
-	"\fListTotpKeys\x12,.org.signal.chat.account.ListTotpKeysRequest\x1a-.org.signal.chat.account.ListTotpKeysResponse\"\x00\x12\x7f\n" +
-	"\x12SetTotpKeyMetadata\x122.org.signal.chat.account.SetTotpKeyMetadataRequest\x1a3.org.signal.chat.account.SetTotpKeyMetadataResponse\"\x00\x12p\n" +
-	"\rRemoveTotpKey\x12-.org.signal.chat.account.RemoveTotpKeyRequest\x1a..org.signal.chat.account.RemoveTotpKeyResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xb1\x04\n" +
+	"\x0eConfirmTotpKey\x12..org.signal.chat.account.ConfirmTotpKeyRequest\x1a/.org.signal.chat.account.ConfirmTotpKeyResponse\"\x00\x12\x94\x01\n" +
+	"\x19StartWebAuthnRegistration\x129.org.signal.chat.account.StartWebAuthnRegistrationRequest\x1a:.org.signal.chat.account.StartWebAuthnRegistrationResponse\"\x00\x12\x97\x01\n" +
+	"\x1aFinishWebAuthnRegistration\x12:.org.signal.chat.account.FinishWebAuthnRegistrationRequest\x1a;.org.signal.chat.account.FinishWebAuthnRegistrationResponse\"\x00\x12j\n" +
+	"\vListMfaKeys\x12+.org.signal.chat.account.ListMfaKeysRequest\x1a,.org.signal.chat.account.ListMfaKeysResponse\"\x00\x12|\n" +
+	"\x11SetMfaKeyMetadata\x121.org.signal.chat.account.SetMfaKeyMetadataRequest\x1a2.org.signal.chat.account.SetMfaKeyMetadataResponse\"\x00\x12m\n" +
+	"\fRemoveMfaKey\x12,.org.signal.chat.account.RemoveMfaKeyRequest\x1a-.org.signal.chat.account.RemoveMfaKeyResponse\"\x00\x12\x85\x01\n" +
+	"\x14StartMfaVerification\x124.org.signal.chat.account.StartMfaVerificationRequest\x1a5.org.signal.chat.account.StartMfaVerificationResponse\"\x00\x12\x88\x01\n" +
+	"\x15FinishMfaVerification\x125.org.signal.chat.account.FinishMfaVerificationRequest\x1a6.org.signal.chat.account.FinishMfaVerificationResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xb1\x04\n" +
 	"\x11AccountsAnonymous\x12\x88\x01\n" +
 	"\x15CheckAccountExistence\x125.org.signal.chat.account.CheckAccountExistenceRequest\x1a6.org.signal.chat.account.CheckAccountExistenceResponse\"\x00\x12\x7f\n" +
 	"\x12LookupUsernameHash\x122.org.signal.chat.account.LookupUsernameHashRequest\x1a3.org.signal.chat.account.LookupUsernameHashResponse\"\x00\x12\x7f\n" +
@@ -3914,191 +4739,220 @@ func file_org_signal_chat_account_proto_rawDescGZIP() []byte {
 	return file_org_signal_chat_account_proto_rawDescData
 }
 
-var file_org_signal_chat_account_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
+var file_org_signal_chat_account_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_org_signal_chat_account_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
 var file_org_signal_chat_account_proto_goTypes = []any{
-	(*GetAccountIdentityRequest)(nil),                         // 0: org.signal.chat.account.GetAccountIdentityRequest
-	(*GetAccountIdentityResponse)(nil),                        // 1: org.signal.chat.account.GetAccountIdentityResponse
-	(*GetEntitlementsRequest)(nil),                            // 2: org.signal.chat.account.GetEntitlementsRequest
-	(*GetEntitlementsResponse)(nil),                           // 3: org.signal.chat.account.GetEntitlementsResponse
-	(*DeleteAccountRequest)(nil),                              // 4: org.signal.chat.account.DeleteAccountRequest
-	(*DeleteAccountResponse)(nil),                             // 5: org.signal.chat.account.DeleteAccountResponse
-	(*SetRegistrationLockRequest)(nil),                        // 6: org.signal.chat.account.SetRegistrationLockRequest
-	(*SetRegistrationLockResponse)(nil),                       // 7: org.signal.chat.account.SetRegistrationLockResponse
-	(*ClearRegistrationLockRequest)(nil),                      // 8: org.signal.chat.account.ClearRegistrationLockRequest
-	(*ClearRegistrationLockResponse)(nil),                     // 9: org.signal.chat.account.ClearRegistrationLockResponse
-	(*ReserveUsernameHashRequest)(nil),                        // 10: org.signal.chat.account.ReserveUsernameHashRequest
-	(*UsernameNotAvailable)(nil),                              // 11: org.signal.chat.account.UsernameNotAvailable
-	(*ReserveUsernameHashResponse)(nil),                       // 12: org.signal.chat.account.ReserveUsernameHashResponse
-	(*ConfirmUsernameHashRequest)(nil),                        // 13: org.signal.chat.account.ConfirmUsernameHashRequest
-	(*ConfirmUsernameHashResponse)(nil),                       // 14: org.signal.chat.account.ConfirmUsernameHashResponse
-	(*DeleteUsernameHashRequest)(nil),                         // 15: org.signal.chat.account.DeleteUsernameHashRequest
-	(*DeleteUsernameHashResponse)(nil),                        // 16: org.signal.chat.account.DeleteUsernameHashResponse
-	(*SetUsernameLinkRequest)(nil),                            // 17: org.signal.chat.account.SetUsernameLinkRequest
-	(*SetUsernameLinkResponse)(nil),                           // 18: org.signal.chat.account.SetUsernameLinkResponse
-	(*DeleteUsernameLinkRequest)(nil),                         // 19: org.signal.chat.account.DeleteUsernameLinkRequest
-	(*DeleteUsernameLinkResponse)(nil),                        // 20: org.signal.chat.account.DeleteUsernameLinkResponse
-	(*ConfigureUnidentifiedAccessRequest)(nil),                // 21: org.signal.chat.account.ConfigureUnidentifiedAccessRequest
-	(*ConfigureUnidentifiedAccessResponse)(nil),               // 22: org.signal.chat.account.ConfigureUnidentifiedAccessResponse
-	(*SetDiscoverableByPhoneNumberRequest)(nil),               // 23: org.signal.chat.account.SetDiscoverableByPhoneNumberRequest
-	(*SetDiscoverableByPhoneNumberResponse)(nil),              // 24: org.signal.chat.account.SetDiscoverableByPhoneNumberResponse
-	(*SetRegistrationRecoveryPasswordRequest)(nil),            // 25: org.signal.chat.account.SetRegistrationRecoveryPasswordRequest
-	(*SetRegistrationRecoveryPasswordResponse)(nil),           // 26: org.signal.chat.account.SetRegistrationRecoveryPasswordResponse
-	(*CheckAccountExistenceRequest)(nil),                      // 27: org.signal.chat.account.CheckAccountExistenceRequest
-	(*CheckAccountExistenceResponse)(nil),                     // 28: org.signal.chat.account.CheckAccountExistenceResponse
-	(*LookupUsernameHashRequest)(nil),                         // 29: org.signal.chat.account.LookupUsernameHashRequest
-	(*LookupUsernameHashResponse)(nil),                        // 30: org.signal.chat.account.LookupUsernameHashResponse
-	(*LookupUsernameLinkRequest)(nil),                         // 31: org.signal.chat.account.LookupUsernameLinkRequest
-	(*LookupUsernameLinkResponse)(nil),                        // 32: org.signal.chat.account.LookupUsernameLinkResponse
-	(*SetZkCredentialKeyRequest)(nil),                         // 33: org.signal.chat.account.SetZkCredentialKeyRequest
-	(*SetZkCredentialKeyResponse)(nil),                        // 34: org.signal.chat.account.SetZkCredentialKeyResponse
-	(*ChangeNumberRequest)(nil),                               // 35: org.signal.chat.account.ChangeNumberRequest
-	(*ChangeNumberResponse)(nil),                              // 36: org.signal.chat.account.ChangeNumberResponse
-	(*RegistrationLockFailure)(nil),                           // 37: org.signal.chat.account.RegistrationLockFailure
-	(*ExternalServiceCredentials)(nil),                        // 38: org.signal.chat.account.ExternalServiceCredentials
-	(*StaleDevices)(nil),                                      // 39: org.signal.chat.account.StaleDevices
-	(*GetAccountDataReportRequest)(nil),                       // 40: org.signal.chat.account.GetAccountDataReportRequest
-	(*GetAccountDataReportResponse)(nil),                      // 41: org.signal.chat.account.GetAccountDataReportResponse
-	(*GetCapabilitiesRequest)(nil),                            // 42: org.signal.chat.account.GetCapabilitiesRequest
-	(*Capabilities)(nil),                                      // 43: org.signal.chat.account.Capabilities
-	(*GetCapabilitiesResponse)(nil),                           // 44: org.signal.chat.account.GetCapabilitiesResponse
-	(*GetCapabilitiesAnonymousRequest)(nil),                   // 45: org.signal.chat.account.GetCapabilitiesAnonymousRequest
-	(*GetCapabilitiesAnonymousResponse)(nil),                  // 46: org.signal.chat.account.GetCapabilitiesAnonymousResponse
-	(*TotpParameters)(nil),                                    // 47: org.signal.chat.account.TotpParameters
-	(*GenerateTotpKeyRequest)(nil),                            // 48: org.signal.chat.account.GenerateTotpKeyRequest
-	(*GenerateTotpKeyResponse)(nil),                           // 49: org.signal.chat.account.GenerateTotpKeyResponse
-	(*ConfirmTotpKeyRequest)(nil),                             // 50: org.signal.chat.account.ConfirmTotpKeyRequest
-	(*ConfirmTotpKeyResponse)(nil),                            // 51: org.signal.chat.account.ConfirmTotpKeyResponse
-	(*ListTotpKeysRequest)(nil),                               // 52: org.signal.chat.account.ListTotpKeysRequest
-	(*ListTotpKeysResponse)(nil),                              // 53: org.signal.chat.account.ListTotpKeysResponse
-	(*SetTotpKeyMetadataRequest)(nil),                         // 54: org.signal.chat.account.SetTotpKeyMetadataRequest
-	(*SetTotpKeyMetadataResponse)(nil),                        // 55: org.signal.chat.account.SetTotpKeyMetadataResponse
-	(*RemoveTotpKeyRequest)(nil),                              // 56: org.signal.chat.account.RemoveTotpKeyRequest
-	(*RemoveTotpKeyResponse)(nil),                             // 57: org.signal.chat.account.RemoveTotpKeyResponse
-	(*GetEntitlementsResponse_BadgeEntitlement)(nil),          // 58: org.signal.chat.account.GetEntitlementsResponse.BadgeEntitlement
-	(*GetEntitlementsResponse_BackupEntitlement)(nil),         // 59: org.signal.chat.account.GetEntitlementsResponse.BackupEntitlement
-	(*ConfirmUsernameHashResponse_ConfirmedUsernameHash)(nil), // 60: org.signal.chat.account.ConfirmUsernameHashResponse.ConfirmedUsernameHash
-	nil, // 61: org.signal.chat.account.ChangeNumberRequest.DevicePniSignedPreKeysEntry
-	nil, // 62: org.signal.chat.account.ChangeNumberRequest.DevicePniPqLastResortPreKeysEntry
-	nil, // 63: org.signal.chat.account.ChangeNumberRequest.PniRegistrationIdsEntry
-	(*GenerateTotpKeyResponse_KeyGenerated)(nil), // 64: org.signal.chat.account.GenerateTotpKeyResponse.KeyGenerated
-	(*ConfirmTotpKeyResponse_KeyConfirmed)(nil),  // 65: org.signal.chat.account.ConfirmTotpKeyResponse.KeyConfirmed
-	(*ListTotpKeysResponse_TotpKeyMetadata)(nil), // 66: org.signal.chat.account.ListTotpKeysResponse.TotpKeyMetadata
-	nil, // 67: org.signal.chat.account.ListTotpKeysResponse.KeysEntry
-	(*SetTotpKeyMetadataResponse_MetadataUpdated)(nil), // 68: org.signal.chat.account.SetTotpKeyMetadataResponse.MetadataUpdated
-	(*common.AccountIdentifiers)(nil),                  // 69: org.signal.chat.common.AccountIdentifiers
-	(*errors.FailedPrecondition)(nil),                  // 70: org.signal.chat.errors.FailedPrecondition
-	(*emptypb.Empty)(nil),                              // 71: google.protobuf.Empty
-	(*common.ServiceIdentifier)(nil),                   // 72: org.signal.chat.common.ServiceIdentifier
-	(*errors.NotFound)(nil),                            // 73: org.signal.chat.errors.NotFound
-	(*messages.IndividualRecipientMessageBundle)(nil),  // 74: org.signal.chat.messages.IndividualRecipientMessageBundle
-	(*messages.MismatchedDevices)(nil),                 // 75: org.signal.chat.messages.MismatchedDevices
-	(common.DeviceCapability)(0),                       // 76: org.signal.chat.common.DeviceCapability
-	(*errors.FailedUnidentifiedAuthorization)(nil),     // 77: org.signal.chat.errors.FailedUnidentifiedAuthorization
-	(*common.EcSignedPreKey)(nil),                      // 78: org.signal.chat.common.EcSignedPreKey
-	(*common.KemSignedPreKey)(nil),                     // 79: org.signal.chat.common.KemSignedPreKey
+	(ListMfaKeysResponse_MfaKeyMetadata_MfaKeyType)(0),        // 0: org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadata.MfaKeyType
+	(*GetAccountIdentityRequest)(nil),                         // 1: org.signal.chat.account.GetAccountIdentityRequest
+	(*GetAccountIdentityResponse)(nil),                        // 2: org.signal.chat.account.GetAccountIdentityResponse
+	(*GetEntitlementsRequest)(nil),                            // 3: org.signal.chat.account.GetEntitlementsRequest
+	(*GetEntitlementsResponse)(nil),                           // 4: org.signal.chat.account.GetEntitlementsResponse
+	(*DeleteAccountRequest)(nil),                              // 5: org.signal.chat.account.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),                             // 6: org.signal.chat.account.DeleteAccountResponse
+	(*SetRegistrationLockRequest)(nil),                        // 7: org.signal.chat.account.SetRegistrationLockRequest
+	(*SetRegistrationLockResponse)(nil),                       // 8: org.signal.chat.account.SetRegistrationLockResponse
+	(*ClearRegistrationLockRequest)(nil),                      // 9: org.signal.chat.account.ClearRegistrationLockRequest
+	(*ClearRegistrationLockResponse)(nil),                     // 10: org.signal.chat.account.ClearRegistrationLockResponse
+	(*ReserveUsernameHashRequest)(nil),                        // 11: org.signal.chat.account.ReserveUsernameHashRequest
+	(*UsernameNotAvailable)(nil),                              // 12: org.signal.chat.account.UsernameNotAvailable
+	(*ReserveUsernameHashResponse)(nil),                       // 13: org.signal.chat.account.ReserveUsernameHashResponse
+	(*ConfirmUsernameHashRequest)(nil),                        // 14: org.signal.chat.account.ConfirmUsernameHashRequest
+	(*ConfirmUsernameHashResponse)(nil),                       // 15: org.signal.chat.account.ConfirmUsernameHashResponse
+	(*DeleteUsernameHashRequest)(nil),                         // 16: org.signal.chat.account.DeleteUsernameHashRequest
+	(*DeleteUsernameHashResponse)(nil),                        // 17: org.signal.chat.account.DeleteUsernameHashResponse
+	(*SetUsernameLinkRequest)(nil),                            // 18: org.signal.chat.account.SetUsernameLinkRequest
+	(*SetUsernameLinkResponse)(nil),                           // 19: org.signal.chat.account.SetUsernameLinkResponse
+	(*DeleteUsernameLinkRequest)(nil),                         // 20: org.signal.chat.account.DeleteUsernameLinkRequest
+	(*DeleteUsernameLinkResponse)(nil),                        // 21: org.signal.chat.account.DeleteUsernameLinkResponse
+	(*ConfigureUnidentifiedAccessRequest)(nil),                // 22: org.signal.chat.account.ConfigureUnidentifiedAccessRequest
+	(*ConfigureUnidentifiedAccessResponse)(nil),               // 23: org.signal.chat.account.ConfigureUnidentifiedAccessResponse
+	(*SetDiscoverableByPhoneNumberRequest)(nil),               // 24: org.signal.chat.account.SetDiscoverableByPhoneNumberRequest
+	(*SetDiscoverableByPhoneNumberResponse)(nil),              // 25: org.signal.chat.account.SetDiscoverableByPhoneNumberResponse
+	(*SetRegistrationRecoveryPasswordRequest)(nil),            // 26: org.signal.chat.account.SetRegistrationRecoveryPasswordRequest
+	(*SetRegistrationRecoveryPasswordResponse)(nil),           // 27: org.signal.chat.account.SetRegistrationRecoveryPasswordResponse
+	(*CheckAccountExistenceRequest)(nil),                      // 28: org.signal.chat.account.CheckAccountExistenceRequest
+	(*CheckAccountExistenceResponse)(nil),                     // 29: org.signal.chat.account.CheckAccountExistenceResponse
+	(*LookupUsernameHashRequest)(nil),                         // 30: org.signal.chat.account.LookupUsernameHashRequest
+	(*LookupUsernameHashResponse)(nil),                        // 31: org.signal.chat.account.LookupUsernameHashResponse
+	(*LookupUsernameLinkRequest)(nil),                         // 32: org.signal.chat.account.LookupUsernameLinkRequest
+	(*LookupUsernameLinkResponse)(nil),                        // 33: org.signal.chat.account.LookupUsernameLinkResponse
+	(*SetZkCredentialKeyRequest)(nil),                         // 34: org.signal.chat.account.SetZkCredentialKeyRequest
+	(*SetZkCredentialKeyResponse)(nil),                        // 35: org.signal.chat.account.SetZkCredentialKeyResponse
+	(*ChangeNumberRequest)(nil),                               // 36: org.signal.chat.account.ChangeNumberRequest
+	(*ChangeNumberResponse)(nil),                              // 37: org.signal.chat.account.ChangeNumberResponse
+	(*RegistrationLockFailure)(nil),                           // 38: org.signal.chat.account.RegistrationLockFailure
+	(*ExternalServiceCredentials)(nil),                        // 39: org.signal.chat.account.ExternalServiceCredentials
+	(*StaleDevices)(nil),                                      // 40: org.signal.chat.account.StaleDevices
+	(*GetAccountDataReportRequest)(nil),                       // 41: org.signal.chat.account.GetAccountDataReportRequest
+	(*GetAccountDataReportResponse)(nil),                      // 42: org.signal.chat.account.GetAccountDataReportResponse
+	(*GetCapabilitiesRequest)(nil),                            // 43: org.signal.chat.account.GetCapabilitiesRequest
+	(*Capabilities)(nil),                                      // 44: org.signal.chat.account.Capabilities
+	(*GetCapabilitiesResponse)(nil),                           // 45: org.signal.chat.account.GetCapabilitiesResponse
+	(*GetCapabilitiesAnonymousRequest)(nil),                   // 46: org.signal.chat.account.GetCapabilitiesAnonymousRequest
+	(*GetCapabilitiesAnonymousResponse)(nil),                  // 47: org.signal.chat.account.GetCapabilitiesAnonymousResponse
+	(*TotpParameters)(nil),                                    // 48: org.signal.chat.account.TotpParameters
+	(*GenerateTotpKeyRequest)(nil),                            // 49: org.signal.chat.account.GenerateTotpKeyRequest
+	(*GenerateTotpKeyResponse)(nil),                           // 50: org.signal.chat.account.GenerateTotpKeyResponse
+	(*ConfirmTotpKeyRequest)(nil),                             // 51: org.signal.chat.account.ConfirmTotpKeyRequest
+	(*ConfirmTotpKeyResponse)(nil),                            // 52: org.signal.chat.account.ConfirmTotpKeyResponse
+	(*StartWebAuthnRegistrationRequest)(nil),                  // 53: org.signal.chat.account.StartWebAuthnRegistrationRequest
+	(*StartWebAuthnRegistrationResponse)(nil),                 // 54: org.signal.chat.account.StartWebAuthnRegistrationResponse
+	(*FinishWebAuthnRegistrationRequest)(nil),                 // 55: org.signal.chat.account.FinishWebAuthnRegistrationRequest
+	(*FinishWebAuthnRegistrationResponse)(nil),                // 56: org.signal.chat.account.FinishWebAuthnRegistrationResponse
+	(*ListMfaKeysRequest)(nil),                                // 57: org.signal.chat.account.ListMfaKeysRequest
+	(*ListMfaKeysResponse)(nil),                               // 58: org.signal.chat.account.ListMfaKeysResponse
+	(*SetMfaKeyMetadataRequest)(nil),                          // 59: org.signal.chat.account.SetMfaKeyMetadataRequest
+	(*SetMfaKeyMetadataResponse)(nil),                         // 60: org.signal.chat.account.SetMfaKeyMetadataResponse
+	(*RemoveMfaKeyRequest)(nil),                               // 61: org.signal.chat.account.RemoveMfaKeyRequest
+	(*RemoveMfaKeyResponse)(nil),                              // 62: org.signal.chat.account.RemoveMfaKeyResponse
+	(*StartMfaVerificationRequest)(nil),                       // 63: org.signal.chat.account.StartMfaVerificationRequest
+	(*StartMfaVerificationResponse)(nil),                      // 64: org.signal.chat.account.StartMfaVerificationResponse
+	(*FinishMfaVerificationRequest)(nil),                      // 65: org.signal.chat.account.FinishMfaVerificationRequest
+	(*FinishMfaVerificationResponse)(nil),                     // 66: org.signal.chat.account.FinishMfaVerificationResponse
+	(*GetEntitlementsResponse_BadgeEntitlement)(nil),          // 67: org.signal.chat.account.GetEntitlementsResponse.BadgeEntitlement
+	(*GetEntitlementsResponse_BackupEntitlement)(nil),         // 68: org.signal.chat.account.GetEntitlementsResponse.BackupEntitlement
+	(*ConfirmUsernameHashResponse_ConfirmedUsernameHash)(nil), // 69: org.signal.chat.account.ConfirmUsernameHashResponse.ConfirmedUsernameHash
+	nil, // 70: org.signal.chat.account.ChangeNumberRequest.DevicePniSignedPreKeysEntry
+	nil, // 71: org.signal.chat.account.ChangeNumberRequest.DevicePniPqLastResortPreKeysEntry
+	nil, // 72: org.signal.chat.account.ChangeNumberRequest.PniRegistrationIdsEntry
+	(*GenerateTotpKeyResponse_KeyGenerated)(nil),                       // 73: org.signal.chat.account.GenerateTotpKeyResponse.KeyGenerated
+	(*ConfirmTotpKeyResponse_KeyConfirmed)(nil),                        // 74: org.signal.chat.account.ConfirmTotpKeyResponse.KeyConfirmed
+	(*StartWebAuthnRegistrationResponse_WebAuthnCreateParameters)(nil), // 75: org.signal.chat.account.StartWebAuthnRegistrationResponse.WebAuthnCreateParameters
+	(*FinishWebAuthnRegistrationResponse_KeyConfirmed)(nil),            // 76: org.signal.chat.account.FinishWebAuthnRegistrationResponse.KeyConfirmed
+	(*ListMfaKeysResponse_MfaKeyMetadata)(nil),                         // 77: org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadata
+	nil, // 78: org.signal.chat.account.ListMfaKeysResponse.KeysEntry
+	(*SetMfaKeyMetadataResponse_MetadataUpdated)(nil),                     // 79: org.signal.chat.account.SetMfaKeyMetadataResponse.MetadataUpdated
+	(*StartMfaVerificationResponse_WebAuthnAuthenticationParameters)(nil), // 80: org.signal.chat.account.StartMfaVerificationResponse.WebAuthnAuthenticationParameters
+	(*common.AccountIdentifiers)(nil),                                     // 81: org.signal.chat.common.AccountIdentifiers
+	(*errors.FailedPrecondition)(nil),                                     // 82: org.signal.chat.errors.FailedPrecondition
+	(*emptypb.Empty)(nil),                                                 // 83: google.protobuf.Empty
+	(*common.ServiceIdentifier)(nil),                                      // 84: org.signal.chat.common.ServiceIdentifier
+	(*errors.NotFound)(nil),                                               // 85: org.signal.chat.errors.NotFound
+	(*messages.IndividualRecipientMessageBundle)(nil),                     // 86: org.signal.chat.messages.IndividualRecipientMessageBundle
+	(*messages.MismatchedDevices)(nil),                                    // 87: org.signal.chat.messages.MismatchedDevices
+	(common.DeviceCapability)(0),                                          // 88: org.signal.chat.common.DeviceCapability
+	(*errors.FailedUnidentifiedAuthorization)(nil),                        // 89: org.signal.chat.errors.FailedUnidentifiedAuthorization
+	(*common.EcSignedPreKey)(nil),                                         // 90: org.signal.chat.common.EcSignedPreKey
+	(*common.KemSignedPreKey)(nil),                                        // 91: org.signal.chat.common.KemSignedPreKey
 }
 var file_org_signal_chat_account_proto_depIdxs = []int32{
-	69, // 0: org.signal.chat.account.GetAccountIdentityResponse.account_identifiers:type_name -> org.signal.chat.common.AccountIdentifiers
-	58, // 1: org.signal.chat.account.GetEntitlementsResponse.badges:type_name -> org.signal.chat.account.GetEntitlementsResponse.BadgeEntitlement
-	59, // 2: org.signal.chat.account.GetEntitlementsResponse.backup:type_name -> org.signal.chat.account.GetEntitlementsResponse.BackupEntitlement
-	11, // 3: org.signal.chat.account.ReserveUsernameHashResponse.username_not_available:type_name -> org.signal.chat.account.UsernameNotAvailable
-	60, // 4: org.signal.chat.account.ConfirmUsernameHashResponse.confirmed_username_hash:type_name -> org.signal.chat.account.ConfirmUsernameHashResponse.ConfirmedUsernameHash
-	70, // 5: org.signal.chat.account.ConfirmUsernameHashResponse.reservation_not_found:type_name -> org.signal.chat.errors.FailedPrecondition
-	11, // 6: org.signal.chat.account.ConfirmUsernameHashResponse.username_not_available:type_name -> org.signal.chat.account.UsernameNotAvailable
-	70, // 7: org.signal.chat.account.SetUsernameLinkResponse.no_username_set:type_name -> org.signal.chat.errors.FailedPrecondition
-	71, // 8: org.signal.chat.account.ConfigureUnidentifiedAccessRequest.allow_unrestricted_unidentified_access:type_name -> google.protobuf.Empty
-	72, // 9: org.signal.chat.account.CheckAccountExistenceRequest.service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
-	72, // 10: org.signal.chat.account.LookupUsernameHashResponse.service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
-	73, // 11: org.signal.chat.account.LookupUsernameHashResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	73, // 12: org.signal.chat.account.LookupUsernameLinkResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	74, // 13: org.signal.chat.account.ChangeNumberRequest.device_messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle
-	61, // 14: org.signal.chat.account.ChangeNumberRequest.device_pni_signed_pre_keys:type_name -> org.signal.chat.account.ChangeNumberRequest.DevicePniSignedPreKeysEntry
-	62, // 15: org.signal.chat.account.ChangeNumberRequest.device_pni_pq_last_resort_pre_keys:type_name -> org.signal.chat.account.ChangeNumberRequest.DevicePniPqLastResortPreKeysEntry
-	63, // 16: org.signal.chat.account.ChangeNumberRequest.pni_registration_ids:type_name -> org.signal.chat.account.ChangeNumberRequest.PniRegistrationIdsEntry
-	69, // 17: org.signal.chat.account.ChangeNumberResponse.account_identifiers:type_name -> org.signal.chat.common.AccountIdentifiers
-	75, // 18: org.signal.chat.account.ChangeNumberResponse.mismatched_devices:type_name -> org.signal.chat.messages.MismatchedDevices
-	37, // 19: org.signal.chat.account.ChangeNumberResponse.registration_lock_failure:type_name -> org.signal.chat.account.RegistrationLockFailure
-	39, // 20: org.signal.chat.account.ChangeNumberResponse.stale_devices:type_name -> org.signal.chat.account.StaleDevices
-	70, // 21: org.signal.chat.account.ChangeNumberResponse.message_too_large:type_name -> org.signal.chat.errors.FailedPrecondition
-	70, // 22: org.signal.chat.account.ChangeNumberResponse.unverified_registration_session:type_name -> org.signal.chat.errors.FailedPrecondition
-	70, // 23: org.signal.chat.account.ChangeNumberResponse.invalid_registration_session:type_name -> org.signal.chat.errors.FailedPrecondition
-	70, // 24: org.signal.chat.account.ChangeNumberResponse.recovery_password_verification_failed:type_name -> org.signal.chat.errors.FailedPrecondition
-	38, // 25: org.signal.chat.account.RegistrationLockFailure.svr2_credentials:type_name -> org.signal.chat.account.ExternalServiceCredentials
-	76, // 26: org.signal.chat.account.Capabilities.capabilities:type_name -> org.signal.chat.common.DeviceCapability
-	43, // 27: org.signal.chat.account.GetCapabilitiesResponse.capabilities:type_name -> org.signal.chat.account.Capabilities
-	72, // 28: org.signal.chat.account.GetCapabilitiesAnonymousRequest.account_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
-	43, // 29: org.signal.chat.account.GetCapabilitiesAnonymousResponse.capabilities:type_name -> org.signal.chat.account.Capabilities
-	73, // 30: org.signal.chat.account.GetCapabilitiesAnonymousResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	77, // 31: org.signal.chat.account.GetCapabilitiesAnonymousResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	64, // 32: org.signal.chat.account.GenerateTotpKeyResponse.key_generated:type_name -> org.signal.chat.account.GenerateTotpKeyResponse.KeyGenerated
-	70, // 33: org.signal.chat.account.GenerateTotpKeyResponse.too_many_totp_keys:type_name -> org.signal.chat.errors.FailedPrecondition
-	65, // 34: org.signal.chat.account.ConfirmTotpKeyResponse.key_confirmed:type_name -> org.signal.chat.account.ConfirmTotpKeyResponse.KeyConfirmed
-	70, // 35: org.signal.chat.account.ConfirmTotpKeyResponse.one_time_password_not_verified:type_name -> org.signal.chat.errors.FailedPrecondition
-	67, // 36: org.signal.chat.account.ListTotpKeysResponse.keys:type_name -> org.signal.chat.account.ListTotpKeysResponse.KeysEntry
-	68, // 37: org.signal.chat.account.SetTotpKeyMetadataResponse.metadata_updated:type_name -> org.signal.chat.account.SetTotpKeyMetadataResponse.MetadataUpdated
-	73, // 38: org.signal.chat.account.SetTotpKeyMetadataResponse.key_not_found:type_name -> org.signal.chat.errors.NotFound
-	78, // 39: org.signal.chat.account.ChangeNumberRequest.DevicePniSignedPreKeysEntry.value:type_name -> org.signal.chat.common.EcSignedPreKey
-	79, // 40: org.signal.chat.account.ChangeNumberRequest.DevicePniPqLastResortPreKeysEntry.value:type_name -> org.signal.chat.common.KemSignedPreKey
-	47, // 41: org.signal.chat.account.GenerateTotpKeyResponse.KeyGenerated.totp_parameters:type_name -> org.signal.chat.account.TotpParameters
-	47, // 42: org.signal.chat.account.ListTotpKeysResponse.TotpKeyMetadata.totp_parameters:type_name -> org.signal.chat.account.TotpParameters
-	66, // 43: org.signal.chat.account.ListTotpKeysResponse.KeysEntry.value:type_name -> org.signal.chat.account.ListTotpKeysResponse.TotpKeyMetadata
-	0,  // 44: org.signal.chat.account.Accounts.GetAccountIdentity:input_type -> org.signal.chat.account.GetAccountIdentityRequest
-	2,  // 45: org.signal.chat.account.Accounts.GetEntitlements:input_type -> org.signal.chat.account.GetEntitlementsRequest
-	4,  // 46: org.signal.chat.account.Accounts.DeleteAccount:input_type -> org.signal.chat.account.DeleteAccountRequest
-	6,  // 47: org.signal.chat.account.Accounts.SetRegistrationLock:input_type -> org.signal.chat.account.SetRegistrationLockRequest
-	8,  // 48: org.signal.chat.account.Accounts.ClearRegistrationLock:input_type -> org.signal.chat.account.ClearRegistrationLockRequest
-	10, // 49: org.signal.chat.account.Accounts.ReserveUsernameHash:input_type -> org.signal.chat.account.ReserveUsernameHashRequest
-	13, // 50: org.signal.chat.account.Accounts.ConfirmUsernameHash:input_type -> org.signal.chat.account.ConfirmUsernameHashRequest
-	15, // 51: org.signal.chat.account.Accounts.DeleteUsernameHash:input_type -> org.signal.chat.account.DeleteUsernameHashRequest
-	17, // 52: org.signal.chat.account.Accounts.SetUsernameLink:input_type -> org.signal.chat.account.SetUsernameLinkRequest
-	19, // 53: org.signal.chat.account.Accounts.DeleteUsernameLink:input_type -> org.signal.chat.account.DeleteUsernameLinkRequest
-	21, // 54: org.signal.chat.account.Accounts.ConfigureUnidentifiedAccess:input_type -> org.signal.chat.account.ConfigureUnidentifiedAccessRequest
-	23, // 55: org.signal.chat.account.Accounts.SetDiscoverableByPhoneNumber:input_type -> org.signal.chat.account.SetDiscoverableByPhoneNumberRequest
-	25, // 56: org.signal.chat.account.Accounts.SetRegistrationRecoveryPassword:input_type -> org.signal.chat.account.SetRegistrationRecoveryPasswordRequest
-	33, // 57: org.signal.chat.account.Accounts.SetZkCredentialKey:input_type -> org.signal.chat.account.SetZkCredentialKeyRequest
-	35, // 58: org.signal.chat.account.Accounts.ChangeNumber:input_type -> org.signal.chat.account.ChangeNumberRequest
-	40, // 59: org.signal.chat.account.Accounts.GetAccountDataReport:input_type -> org.signal.chat.account.GetAccountDataReportRequest
-	42, // 60: org.signal.chat.account.Accounts.GetCapabilities:input_type -> org.signal.chat.account.GetCapabilitiesRequest
-	48, // 61: org.signal.chat.account.Accounts.GenerateTotpKey:input_type -> org.signal.chat.account.GenerateTotpKeyRequest
-	50, // 62: org.signal.chat.account.Accounts.ConfirmTotpKey:input_type -> org.signal.chat.account.ConfirmTotpKeyRequest
-	52, // 63: org.signal.chat.account.Accounts.ListTotpKeys:input_type -> org.signal.chat.account.ListTotpKeysRequest
-	54, // 64: org.signal.chat.account.Accounts.SetTotpKeyMetadata:input_type -> org.signal.chat.account.SetTotpKeyMetadataRequest
-	56, // 65: org.signal.chat.account.Accounts.RemoveTotpKey:input_type -> org.signal.chat.account.RemoveTotpKeyRequest
-	27, // 66: org.signal.chat.account.AccountsAnonymous.CheckAccountExistence:input_type -> org.signal.chat.account.CheckAccountExistenceRequest
-	29, // 67: org.signal.chat.account.AccountsAnonymous.LookupUsernameHash:input_type -> org.signal.chat.account.LookupUsernameHashRequest
-	31, // 68: org.signal.chat.account.AccountsAnonymous.LookupUsernameLink:input_type -> org.signal.chat.account.LookupUsernameLinkRequest
-	45, // 69: org.signal.chat.account.AccountsAnonymous.GetCapabilities:input_type -> org.signal.chat.account.GetCapabilitiesAnonymousRequest
-	1,  // 70: org.signal.chat.account.Accounts.GetAccountIdentity:output_type -> org.signal.chat.account.GetAccountIdentityResponse
-	3,  // 71: org.signal.chat.account.Accounts.GetEntitlements:output_type -> org.signal.chat.account.GetEntitlementsResponse
-	5,  // 72: org.signal.chat.account.Accounts.DeleteAccount:output_type -> org.signal.chat.account.DeleteAccountResponse
-	7,  // 73: org.signal.chat.account.Accounts.SetRegistrationLock:output_type -> org.signal.chat.account.SetRegistrationLockResponse
-	9,  // 74: org.signal.chat.account.Accounts.ClearRegistrationLock:output_type -> org.signal.chat.account.ClearRegistrationLockResponse
-	12, // 75: org.signal.chat.account.Accounts.ReserveUsernameHash:output_type -> org.signal.chat.account.ReserveUsernameHashResponse
-	14, // 76: org.signal.chat.account.Accounts.ConfirmUsernameHash:output_type -> org.signal.chat.account.ConfirmUsernameHashResponse
-	16, // 77: org.signal.chat.account.Accounts.DeleteUsernameHash:output_type -> org.signal.chat.account.DeleteUsernameHashResponse
-	18, // 78: org.signal.chat.account.Accounts.SetUsernameLink:output_type -> org.signal.chat.account.SetUsernameLinkResponse
-	20, // 79: org.signal.chat.account.Accounts.DeleteUsernameLink:output_type -> org.signal.chat.account.DeleteUsernameLinkResponse
-	22, // 80: org.signal.chat.account.Accounts.ConfigureUnidentifiedAccess:output_type -> org.signal.chat.account.ConfigureUnidentifiedAccessResponse
-	24, // 81: org.signal.chat.account.Accounts.SetDiscoverableByPhoneNumber:output_type -> org.signal.chat.account.SetDiscoverableByPhoneNumberResponse
-	26, // 82: org.signal.chat.account.Accounts.SetRegistrationRecoveryPassword:output_type -> org.signal.chat.account.SetRegistrationRecoveryPasswordResponse
-	34, // 83: org.signal.chat.account.Accounts.SetZkCredentialKey:output_type -> org.signal.chat.account.SetZkCredentialKeyResponse
-	36, // 84: org.signal.chat.account.Accounts.ChangeNumber:output_type -> org.signal.chat.account.ChangeNumberResponse
-	41, // 85: org.signal.chat.account.Accounts.GetAccountDataReport:output_type -> org.signal.chat.account.GetAccountDataReportResponse
-	44, // 86: org.signal.chat.account.Accounts.GetCapabilities:output_type -> org.signal.chat.account.GetCapabilitiesResponse
-	49, // 87: org.signal.chat.account.Accounts.GenerateTotpKey:output_type -> org.signal.chat.account.GenerateTotpKeyResponse
-	51, // 88: org.signal.chat.account.Accounts.ConfirmTotpKey:output_type -> org.signal.chat.account.ConfirmTotpKeyResponse
-	53, // 89: org.signal.chat.account.Accounts.ListTotpKeys:output_type -> org.signal.chat.account.ListTotpKeysResponse
-	55, // 90: org.signal.chat.account.Accounts.SetTotpKeyMetadata:output_type -> org.signal.chat.account.SetTotpKeyMetadataResponse
-	57, // 91: org.signal.chat.account.Accounts.RemoveTotpKey:output_type -> org.signal.chat.account.RemoveTotpKeyResponse
-	28, // 92: org.signal.chat.account.AccountsAnonymous.CheckAccountExistence:output_type -> org.signal.chat.account.CheckAccountExistenceResponse
-	30, // 93: org.signal.chat.account.AccountsAnonymous.LookupUsernameHash:output_type -> org.signal.chat.account.LookupUsernameHashResponse
-	32, // 94: org.signal.chat.account.AccountsAnonymous.LookupUsernameLink:output_type -> org.signal.chat.account.LookupUsernameLinkResponse
-	46, // 95: org.signal.chat.account.AccountsAnonymous.GetCapabilities:output_type -> org.signal.chat.account.GetCapabilitiesAnonymousResponse
-	70, // [70:96] is the sub-list for method output_type
-	44, // [44:70] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	81, // 0: org.signal.chat.account.GetAccountIdentityResponse.account_identifiers:type_name -> org.signal.chat.common.AccountIdentifiers
+	67, // 1: org.signal.chat.account.GetEntitlementsResponse.badges:type_name -> org.signal.chat.account.GetEntitlementsResponse.BadgeEntitlement
+	68, // 2: org.signal.chat.account.GetEntitlementsResponse.backup:type_name -> org.signal.chat.account.GetEntitlementsResponse.BackupEntitlement
+	12, // 3: org.signal.chat.account.ReserveUsernameHashResponse.username_not_available:type_name -> org.signal.chat.account.UsernameNotAvailable
+	69, // 4: org.signal.chat.account.ConfirmUsernameHashResponse.confirmed_username_hash:type_name -> org.signal.chat.account.ConfirmUsernameHashResponse.ConfirmedUsernameHash
+	82, // 5: org.signal.chat.account.ConfirmUsernameHashResponse.reservation_not_found:type_name -> org.signal.chat.errors.FailedPrecondition
+	12, // 6: org.signal.chat.account.ConfirmUsernameHashResponse.username_not_available:type_name -> org.signal.chat.account.UsernameNotAvailable
+	82, // 7: org.signal.chat.account.SetUsernameLinkResponse.no_username_set:type_name -> org.signal.chat.errors.FailedPrecondition
+	83, // 8: org.signal.chat.account.ConfigureUnidentifiedAccessRequest.allow_unrestricted_unidentified_access:type_name -> google.protobuf.Empty
+	84, // 9: org.signal.chat.account.CheckAccountExistenceRequest.service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	84, // 10: org.signal.chat.account.LookupUsernameHashResponse.service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	85, // 11: org.signal.chat.account.LookupUsernameHashResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	85, // 12: org.signal.chat.account.LookupUsernameLinkResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	86, // 13: org.signal.chat.account.ChangeNumberRequest.device_messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle
+	70, // 14: org.signal.chat.account.ChangeNumberRequest.device_pni_signed_pre_keys:type_name -> org.signal.chat.account.ChangeNumberRequest.DevicePniSignedPreKeysEntry
+	71, // 15: org.signal.chat.account.ChangeNumberRequest.device_pni_pq_last_resort_pre_keys:type_name -> org.signal.chat.account.ChangeNumberRequest.DevicePniPqLastResortPreKeysEntry
+	72, // 16: org.signal.chat.account.ChangeNumberRequest.pni_registration_ids:type_name -> org.signal.chat.account.ChangeNumberRequest.PniRegistrationIdsEntry
+	81, // 17: org.signal.chat.account.ChangeNumberResponse.account_identifiers:type_name -> org.signal.chat.common.AccountIdentifiers
+	87, // 18: org.signal.chat.account.ChangeNumberResponse.mismatched_devices:type_name -> org.signal.chat.messages.MismatchedDevices
+	38, // 19: org.signal.chat.account.ChangeNumberResponse.registration_lock_failure:type_name -> org.signal.chat.account.RegistrationLockFailure
+	40, // 20: org.signal.chat.account.ChangeNumberResponse.stale_devices:type_name -> org.signal.chat.account.StaleDevices
+	82, // 21: org.signal.chat.account.ChangeNumberResponse.message_too_large:type_name -> org.signal.chat.errors.FailedPrecondition
+	82, // 22: org.signal.chat.account.ChangeNumberResponse.unverified_registration_session:type_name -> org.signal.chat.errors.FailedPrecondition
+	82, // 23: org.signal.chat.account.ChangeNumberResponse.invalid_registration_session:type_name -> org.signal.chat.errors.FailedPrecondition
+	82, // 24: org.signal.chat.account.ChangeNumberResponse.recovery_password_verification_failed:type_name -> org.signal.chat.errors.FailedPrecondition
+	39, // 25: org.signal.chat.account.RegistrationLockFailure.svr2_credentials:type_name -> org.signal.chat.account.ExternalServiceCredentials
+	88, // 26: org.signal.chat.account.Capabilities.capabilities:type_name -> org.signal.chat.common.DeviceCapability
+	44, // 27: org.signal.chat.account.GetCapabilitiesResponse.capabilities:type_name -> org.signal.chat.account.Capabilities
+	84, // 28: org.signal.chat.account.GetCapabilitiesAnonymousRequest.account_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	44, // 29: org.signal.chat.account.GetCapabilitiesAnonymousResponse.capabilities:type_name -> org.signal.chat.account.Capabilities
+	85, // 30: org.signal.chat.account.GetCapabilitiesAnonymousResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	89, // 31: org.signal.chat.account.GetCapabilitiesAnonymousResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
+	73, // 32: org.signal.chat.account.GenerateTotpKeyResponse.key_generated:type_name -> org.signal.chat.account.GenerateTotpKeyResponse.KeyGenerated
+	82, // 33: org.signal.chat.account.GenerateTotpKeyResponse.too_many_totp_keys:type_name -> org.signal.chat.errors.FailedPrecondition
+	82, // 34: org.signal.chat.account.GenerateTotpKeyResponse.too_many_mfa_keys:type_name -> org.signal.chat.errors.FailedPrecondition
+	74, // 35: org.signal.chat.account.ConfirmTotpKeyResponse.key_confirmed:type_name -> org.signal.chat.account.ConfirmTotpKeyResponse.KeyConfirmed
+	82, // 36: org.signal.chat.account.ConfirmTotpKeyResponse.one_time_password_not_verified:type_name -> org.signal.chat.errors.FailedPrecondition
+	82, // 37: org.signal.chat.account.ConfirmTotpKeyResponse.too_many_mfa_keys:type_name -> org.signal.chat.errors.FailedPrecondition
+	75, // 38: org.signal.chat.account.StartWebAuthnRegistrationResponse.params:type_name -> org.signal.chat.account.StartWebAuthnRegistrationResponse.WebAuthnCreateParameters
+	82, // 39: org.signal.chat.account.StartWebAuthnRegistrationResponse.too_many_mfa_keys:type_name -> org.signal.chat.errors.FailedPrecondition
+	76, // 40: org.signal.chat.account.FinishWebAuthnRegistrationResponse.key_confirmed:type_name -> org.signal.chat.account.FinishWebAuthnRegistrationResponse.KeyConfirmed
+	82, // 41: org.signal.chat.account.FinishWebAuthnRegistrationResponse.key_not_confirmed:type_name -> org.signal.chat.errors.FailedPrecondition
+	82, // 42: org.signal.chat.account.FinishWebAuthnRegistrationResponse.too_many_mfa_keys:type_name -> org.signal.chat.errors.FailedPrecondition
+	78, // 43: org.signal.chat.account.ListMfaKeysResponse.keys:type_name -> org.signal.chat.account.ListMfaKeysResponse.KeysEntry
+	79, // 44: org.signal.chat.account.SetMfaKeyMetadataResponse.success:type_name -> org.signal.chat.account.SetMfaKeyMetadataResponse.MetadataUpdated
+	85, // 45: org.signal.chat.account.SetMfaKeyMetadataResponse.key_not_found:type_name -> org.signal.chat.errors.NotFound
+	80, // 46: org.signal.chat.account.StartMfaVerificationResponse.webauthn_authentication_parameters:type_name -> org.signal.chat.account.StartMfaVerificationResponse.WebAuthnAuthenticationParameters
+	90, // 47: org.signal.chat.account.ChangeNumberRequest.DevicePniSignedPreKeysEntry.value:type_name -> org.signal.chat.common.EcSignedPreKey
+	91, // 48: org.signal.chat.account.ChangeNumberRequest.DevicePniPqLastResortPreKeysEntry.value:type_name -> org.signal.chat.common.KemSignedPreKey
+	48, // 49: org.signal.chat.account.GenerateTotpKeyResponse.KeyGenerated.totp_parameters:type_name -> org.signal.chat.account.TotpParameters
+	0,  // 50: org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadata.type:type_name -> org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadata.MfaKeyType
+	77, // 51: org.signal.chat.account.ListMfaKeysResponse.KeysEntry.value:type_name -> org.signal.chat.account.ListMfaKeysResponse.MfaKeyMetadata
+	1,  // 52: org.signal.chat.account.Accounts.GetAccountIdentity:input_type -> org.signal.chat.account.GetAccountIdentityRequest
+	3,  // 53: org.signal.chat.account.Accounts.GetEntitlements:input_type -> org.signal.chat.account.GetEntitlementsRequest
+	5,  // 54: org.signal.chat.account.Accounts.DeleteAccount:input_type -> org.signal.chat.account.DeleteAccountRequest
+	7,  // 55: org.signal.chat.account.Accounts.SetRegistrationLock:input_type -> org.signal.chat.account.SetRegistrationLockRequest
+	9,  // 56: org.signal.chat.account.Accounts.ClearRegistrationLock:input_type -> org.signal.chat.account.ClearRegistrationLockRequest
+	11, // 57: org.signal.chat.account.Accounts.ReserveUsernameHash:input_type -> org.signal.chat.account.ReserveUsernameHashRequest
+	14, // 58: org.signal.chat.account.Accounts.ConfirmUsernameHash:input_type -> org.signal.chat.account.ConfirmUsernameHashRequest
+	16, // 59: org.signal.chat.account.Accounts.DeleteUsernameHash:input_type -> org.signal.chat.account.DeleteUsernameHashRequest
+	18, // 60: org.signal.chat.account.Accounts.SetUsernameLink:input_type -> org.signal.chat.account.SetUsernameLinkRequest
+	20, // 61: org.signal.chat.account.Accounts.DeleteUsernameLink:input_type -> org.signal.chat.account.DeleteUsernameLinkRequest
+	22, // 62: org.signal.chat.account.Accounts.ConfigureUnidentifiedAccess:input_type -> org.signal.chat.account.ConfigureUnidentifiedAccessRequest
+	24, // 63: org.signal.chat.account.Accounts.SetDiscoverableByPhoneNumber:input_type -> org.signal.chat.account.SetDiscoverableByPhoneNumberRequest
+	26, // 64: org.signal.chat.account.Accounts.SetRegistrationRecoveryPassword:input_type -> org.signal.chat.account.SetRegistrationRecoveryPasswordRequest
+	34, // 65: org.signal.chat.account.Accounts.SetZkCredentialKey:input_type -> org.signal.chat.account.SetZkCredentialKeyRequest
+	36, // 66: org.signal.chat.account.Accounts.ChangeNumber:input_type -> org.signal.chat.account.ChangeNumberRequest
+	41, // 67: org.signal.chat.account.Accounts.GetAccountDataReport:input_type -> org.signal.chat.account.GetAccountDataReportRequest
+	43, // 68: org.signal.chat.account.Accounts.GetCapabilities:input_type -> org.signal.chat.account.GetCapabilitiesRequest
+	49, // 69: org.signal.chat.account.Accounts.GenerateTotpKey:input_type -> org.signal.chat.account.GenerateTotpKeyRequest
+	51, // 70: org.signal.chat.account.Accounts.ConfirmTotpKey:input_type -> org.signal.chat.account.ConfirmTotpKeyRequest
+	53, // 71: org.signal.chat.account.Accounts.StartWebAuthnRegistration:input_type -> org.signal.chat.account.StartWebAuthnRegistrationRequest
+	55, // 72: org.signal.chat.account.Accounts.FinishWebAuthnRegistration:input_type -> org.signal.chat.account.FinishWebAuthnRegistrationRequest
+	57, // 73: org.signal.chat.account.Accounts.ListMfaKeys:input_type -> org.signal.chat.account.ListMfaKeysRequest
+	59, // 74: org.signal.chat.account.Accounts.SetMfaKeyMetadata:input_type -> org.signal.chat.account.SetMfaKeyMetadataRequest
+	61, // 75: org.signal.chat.account.Accounts.RemoveMfaKey:input_type -> org.signal.chat.account.RemoveMfaKeyRequest
+	63, // 76: org.signal.chat.account.Accounts.StartMfaVerification:input_type -> org.signal.chat.account.StartMfaVerificationRequest
+	65, // 77: org.signal.chat.account.Accounts.FinishMfaVerification:input_type -> org.signal.chat.account.FinishMfaVerificationRequest
+	28, // 78: org.signal.chat.account.AccountsAnonymous.CheckAccountExistence:input_type -> org.signal.chat.account.CheckAccountExistenceRequest
+	30, // 79: org.signal.chat.account.AccountsAnonymous.LookupUsernameHash:input_type -> org.signal.chat.account.LookupUsernameHashRequest
+	32, // 80: org.signal.chat.account.AccountsAnonymous.LookupUsernameLink:input_type -> org.signal.chat.account.LookupUsernameLinkRequest
+	46, // 81: org.signal.chat.account.AccountsAnonymous.GetCapabilities:input_type -> org.signal.chat.account.GetCapabilitiesAnonymousRequest
+	2,  // 82: org.signal.chat.account.Accounts.GetAccountIdentity:output_type -> org.signal.chat.account.GetAccountIdentityResponse
+	4,  // 83: org.signal.chat.account.Accounts.GetEntitlements:output_type -> org.signal.chat.account.GetEntitlementsResponse
+	6,  // 84: org.signal.chat.account.Accounts.DeleteAccount:output_type -> org.signal.chat.account.DeleteAccountResponse
+	8,  // 85: org.signal.chat.account.Accounts.SetRegistrationLock:output_type -> org.signal.chat.account.SetRegistrationLockResponse
+	10, // 86: org.signal.chat.account.Accounts.ClearRegistrationLock:output_type -> org.signal.chat.account.ClearRegistrationLockResponse
+	13, // 87: org.signal.chat.account.Accounts.ReserveUsernameHash:output_type -> org.signal.chat.account.ReserveUsernameHashResponse
+	15, // 88: org.signal.chat.account.Accounts.ConfirmUsernameHash:output_type -> org.signal.chat.account.ConfirmUsernameHashResponse
+	17, // 89: org.signal.chat.account.Accounts.DeleteUsernameHash:output_type -> org.signal.chat.account.DeleteUsernameHashResponse
+	19, // 90: org.signal.chat.account.Accounts.SetUsernameLink:output_type -> org.signal.chat.account.SetUsernameLinkResponse
+	21, // 91: org.signal.chat.account.Accounts.DeleteUsernameLink:output_type -> org.signal.chat.account.DeleteUsernameLinkResponse
+	23, // 92: org.signal.chat.account.Accounts.ConfigureUnidentifiedAccess:output_type -> org.signal.chat.account.ConfigureUnidentifiedAccessResponse
+	25, // 93: org.signal.chat.account.Accounts.SetDiscoverableByPhoneNumber:output_type -> org.signal.chat.account.SetDiscoverableByPhoneNumberResponse
+	27, // 94: org.signal.chat.account.Accounts.SetRegistrationRecoveryPassword:output_type -> org.signal.chat.account.SetRegistrationRecoveryPasswordResponse
+	35, // 95: org.signal.chat.account.Accounts.SetZkCredentialKey:output_type -> org.signal.chat.account.SetZkCredentialKeyResponse
+	37, // 96: org.signal.chat.account.Accounts.ChangeNumber:output_type -> org.signal.chat.account.ChangeNumberResponse
+	42, // 97: org.signal.chat.account.Accounts.GetAccountDataReport:output_type -> org.signal.chat.account.GetAccountDataReportResponse
+	45, // 98: org.signal.chat.account.Accounts.GetCapabilities:output_type -> org.signal.chat.account.GetCapabilitiesResponse
+	50, // 99: org.signal.chat.account.Accounts.GenerateTotpKey:output_type -> org.signal.chat.account.GenerateTotpKeyResponse
+	52, // 100: org.signal.chat.account.Accounts.ConfirmTotpKey:output_type -> org.signal.chat.account.ConfirmTotpKeyResponse
+	54, // 101: org.signal.chat.account.Accounts.StartWebAuthnRegistration:output_type -> org.signal.chat.account.StartWebAuthnRegistrationResponse
+	56, // 102: org.signal.chat.account.Accounts.FinishWebAuthnRegistration:output_type -> org.signal.chat.account.FinishWebAuthnRegistrationResponse
+	58, // 103: org.signal.chat.account.Accounts.ListMfaKeys:output_type -> org.signal.chat.account.ListMfaKeysResponse
+	60, // 104: org.signal.chat.account.Accounts.SetMfaKeyMetadata:output_type -> org.signal.chat.account.SetMfaKeyMetadataResponse
+	62, // 105: org.signal.chat.account.Accounts.RemoveMfaKey:output_type -> org.signal.chat.account.RemoveMfaKeyResponse
+	64, // 106: org.signal.chat.account.Accounts.StartMfaVerification:output_type -> org.signal.chat.account.StartMfaVerificationResponse
+	66, // 107: org.signal.chat.account.Accounts.FinishMfaVerification:output_type -> org.signal.chat.account.FinishMfaVerificationResponse
+	29, // 108: org.signal.chat.account.AccountsAnonymous.CheckAccountExistence:output_type -> org.signal.chat.account.CheckAccountExistenceResponse
+	31, // 109: org.signal.chat.account.AccountsAnonymous.LookupUsernameHash:output_type -> org.signal.chat.account.LookupUsernameHashResponse
+	33, // 110: org.signal.chat.account.AccountsAnonymous.LookupUsernameLink:output_type -> org.signal.chat.account.LookupUsernameLinkResponse
+	47, // 111: org.signal.chat.account.AccountsAnonymous.GetCapabilities:output_type -> org.signal.chat.account.GetCapabilitiesAnonymousResponse
+	82, // [82:112] is the sub-list for method output_type
+	52, // [52:82] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_org_signal_chat_account_proto_init() }
@@ -4157,27 +5011,44 @@ func file_org_signal_chat_account_proto_init() {
 	file_org_signal_chat_account_proto_msgTypes[49].OneofWrappers = []any{
 		(*GenerateTotpKeyResponse_KeyGenerated_)(nil),
 		(*GenerateTotpKeyResponse_TooManyTotpKeys)(nil),
+		(*GenerateTotpKeyResponse_TooManyMfaKeys)(nil),
 	}
 	file_org_signal_chat_account_proto_msgTypes[51].OneofWrappers = []any{
 		(*ConfirmTotpKeyResponse_KeyConfirmed_)(nil),
 		(*ConfirmTotpKeyResponse_OneTimePasswordNotVerified)(nil),
+		(*ConfirmTotpKeyResponse_TooManyMfaKeys)(nil),
+	}
+	file_org_signal_chat_account_proto_msgTypes[53].OneofWrappers = []any{
+		(*StartWebAuthnRegistrationResponse_Params)(nil),
+		(*StartWebAuthnRegistrationResponse_TooManyMfaKeys)(nil),
 	}
 	file_org_signal_chat_account_proto_msgTypes[55].OneofWrappers = []any{
-		(*SetTotpKeyMetadataResponse_MetadataUpdated_)(nil),
-		(*SetTotpKeyMetadataResponse_KeyNotFound)(nil),
+		(*FinishWebAuthnRegistrationResponse_KeyConfirmed_)(nil),
+		(*FinishWebAuthnRegistrationResponse_KeyNotConfirmed)(nil),
+		(*FinishWebAuthnRegistrationResponse_TooManyMfaKeys)(nil),
+	}
+	file_org_signal_chat_account_proto_msgTypes[59].OneofWrappers = []any{
+		(*SetMfaKeyMetadataResponse_Success)(nil),
+		(*SetMfaKeyMetadataResponse_KeyNotFound)(nil),
+	}
+	file_org_signal_chat_account_proto_msgTypes[63].OneofWrappers = []any{}
+	file_org_signal_chat_account_proto_msgTypes[64].OneofWrappers = []any{
+		(*FinishMfaVerificationRequest_TotpPassword)(nil),
+		(*FinishMfaVerificationRequest_WebauthnAuthenticationResponseJson)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_org_signal_chat_account_proto_rawDesc), len(file_org_signal_chat_account_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   69,
+			NumEnums:      1,
+			NumMessages:   80,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
 		GoTypes:           file_org_signal_chat_account_proto_goTypes,
 		DependencyIndexes: file_org_signal_chat_account_proto_depIdxs,
+		EnumInfos:         file_org_signal_chat_account_proto_enumTypes,
 		MessageInfos:      file_org_signal_chat_account_proto_msgTypes,
 	}.Build()
 	File_org_signal_chat_account_proto = out.File

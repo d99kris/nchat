@@ -80,22 +80,42 @@ service Accounts {
 
   // Generates and stores a pending TOTP key for the authenticated account.
   // To "activate" the key, callers must call the `ConfirmTotpKey` endpoint.
+  //
+  // TOTP keys may only be generated for accounts without phone numbers.
   rpc GenerateTotpKey(GenerateTotpKeyRequest) returns (GenerateTotpKeyResponse) {}
 
   // Confirms that the caller has stored and can derive one-time passwords from
   // a pending TOTP key generated via `GenerateTotpKey` and stores/activates the
   // key for the caller's account
+  //
+  // TOTP keys may only be generated for accounts without phone numbers.
   rpc ConfirmTotpKey(ConfirmTotpKeyRequest) returns (ConfirmTotpKeyResponse) {}
 
-  // Returns a list of confirmed TOTP keys for the authenticated account
-  rpc ListTotpKeys(ListTotpKeysRequest) returns (ListTotpKeysResponse) {}
+  // Returns parameters for initiating a WebAuthn registration ceremony
+  //
+  // WebAuthn credentials may only be registered for accounts without phone numbers
+  rpc StartWebAuthnRegistration(StartWebAuthnRegistrationRequest) returns (StartWebAuthnRegistrationResponse) {}
+
+  // Concludes a WebAuthn registration ceremony to add a passkey to the authenticated account
+  //
+  // WebAuthn credentials may only be registered for accounts without phone numbers
+  rpc FinishWebAuthnRegistration(FinishWebAuthnRegistrationRequest) returns (FinishWebAuthnRegistrationResponse) {}
+
+  // Returns a list of confirmed MFA keys for the authenticated account
+  rpc ListMfaKeys(ListMfaKeysRequest) returns (ListMfaKeysResponse) {}
 
   // Updates encrypted, user-supplied metadata (e.g. a human-readable name and
-  // creation timestamp) for an existing, confirmed TOTP key
-  rpc SetTotpKeyMetadata(SetTotpKeyMetadataRequest) returns (SetTotpKeyMetadataResponse) {}
+  // creation timestamp) for an existing, confirmed MFA key
+  rpc SetMfaKeyMetadata(SetMfaKeyMetadataRequest) returns (SetMfaKeyMetadataResponse) {}
 
-  // Removes a TOTP from the authenticated account
-  rpc RemoveTotpKey(RemoveTotpKeyRequest) returns (RemoveTotpKeyResponse) {}
+  // Removes an MFA key from the authenticated account
+  rpc RemoveMfaKey(RemoveMfaKeyRequest) returns (RemoveMfaKeyResponse) {}
+
+  // Requests the parameters needed to verify with an MFA factor associated with this account.
+  rpc StartMfaVerification(StartMfaVerificationRequest) returns (StartMfaVerificationResponse) {}
+
+  // Attemps to verify an MFA factor associated with this account.
+  rpc FinishMfaVerification(FinishMfaVerificationRequest) returns (FinishMfaVerificationResponse) {}
 }
 
 // Provides methods for looking up Signal accounts. Callers must not provide
@@ -533,6 +553,10 @@ message GenerateTotpKeyResponse {
     // The authenticated account already has too many TOTP keys, and the caller
     // must remove one before adding more
     errors.FailedPrecondition too_many_totp_keys = 2 [(tag.reason) = "too_many_totp_keys"];
+
+    // The authenticated account already has too many MFA keys of all types, and
+    // the caller must remove one before adding more
+    errors.FailedPrecondition too_many_mfa_keys = 3 [(tag.reason) = "too_many_mfa_keys"];
   }
 }
 
@@ -549,7 +573,7 @@ message ConfirmTotpKeyRequest {
 message ConfirmTotpKeyResponse {
   message KeyConfirmed {
     // The account-specific identifier for the newly-confirmed TOTP key
-    uint32 key_id = 1;
+    uint32 key_id = 1 [(require.range) = {min: 0, max: 127}];
   }
 
   oneof response {
@@ -560,49 +584,160 @@ message ConfirmTotpKeyResponse {
     // The provided one-time password was not valid for any reason (including
     // incorrect passwords, misaligned clocks, or missing account records)
     errors.FailedPrecondition one_time_password_not_verified = 2 [(tag.reason) = "one_time_password_not_verified"];
+
+    // The authenticated account already has too many MFA keys of all types, and
+    // the caller must remove one before adding more
+    errors.FailedPrecondition too_many_mfa_keys = 3 [(tag.reason) = "too_many_mfa_keys"];
   }
 }
 
-message ListTotpKeysRequest {}
-
-message ListTotpKeysResponse {
-  message TotpKeyMetadata {
-    // The user-provided ciphertext for metadata associated with this TOTP key
-    bytes metadata_ciphertext = 1;
-
-    // The TOTP parameters associated with this key
-    TotpParameters totp_parameters = 2;
-  }
-
-  map<int32, TotpKeyMetadata> keys = 1;
+message StartWebAuthnRegistrationRequest {
 }
 
-message SetTotpKeyMetadataRequest {
-  // The account-specific identifier of the TOTP key to modify
-  uint32 key_id = 1;
+message StartWebAuthnRegistrationResponse {
+  message WebAuthnCreateParameters {
+    // The "user handle" (user.id) that should be handed to the authenticator
+    bytes user_handle = 1;
+
+    // The COSE IDs (https://www.iana.org/assignments/cose#algorithms) of
+    // acceptable algorithms for the created key
+    repeated int64 allowed_algorithms = 2;
+
+    // A list of the credential IDs already registered for this account; these
+    // can be passed to candidate authenticators to tell them not to create a
+    // new key if they already have a private key matching one of these
+    repeated bytes exclude_credential_ids = 3;
+  }
+
+  oneof response {
+    // The parameters to use for a WebAuthn registration ceremony
+    WebAuthnCreateParameters params = 1;
+
+    // The authenticated account already has too many MFA keys, and the
+    // caller must remove one before adding one
+    errors.FailedPrecondition too_many_mfa_keys = 2 [(tag.reason) = "too_many_mfa_keys"];
+  }
+}
+
+message FinishWebAuthnRegistrationRequest {
+  // The attestation object from a completed registration ceremony, serialized
+  // as specified in https://www.w3.org/TR/webauthn/#attestation-object
+  bytes attestation_object = 1;
+
+  // The "collected client data" map used in the registration ceremony, as the
+  // exact JSON map that was hashed for the authenticator
+  string collected_client_data_json = 2;
+
+  // The ciphertext of user-provided metadata (presumably including a
+  // human-readable name and creation timestamp) to be attached to the
+  // newly-confirmed key
+  bytes metadata_ciphertext = 3 [(require.exactlySize) = 160];
+}
+
+message FinishWebAuthnRegistrationResponse {
+  message KeyConfirmed {
+    // An account-specific identifier for the new WebAuthn key
+    uint32 key_id = 1 [(require.range) = {min: 0, max: 127}];
+  }
+
+  oneof response {
+    // The provided public key has been registered for the account
+    KeyConfirmed key_confirmed = 1;
+
+    // The registration response was not verified successfully for any reason
+    errors.FailedPrecondition key_not_confirmed = 2 [(tag.reason) = "registration_ceremony_unsuccessful"];
+
+    // The authenticated account already has too many MFA keys, and the
+    // caller must remove one before adding one (this can be true even if it
+    // was not when starting the request, since there is nothing to prevent
+    // multiple registrations from occurring in parallel)
+    errors.FailedPrecondition too_many_mfa_keys = 3 [(tag.reason) = "too_many_mfa_keys"];
+  }
+}
+
+message ListMfaKeysRequest {}
+
+message ListMfaKeysResponse {
+  message MfaKeyMetadata {
+    enum MfaKeyType {
+      MFA_KEY_TYPE_UNSPECIFIED = 0;
+      MFA_KEY_TYPE_TOTP = 1;
+      MFA_KEY_TYPE_WEBAUTHN = 2;
+    }
+
+    // The user-provided ciphertext for metadata associated with this MFA key
+    bytes metadata_ciphertext = 1 [(require.exactlySize) = 160];
+
+    // The type of MFA factor this key is for
+    MfaKeyType type = 2;
+  }
+
+  map<uint32, MfaKeyMetadata> keys = 1;
+}
+
+message SetMfaKeyMetadataRequest {
+  // The account-specific identifier of the MFA key to modify
+  uint32 key_id = 1 [(require.range) = {min: 0, max: 127}];
 
   // The ciphertext of the new user-provided metadata to be attached to the
   // identified key
   bytes metadata_ciphertext = 2 [(require.exactlySize) = 160];
 }
 
-message SetTotpKeyMetadataResponse {
+message SetMfaKeyMetadataResponse {
   message MetadataUpdated {
   }
 
   oneof response {
-    // New metadata was stored for the identified TOTP key
-    MetadataUpdated metadata_updated = 1;
+    // New metadata was stored for the identified key
+    MetadataUpdated success = 1;
 
     // No TOTP was found with the given ID
     errors.NotFound key_not_found = 2 [(tag.reason) = "key_not_found"];
   }
 }
 
-message RemoveTotpKeyRequest {
-  // The account-specific identifier of the TOTP key to remove
-  uint32 key_id = 1;
+message RemoveMfaKeyRequest {
+  // The account-specific identifier of the MFA key to remove
+  uint32 key_id = 1 [(require.range) = {min: 0, max: 127}];
 }
 
-message RemoveTotpKeyResponse {
+message RemoveMfaKeyResponse {
+}
+
+message StartMfaVerificationRequest {
+}
+
+message StartMfaVerificationResponse {
+  /// If true, a TOTP password will be accepted for verification
+  bool has_totp = 1;
+
+  message WebAuthnAuthenticationParameters {
+    /// A random challenge that must be included in the authenticator response, to prevent replay attacks
+    bytes challenge = 1;
+
+    /// The estimated amount of time, in seconds, after which an otherwise-valid response will be rejected
+    uint32 timeout_seconds = 2;
+
+    /// A list of credential IDs associated with this account
+    repeated bytes allowed_credential_ids = 3;
+  }
+
+  /// If present, information required to complete a WebAuthn authentication
+  optional WebAuthnAuthenticationParameters webauthn_authentication_parameters = 2;
+}
+
+message FinishMfaVerificationRequest {
+  oneof credential {
+    /// A 6-digit TOTP password to validate
+    uint32 totp_password = 1;
+
+    /// A WebAuthn-compatible JSON-serialized authentication response
+    string webauthn_authentication_response_json = 2;
+  }
+}
+
+message FinishMfaVerificationResponse {
+  /// If true, the selected authentication factor was verified correctly.
+  bool success = 1;
 }

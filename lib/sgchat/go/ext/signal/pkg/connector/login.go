@@ -17,6 +17,7 @@
 package connector
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -220,7 +221,7 @@ func (qr *QRLogin) loginComplete(ctx context.Context, provData *store.DeviceData
 	defer qr.cancelChan()
 	ul, err := qr.User.NewLogin(ctx, &database.UserLogin{
 		ID:         signalid.MakeUserLoginID(provData.ACI),
-		RemoteName: provData.Number,
+		RemoteName: cmp.Or(provData.Number, provData.ACI.String()),
 		RemoteProfile: status.RemoteProfile{
 			Phone: provData.Number,
 		},
