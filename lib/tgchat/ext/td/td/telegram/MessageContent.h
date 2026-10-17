@@ -9,14 +9,15 @@
 #include "td/telegram/BackgroundInfo.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatTheme.h"
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/EncryptedFile.h"
 #include "td/telegram/EphemeralMessageFullId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/ForumTopicId.h"
+#include "td/telegram/InlineMessageContent.h"
 #include "td/telegram/InputGroupCallId.h"
-#include "td/telegram/InputMedia.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageContentDupType.h"
 #include "td/telegram/MessageContentType.h"
@@ -29,7 +30,6 @@
 #include "td/telegram/Photo.h"
 #include "td/telegram/PollId.h"
 #include "td/telegram/QuickReplyMessageFullId.h"
-#include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/secret_api.h"
 #include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/StickerType.h"
@@ -51,6 +51,7 @@ namespace td {
 
 class Dependencies;
 class Game;
+struct InputMedia;
 class MultiPromiseActor;
 struct Photo;
 class RepliedMessageInfo;
@@ -92,13 +93,6 @@ struct InputMessageContent {
   }
 };
 
-struct InlineMessageContent {
-  unique_ptr<MessageContent> message_content;
-  unique_ptr<ReplyMarkup> message_reply_markup;
-  bool disable_web_page_preview = false;
-  bool invert_media = false;
-};
-
 void store_message_content(const MessageContent *content, LogEventStorerCalcLength &storer);
 
 void store_message_content(const MessageContent *content, LogEventStorerUnsafe &storer);
@@ -131,6 +125,10 @@ unique_ptr<MessageContent> create_video_message_content(FileId file_id, Photo co
 unique_ptr<MessageContent> create_voice_note_message_content(FileId voice_note_file_id);
 
 unique_ptr<MessageContent> create_contact_registered_message_content();
+
+unique_ptr<MessageContent> create_gram_transfer_message_content(int64 amount, const string &peer_address,
+                                                                const string &transaction_id, const string &comment,
+                                                                bool is_comment_encrypted);
 
 unique_ptr<MessageContent> create_screenshot_taken_message_content();
 
@@ -197,6 +195,8 @@ ChatTheme get_message_content_chat_theme(const MessageContent *content);
 MessageFullId get_message_content_replied_message_full_id(DialogId dialog_id, const MessageContent *content);
 
 std::pair<InputGroupCallId, bool> get_message_content_group_call_info(const MessageContent *content);
+
+vector<CustomEmojiId> get_message_content_custom_emoji_ids(const MessageContent *content);
 
 vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageContent *message_content);
 

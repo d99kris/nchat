@@ -224,6 +224,10 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("welcome_message_count_max", is_test_dc ? 5 : 3);
   set_default_integer_option("community_chat_count_max", is_test_dc ? 10 : 100);
   set_default_integer_option("community_bot_count_max", is_test_dc ? 10 : 100);
+  set_default_integer_option("ton_wallet_transfer_amount_min", 100000000);
+  set_default_integer_option("ton_wallet_gasless_transfer_amount_min", 100000000);
+  set_default_integer_option("ton_wallet_gasless_transfer_daily_count_max", 0);
+  set_default_integer_option("secondary_bot_username_count_max", 2);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -448,6 +452,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "animation_search_provider",
                                                               "authorization_autoconfirm_period",
                                                               "base_language_pack_version",
+                                                              "bot_allowed_suffixes",
                                                               "bots_create_limit_default",
                                                               "bots_create_limit_premium",
                                                               "business_features",
@@ -567,6 +572,10 @@ bool OptionManager::is_internal_option(Slice name) {
 }
 
 td_api::object_ptr<td_api::Update> OptionManager::get_internal_option_update(Slice name) const {
+  if (name == "bot_allowed_suffixes") {
+    return td_api::make_object<td_api::updateAllowedBotUsernamePremiumSuffixes>(
+        full_split(get_option_string(name), ' '));
+  }
   if (name == "default_reaction") {
     return ReactionType(get_option_string(name)).get_update_default_reaction_type();
   }
@@ -811,7 +820,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.67");
+        return td_api::make_object<td_api::optionValueString>("1.8.68");
       }
       break;
   }

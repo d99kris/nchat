@@ -15,6 +15,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/MessageEntity.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/StoryContent.h"
@@ -721,7 +722,7 @@ class SetCustomVerificationQuery final : public Td::ResultHandler {
   }
 
   void send(telegram_api::object_ptr<telegram_api::InputUser> input_user, DialogId dialog_id, bool is_verified,
-            const string &custom_description) {
+            const FormattedText &custom_description) {
     dialog_id_ = dialog_id;
     auto input_peer =
         td_->dialog_manager_->get_input_peer(dialog_id, is_verified ? AccessRights::Read : AccessRights::Know);
@@ -731,12 +732,15 @@ class SetCustomVerificationQuery final : public Td::ResultHandler {
     if (input_user != nullptr) {
       flags |= telegram_api::bots_setCustomVerification::BOT_MASK;
     }
-    if (!custom_description.empty()) {
+    telegram_api::object_ptr<telegram_api::textWithEntities> description;
+    if (!custom_description.text.empty()) {
+      description =
+          get_input_text_with_entities(td_->user_manager_.get(), custom_description, "SetCustomVerificationQuery");
       flags |= telegram_api::bots_setCustomVerification::CUSTOM_DESCRIPTION_MASK;
     }
     send_query(G()->net_query_creator().create(
         telegram_api::bots_setCustomVerification(flags, is_verified, std::move(input_user), std::move(input_peer),
-                                                 custom_description),
+                                                 std::move(description)),
         {{dialog_id}}));
   }
 
@@ -1219,7 +1223,8 @@ void BotInfoManager::get_bot_info_about(UserId bot_user_id, const string &langua
 }
 
 void BotInfoManager::set_custom_bot_verification(UserId bot_user_id, DialogId dialog_id, bool is_verified,
-                                                 const string &custom_description, Promise<Unit> &&promise) {
+                                                 td_api::object_ptr<td_api::formattedText> &&custom_description,
+                                                 Promise<Unit> &&promise) {
   telegram_api::object_ptr<telegram_api::InputUser> bot_input_user;
   if (bot_user_id != UserId()) {
     TRY_RESULT_PROMISE_ASSIGN(promise, bot_input_user, td_->user_manager_->get_input_user(bot_user_id));
@@ -1227,8 +1232,12 @@ void BotInfoManager::set_custom_bot_verification(UserId bot_user_id, DialogId di
   if (!td_->dialog_manager_->have_input_peer(dialog_id, false, is_verified ? AccessRights::Read : AccessRights::Know)) {
     return promise.set_error(400, "Can't access the verified entity");
   }
+  TRY_RESULT_PROMISE(promise, description,
+                     get_formatted_text(td_, td_->dialog_manager_->get_my_dialog_id(), std::move(custom_description),
+                                        td_->auth_manager_->is_bot(), true, true, true));
+  keep_only_text_url(description);
   td_->create_handler<SetCustomVerificationQuery>(std::move(promise))
-      ->send(std::move(bot_input_user), dialog_id, is_verified, custom_description);
+      ->send(std::move(bot_input_user), dialog_id, is_verified, description);
 }
 
 }  // namespace td

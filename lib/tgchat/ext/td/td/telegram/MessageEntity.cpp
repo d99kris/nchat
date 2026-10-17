@@ -14,11 +14,13 @@
 #include "td/telegram/SecretChatLayer.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/TonWalletManager.h"
 #include "td/telegram/UserManager.h"
 
 #include "td/actor/MultiPromise.h"
 
 #include "td/utils/algorithm.h"
+#include "td/utils/base64.h"
 #include "td/utils/HashTableUtils.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -58,7 +60,8 @@ int MessageEntity::get_type_priority(Type type) {
                                    94 /*Spoiler*/,
                                    99 /*CustomEmoji*/,
                                    0 /*ExpandableBlockQuote*/,
-                                   30 /*FormattedDate*/};
+                                   30 /*FormattedDate*/,
+                                   50 /*TonAddress*/};
   static_assert(sizeof(priorities) / sizeof(priorities[0]) == static_cast<size_t>(MessageEntity::Type::Size));
   return priorities[static_cast<int32>(type)];
 }
@@ -111,6 +114,8 @@ StringBuilder &operator<<(StringBuilder &string_builder, const MessageEntity::Ty
       return string_builder << "ExpandableBlockQuote";
     case MessageEntity::Type::FormattedDate:
       return string_builder << "Date";
+    case MessageEntity::Type::TonAddress:
+      return string_builder << "TonAddress";
     default:
       UNREACHABLE();
       return string_builder << "Impossible";
@@ -191,6 +196,8 @@ tl_object_ptr<td_api::TextEntityType> MessageEntity::get_text_entity_type_object
     case MessageEntity::Type::FormattedDate:
       return make_tl_object<td_api::textEntityTypeDateTime>(date.get_date(),
                                                             date.get_date_time_formatting_type_object());
+    case MessageEntity::Type::TonAddress:
+      return make_tl_object<td_api::textEntityTypeTonAddress>();
     default:
       UNREACHABLE();
       return nullptr;
@@ -629,6 +636,35 @@ static vector<Slice> match_bank_card_numbers(Slice str) {
     }
 
     result.emplace_back(card_number_begin, card_number_end);
+  }
+  return result;
+}
+
+static vector<Slice> match_ton_addresses(Slice str) {
+  vector<Slice> result;
+  const unsigned char *begin = str.ubegin();
+  const unsigned char *end = str.uend();
+  const unsigned char *ptr = begin;
+
+  // '/(?<![A-Za-z0-9_\-+\/])[EUk0][A-Za-z0-9_\-+\/]{47}(?![A-Za-z0-9_\-+\/])/'
+
+  while (true) {
+    while (ptr != end && !is_base64any_character(*ptr)) {
+      ptr++;
+    }
+    if (ptr == end) {
+      break;
+    }
+    auto ton_address_begin = ptr;
+    while (ptr != end && is_base64any_character(*ptr)) {
+      ptr++;
+    }
+
+    auto ton_address = Slice(ton_address_begin, ptr);
+    if (TonWalletManager::check_ton_address(ton_address).is_error()) {
+      continue;
+    }
+    result.push_back(ton_address);
   }
   return result;
 }
@@ -1384,6 +1420,10 @@ vector<Slice> find_bank_card_numbers(Slice str) {
   return result;
 }
 
+vector<Slice> find_ton_addresses(Slice str) {
+  return match_ton_addresses(str);
+}
+
 vector<Slice> find_tg_urls(Slice str) {
   return match_tg_urls(str);
 }
@@ -1508,7 +1548,7 @@ static constexpr int32 get_continuous_entities_mask() {
          get_entity_type_mask(MessageEntity::Type::PhoneNumber) |
          get_entity_type_mask(MessageEntity::Type::BankCardNumber) |
          get_entity_type_mask(MessageEntity::Type::MediaTimestamp) |
-         get_entity_type_mask(MessageEntity::Type::CustomEmoji);
+         get_entity_type_mask(MessageEntity::Type::CustomEmoji) | get_entity_type_mask(MessageEntity::Type::TonAddress);
 }
 
 static constexpr int32 get_pre_entities_mask() {
@@ -1729,6 +1769,7 @@ bool is_found_entity_type(MessageEntity::Type type, bool skip_bot_commands, bool
     case MessageEntity::Type::BankCardNumber:
     case MessageEntity::Type::Url:
     case MessageEntity::Type::EmailAddress:
+    case MessageEntity::Type::TonAddress:
       return true;
     case MessageEntity::Type::BotCommand:
       return !skip_bot_commands;
@@ -1758,6 +1799,7 @@ vector<MessageEntity> find_entities(Slice text, bool skip_bot_commands, bool ski
   add_entities(MessageEntity::Type::Cashtag, find_cashtags);
   // TODO find_phone_numbers
   add_entities(MessageEntity::Type::BankCardNumber, find_bank_card_numbers);
+  add_entities(MessageEntity::Type::TonAddress, find_ton_addresses);
   add_entities(MessageEntity::Type::Url, find_tg_urls);
   auto urls = find_urls(text);
   for (auto &url : urls) {
@@ -1895,6 +1937,8 @@ Slice get_first_url(const FormattedText &text) {
       case MessageEntity::Type::ExpandableBlockQuote:
         break;
       case MessageEntity::Type::FormattedDate:
+        break;
+      case MessageEntity::Type::TonAddress:
         break;
       default:
         UNREACHABLE();
@@ -2628,18 +2672,47 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
     unallowed_boundaries.insert(entity.offset + entity.length + 1);
     if (entity.type == MessageEntity::Type::Mention || entity.type == MessageEntity::Type::Hashtag ||
         entity.type == MessageEntity::Type::BotCommand || entity.type == MessageEntity::Type::Cashtag ||
-        entity.type == MessageEntity::Type::PhoneNumber || entity.type == MessageEntity::Type::BankCardNumber) {
+        entity.type == MessageEntity::Type::PhoneNumber || entity.type == MessageEntity::Type::BankCardNumber ||
+        entity.type == MessageEntity::Type::TonAddress) {
       for (int32 i = 1; i < entity.length; i++) {
         unallowed_boundaries.insert(entity.offset + i + 1);
       }
     }
   }
 
+  // URLs and email addresses absorb adjacent markup like "~~t.me/a~~", so markup at their beginning can only open
+  // an entity and markup at their end can only close one, while markup inside them isn't parsed
+  FlatHashSet<int32, Hash<int32>> opening_only_positions;
+  FlatHashSet<int32, Hash<int32>> closing_only_positions;
+  auto is_markup_character = [](char c) {
+    return c == '_' || c == '*' || c == '~' || c == '|';
+  };
   auto found_entities = find_entities(text, false, true);
-  td::remove_if(found_entities, [](const auto &entity) {
-    return entity.type == MessageEntity::Type::EmailAddress || entity.type == MessageEntity::Type::Url;
-  });
+  Slice left_text = text;
+  int32 left_text_offset = 0;
   for (auto &entity : found_entities) {
+    if (entity.type == MessageEntity::Type::EmailAddress || entity.type == MessageEntity::Type::Url) {
+      CHECK(entity.offset >= left_text_offset);
+      left_text = utf8_utf16_substr(left_text, entity.offset - left_text_offset);
+      auto entity_text = utf8_utf16_substr(left_text, 0, entity.length);
+      left_text = left_text.substr(entity_text.size());
+      left_text_offset = entity.offset + entity.length;
+      int32 prefix_length = 0;
+      while (prefix_length < entity.length && is_markup_character(entity_text[prefix_length])) {
+        opening_only_positions.insert(entity.offset + prefix_length + 1);
+        prefix_length++;
+      }
+      int32 suffix_length = 0;
+      while (prefix_length + suffix_length < entity.length &&
+             is_markup_character(entity_text[entity_text.size() - suffix_length - 1])) {
+        suffix_length++;
+        closing_only_positions.insert(entity.offset + entity.length - suffix_length + 1);
+      }
+      for (int32 i = prefix_length + 1; i < entity.length - suffix_length; i++) {
+        unallowed_boundaries.insert(entity.offset + i + 1);
+      }
+      continue;
+    }
     for (int32 i = 0; i <= entity.length; i++) {
       unallowed_boundaries.insert(entity.offset + i + 1);
     }
@@ -2653,8 +2726,7 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
     if (is_utf8_character_first_code_unit(c)) {
       utf16_offset += 1 + (c >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
     }
-    if ((c == '_' || c == '*' || c == '~' || c == '|') && text[i] == text[i + 1] &&
-        unallowed_boundaries.count(utf16_offset + 1) == 0) {
+    if (is_markup_character(c) && text[i] == text[i + 1] && unallowed_boundaries.count(utf16_offset + 1) == 0) {
       auto j = i + 2;
       while (j != text.size() && text[j] == text[i] &&
              unallowed_boundaries.count(utf16_offset + static_cast<int32>(j - i)) == 0) {
@@ -2678,12 +2750,14 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
         }();
         auto index = get_splittable_entity_type_index(type);
         if (splittable_entity_offset[index] != 0) {
-          auto length = utf16_offset - splittable_entity_offset[index] - 1;
-          if (length > 0) {
-            result.emplace_back(type, splittable_entity_offset[index], length);
+          if (opening_only_positions.count(utf16_offset) == 0) {
+            auto length = utf16_offset - splittable_entity_offset[index] - 1;
+            if (length > 0) {
+              result.emplace_back(type, splittable_entity_offset[index], length);
+            }
+            splittable_entity_offset[index] = 0;
           }
-          splittable_entity_offset[index] = 0;
-        } else {
+        } else if (closing_only_positions.count(utf16_offset) == 0) {
           splittable_entity_offset[index] = utf16_offset + 1;
         }
       }
@@ -3658,6 +3732,8 @@ vector<tl_object_ptr<secret_api::MessageEntity>> get_input_secret_message_entiti
         break;
       case MessageEntity::Type::FormattedDate:
         break;
+      case MessageEntity::Type::TonAddress:
+        break;
       default:
         UNREACHABLE();
     }
@@ -3790,6 +3866,9 @@ Result<vector<MessageEntity>> get_message_entities(const UserManager *user_manag
         entities.emplace_back(MessageEntity::Type::FormattedDate, offset, length, std::move(date));
         break;
       }
+      case td_api::textEntityTypeTonAddress::ID:
+        entities.emplace_back(MessageEntity::Type::TonAddress, offset, length);
+        break;
       default:
         UNREACHABLE();
     }
@@ -3938,6 +4017,11 @@ vector<MessageEntity> get_message_entities(const UserManager *user_manager,
           continue;
         }
         entities.emplace_back(MessageEntity::Type::FormattedDate, entity->offset_, entity->length_, std::move(date));
+        break;
+      }
+      case telegram_api::messageEntityTonAddress::ID: {
+        auto entity = static_cast<const telegram_api::messageEntityTonAddress *>(server_entity.get());
+        entities.emplace_back(MessageEntity::Type::TonAddress, entity->offset_, entity->length_);
         break;
       }
       case telegram_api::messageEntityDiffInsert::ID:
@@ -4855,6 +4939,11 @@ bool is_allowed_quote_entity_type(MessageEntity::Type type) {
 bool keep_only_custom_emoji(FormattedText &text) {
   return td::remove_if(text.entities,
                        [](const MessageEntity &entity) { return entity.type != MessageEntity::Type::CustomEmoji; });
+}
+
+bool keep_only_text_url(FormattedText &text) {
+  return td::remove_if(text.entities,
+                       [](const MessageEntity &entity) { return entity.type != MessageEntity::Type::TextUrl; });
 }
 
 void remove_premium_custom_emoji_entities(const Td *td, vector<MessageEntity> &entities, bool remove_unknown) {

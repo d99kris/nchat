@@ -39,6 +39,13 @@ Usernames::Usernames(string &&first_username, vector<telegram_api::object_ptr<te
       LOG(ERROR) << "Receive duplicate username";
       continue;
     }
+    if (username->deletable_) {
+      username->editable_ = false;
+      deletable_usernames_.push_back(username->username_);
+    }
+    if (username->expired_) {
+      expired_usernames_.push_back(username->username_);
+    }
     if (username->editable_) {
       if (was_editable) {
         username->editable_ = false;
@@ -74,17 +81,20 @@ td_api::object_ptr<td_api::usernames> Usernames::get_usernames_object() const {
   auto editable_username = get_editable_username();
   vector<string> collectible_usernames;
   for (const auto &username : active_usernames_) {
-    if (username != editable_username && !td::contains(other_editable_usernames_, username)) {
+    if (username != editable_username && !td::contains(other_editable_usernames_, username) &&
+        !td::contains(deletable_usernames_, username)) {
       collectible_usernames.push_back(username);
     }
   }
   for (const auto &username : disabled_usernames_) {
-    if (username != editable_username && !td::contains(other_editable_usernames_, username)) {
+    if (username != editable_username && !td::contains(other_editable_usernames_, username) &&
+        !td::contains(deletable_usernames_, username)) {
       collectible_usernames.push_back(username);
     }
   }
   return td_api::make_object<td_api::usernames>(vector<string>(active_usernames_), vector<string>(disabled_usernames_),
-                                                get_editable_username().str(), std::move(collectible_usernames));
+                                                get_editable_username().str(), std::move(collectible_usernames),
+                                                deletable_usernames_.empty() ? string() : deletable_usernames_[0]);
 }
 
 Usernames Usernames::change_editable_username(string &&new_username) const {
@@ -112,6 +122,9 @@ Usernames Usernames::change_editable_username(string &&new_username) const {
 }
 
 bool Usernames::can_toggle(bool for_bot, const string &username) const {
+  if (td::contains(deletable_usernames_, username)) {
+    return false;
+  }
   if (td::contains(active_usernames_, username)) {
     if (!has_editable_username() || is_editable_username_disabled_ ||
         active_usernames_[editable_username_pos_] != username) {
@@ -198,6 +211,70 @@ Usernames Usernames::toggle(bool for_bot, const string &username, bool is_active
     }
   }
   UNREACHABLE();
+  return result;
+}
+
+bool Usernames::can_add_secondary(const string &username) const {
+  if (!deletable_usernames_.empty()) {
+    return false;
+  }
+  if (username.empty()) {
+    return false;
+  }
+  if (td::contains(active_usernames_, username) || td::contains(disabled_usernames_, username)) {
+    return false;
+  }
+  return true;
+}
+
+Usernames Usernames::add_secondary(const string &username) const {
+  Usernames result = *this;
+  if (!can_add_secondary(username)) {
+    return result;
+  }
+  result.deletable_usernames_.push_back(username);
+  result.active_usernames_.insert(result.active_usernames_.begin(), username);
+  if (result.has_editable_username() && !result.is_editable_username_disabled_) {
+    result.editable_username_pos_++;
+  }
+  result.check_validness();
+  return result;
+}
+
+bool Usernames::can_delete_secondary(const string &username) const {
+  return td::contains(deletable_usernames_, username) && get_editable_username() != username;
+}
+
+Usernames Usernames::delete_secondary(const string &username) const {
+  Usernames result = *this;
+  if (!can_delete_secondary(username)) {
+    return result;
+  }
+  td::remove(result.deletable_usernames_, username);
+  for (size_t i = 0; i < active_usernames_.size(); i++) {
+    if (active_usernames_[i] == username) {
+      result.active_usernames_.erase(result.active_usernames_.begin() + i);
+      if (has_editable_username() && !is_editable_username_disabled_ &&
+          i <= static_cast<size_t>(result.editable_username_pos_)) {
+        CHECK(i < static_cast<size_t>(result.editable_username_pos_));
+        result.editable_username_pos_--;
+      }
+    }
+  }
+  for (size_t i = 0; i < disabled_usernames_.size(); i++) {
+    if (disabled_usernames_[i] == username) {
+      result.disabled_usernames_.erase(result.disabled_usernames_.begin() + i);
+      if (has_editable_username() && is_editable_username_disabled_ &&
+          i <= static_cast<size_t>(result.editable_username_pos_)) {
+        CHECK(i < static_cast<size_t>(result.editable_username_pos_));
+        result.editable_username_pos_--;
+      }
+    }
+  }
+  result.check_validness();
+  if (result.active_usernames_.empty() && result.has_editable_username()) {
+    result = result.toggle(true, result.get_editable_username().str(), true);
+  }
   return result;
 }
 
@@ -296,7 +373,9 @@ void Usernames::check_validness() {
 
 bool operator==(const Usernames &lhs, const Usernames &rhs) {
   return lhs.active_usernames_ == rhs.active_usernames_ && lhs.disabled_usernames_ == rhs.disabled_usernames_ &&
-         lhs.editable_username_pos_ == rhs.editable_username_pos_;
+         lhs.editable_username_pos_ == rhs.editable_username_pos_ && lhs.is_editable_username_disabled_ == rhs.is_editable_username_disabled_ &&
+         lhs.other_editable_usernames_ == rhs.other_editable_usernames_ &&
+         lhs.deletable_usernames_ == rhs.deletable_usernames_ && lhs.expired_usernames_ == rhs.expired_usernames_;
 }
 
 bool operator!=(const Usernames &lhs, const Usernames &rhs) {
@@ -313,6 +392,15 @@ StringBuilder &operator<<(StringBuilder &string_builder, const Usernames &userna
   }
   if (!usernames.disabled_usernames_.empty()) {
     string_builder << ", disabled " << usernames.disabled_usernames_;
+  }
+  if (!usernames.other_editable_usernames_.empty()) {
+    string_builder << ", other editable " << usernames.other_editable_usernames_;
+  }
+  if (!usernames.deletable_usernames_.empty()) {
+    string_builder << ", deletable " << usernames.deletable_usernames_;
+  }
+  if (!usernames.expired_usernames_.empty()) {
+    string_builder << ", expired " << usernames.expired_usernames_;
   }
   return string_builder << ']';
 }

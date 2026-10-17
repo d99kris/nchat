@@ -133,6 +133,9 @@ class UpdatesManager final : public Actor {
   static telegram_api::object_ptr<telegram_api::StoryItem> extract_story(telegram_api::Updates *updates_ptr,
                                                                          DialogId owner_dialog_id, bool is_business);
 
+  static telegram_api::object_ptr<telegram_api::updateSentWalletTransaction> extract_sent_wallet_transaction(
+      telegram_api::Updates *updates_ptr);
+
   static vector<DialogId> get_update_notify_settings_dialog_ids(const telegram_api::Updates *updates_ptr);
 
   static vector<DialogId> get_chat_dialog_ids(const telegram_api::Updates *updates_ptr);
@@ -777,7 +780,17 @@ class UpdatesManager final : public Actor {
 
   void on_update(tl_object_ptr<telegram_api::updateStarsBalance> update, Promise<Unit> &&promise);
 
+  void on_update(tl_object_ptr<telegram_api::updateWalletState> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateWalletGaslessInfo> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateWalletTonConnectSession> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateWalletTonConnectPendingDisconnect> update, Promise<Unit> &&promise);
+
   void on_update(tl_object_ptr<telegram_api::updateStarsRevenueStatus> update, Promise<Unit> &&promise);
+
+  void on_update(tl_object_ptr<telegram_api::updateSentWalletTransaction> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateAiComposeTones> update, Promise<Unit> &&promise);
 

@@ -5,6 +5,8 @@ ANDROID_NDK_VERSION=${2:-23.2.8568313}
 OPENSSL_INSTALL_DIR=${3:-third-party/openssl}
 ANDROID_STL=${4:-c++_static}
 TDLIB_INTERFACE=${5:-Java}
+ANDROID_API_LEVEL=${6:-16}
+ABIS=${7:-"arm64-v8a armeabi-v7a x86_64 x86"}
 
 if [ "$ANDROID_STL" != "c++_static" ] && [ "$ANDROID_STL" != "c++_shared" ] ; then
   echo 'Error: ANDROID_STL must be either "c++_static" or "c++_shared".'
@@ -37,11 +39,11 @@ TDLIB_INTERFACE_OPTION=$([ "$TDLIB_INTERFACE" == "JSON" ] && echo "-DTD_ANDROID_
 cd $(dirname $0)
 
 echo "Generating TDLib source files..."
-mkdir -p build-native-$TDLIB_INTERFACE || exit 1
-cd build-native-$TDLIB_INTERFACE
-cmake $TDLIB_INTERFACE_OPTION -DTD_GENERATE_SOURCE_FILES=ON .. || exit 1
+mkdir -p "build-native-$TDLIB_INTERFACE" || exit 1
+cd "build-native-$TDLIB_INTERFACE" || exit 1
+cmake "$TDLIB_INTERFACE_OPTION" -DTD_GENERATE_SOURCE_FILES=ON .. || exit 1
 cmake --build . || exit 1
-cd ..
+cd .. || exit 1
 
 rm -rf tdlib || exit 1
 
@@ -51,7 +53,7 @@ if [ "$TDLIB_INTERFACE" == "Java" ] ; then
   $WGET https://maven.google.com/androidx/annotation/annotation/1.4.0/annotation-1.4.0.jar || exit 1
 
   echo "Generating Java source files..."
-  cmake --build build-native-$TDLIB_INTERFACE --target tl_generate_java || exit 1
+  cmake --build "build-native-$TDLIB_INTERFACE" --target tl_generate_java || exit 1
   php AddIntDef.php org/drinkless/tdlib/TdApi.java || exit 1
   mkdir -p tdlib/java/org/drinkless/tdlib || exit 1
   cp -p {..,tdlib}/java/org/drinkless/tdlib/Client.java || exit 1
@@ -69,21 +71,22 @@ if [ "$TDLIB_INTERFACE" == "JSONJava" ] ; then
   cp -p {..,tdlib}/java/org/drinkless/tdlib/JsonClient.java || exit 1
 fi
 
-echo "Building TDLib..."
-for ABI in arm64-v8a armeabi-v7a x86_64 x86 ; do
-  mkdir -p tdlib/libs/$ABI/ || exit 1
+for ABI in $ABIS ; do
+  mkdir -p "tdlib/libs/$ABI/" || exit 1
 
-  mkdir -p build-$ABI-$TDLIB_INTERFACE || exit 1
-  cd build-$ABI-$TDLIB_INTERFACE
-  cmake -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" -DOPENSSL_ROOT_DIR="$OPENSSL_INSTALL_DIR/$ABI" -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja -DANDROID_ABI=$ABI -DANDROID_STL=$ANDROID_STL -DANDROID_PLATFORM=android-16 $TDLIB_INTERFACE_OPTION .. || exit 1
+  echo "Building TDLib for $ABI at API level $ANDROID_API_LEVEL with NDK $ANDROID_NDK_VERSION..."
+
+  mkdir -p "build-$ANDROID_API_LEVEL-$ABI-$TDLIB_INTERFACE" || exit 1
+  cd "build-$ANDROID_API_LEVEL-$ABI-$TDLIB_INTERFACE"
+  cmake -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" -DOPENSSL_ROOT_DIR="$OPENSSL_INSTALL_DIR/$ABI" -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja -DANDROID_ABI="$ABI" -DANDROID_STL="$ANDROID_STL" -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL" "$TDLIB_INTERFACE_OPTION" .. || exit 1
   if [ "$TDLIB_INTERFACE" == "Java" ] || [ "$TDLIB_INTERFACE" == "JSONJava" ] ; then
     cmake --build . --target tdjni || exit 1
-    cp -p libtd*.so* ../tdlib/libs/$ABI/ || exit 1
+    cp -p libtd*.so* "../tdlib/libs/$ABI/" || exit 1
   fi
   if [ "$TDLIB_INTERFACE" == "JSON" ] ; then
     cmake --build . --target tdjson || exit 1
-    cp -p td/libtdjson.so ../tdlib/libs/$ABI/libtdjson.so.debug || exit 1
-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" --strip-debug --strip-unneeded ../tdlib/libs/$ABI/libtdjson.so.debug -o ../tdlib/libs/$ABI/libtdjson.so || exit 1
+    cp -p td/libtdjson.so "../tdlib/libs/$ABI/libtdjson.so.debug" || exit 1
+    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" --strip-debug --strip-unneeded "../tdlib/libs/$ABI/libtdjson.so.debug" -o "../tdlib/libs/$ABI/libtdjson.so" || exit 1
   fi
   cd ..
 
@@ -97,13 +100,13 @@ for ABI in arm64-v8a armeabi-v7a x86_64 x86 ; do
     elif [[ "$ABI" == "x86" ]] ; then
       FULL_ABI="i686-linux-android"
     fi
-    cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/sysroot/usr/lib/$FULL_ABI/libc++_shared.so" tdlib/libs/$ABI/ || exit 1
-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" tdlib/libs/$ABI/libc++_shared.so || exit 1
+    cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/sysroot/usr/lib/$FULL_ABI/libc++_shared.so" "tdlib/libs/$ABI/" || exit 1
+    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" "tdlib/libs/$ABI/libc++_shared.so" || exit 1
   fi
   if [ -e "$OPENSSL_INSTALL_DIR/$ABI/lib/libcrypto.so" ] ; then
-    cp "$OPENSSL_INSTALL_DIR/$ABI/lib/libcrypto.so" "$OPENSSL_INSTALL_DIR/$ABI/lib/libssl.so" tdlib/libs/$ABI/ || exit 1
-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" tdlib/libs/$ABI/libcrypto.so || exit 1
-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" tdlib/libs/$ABI/libssl.so || exit 1
+    cp "$OPENSSL_INSTALL_DIR/$ABI/lib/libcrypto.so" "$OPENSSL_INSTALL_DIR/$ABI/lib/libssl.so" "tdlib/libs/$ABI/" || exit 1
+    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" "tdlib/libs/$ABI/libcrypto.so" || exit 1
+    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" "tdlib/libs/$ABI/libssl.so" || exit 1
   fi
 done
 

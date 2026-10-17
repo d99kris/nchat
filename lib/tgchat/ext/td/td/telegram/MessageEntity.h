@@ -56,6 +56,7 @@ class MessageEntity {
     CustomEmoji,
     ExpandableBlockQuote,
     FormattedDate,
+    TonAddress,
     Size
   };
   Type type = Type::Size;
@@ -179,6 +180,8 @@ bool is_allowed_quote_entity_type(MessageEntity::Type type);
 
 bool keep_only_custom_emoji(FormattedText &text);
 
+bool keep_only_text_url(FormattedText &text);
+
 void remove_premium_custom_emoji_entities(const Td *td, vector<MessageEntity> &entities, bool remove_unknown);
 
 void remove_unallowed_entities(const Td *td, FormattedText &text, DialogId dialog_id);
@@ -196,6 +199,7 @@ vector<Slice> find_bot_commands(Slice str);
 vector<Slice> find_hashtags(Slice str);
 vector<Slice> find_cashtags(Slice str);
 vector<Slice> find_bank_card_numbers(Slice str);
+vector<Slice> find_ton_addresses(Slice str);
 vector<Slice> find_tg_urls(Slice str);
 bool is_email_address(Slice str);
 vector<std::pair<Slice, bool>> find_urls(Slice str);               // slice + is_email_address

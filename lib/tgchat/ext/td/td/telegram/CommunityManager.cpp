@@ -194,6 +194,70 @@ class EditCommunityTitleQuery final : public Td::ResultHandler {
   }
 };
 
+class EditCommunityDefaultBannedRightsQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit EditCommunityDefaultBannedRightsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(CommunityId community_id, RestrictedRights permissions) {
+    auto input_peer = td_->community_manager_->get_input_peer(community_id);
+    CHECK(input_peer != nullptr);
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_editChatDefaultBannedRights(std::move(input_peer), permissions.get_chat_banned_rights()),
+        {{community_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_editChatDefaultBannedRights>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for EditCommunityDefaultBannedRightsQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    if (status.message() == "CHAT_NOT_MODIFIED" && !td_->auth_manager_->is_bot()) {
+      return promise_.set_value(Unit());
+    }
+    promise_.set_error(std::move(status));
+  }
+};
+
+class DeleteCommunityQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit DeleteCommunityQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(CommunityId community_id) {
+    auto input_community = td_->community_manager_->get_input_community(community_id);
+    CHECK(input_community != nullptr);
+    send_query(G()->net_query_creator().create(telegram_api::channels_deleteChannel(std::move(input_community)),
+                                               {{community_id}}));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::channels_deleteChannel>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for DeleteCommunityQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 template <class StorerT>
 void CommunityManager::Community::store(StorerT &storer) const {
   using td::store;
@@ -1004,12 +1068,28 @@ void CommunityManager::on_load_community_full_from_database(CommunityId communit
   }
 }
 
-void CommunityManager::load_community_full(CommunityId community_id, Promise<Unit> &&promise, const char *source) {
-  auto community_full = get_community_full_force(community_id, true, source);
+void CommunityManager::get_community_full(CommunityId community_id,
+                                          Promise<td_api::object_ptr<td_api::communityFullInfo>> &&promise) {
+  auto community_full = get_community_full_force(community_id, true, "get_community_full");
   if (community_full != nullptr) {
-    return promise.set_value(Unit());
+    return promise.set_value(get_community_full_info_object(community_id, community_full));
   }
-  reload_community_full(community_id, std::move(promise), source);
+  auto query_promise = PromiseCreator::lambda(
+      [actor_id = actor_id(this), community_id, promise = std::move(promise)](Result<Unit> result) mutable {
+        if (result.is_error()) {
+          return promise.set_error(result.move_as_error());
+        }
+        send_closure(actor_id, &CommunityManager::return_community_full, community_id, std::move(promise));
+      });
+  reload_community_full(community_id, std::move(query_promise), "get_community_full");
+}
+
+void CommunityManager::return_community_full(CommunityId community_id,
+                                             Promise<td_api::object_ptr<td_api::communityFullInfo>> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  auto community_full = get_community_full_force(community_id, true, "get_community_full");
+  CHECK(community_full != nullptr);
+  promise.set_value(get_community_full_info_object(community_id, community_full));
 }
 
 void CommunityManager::reload_community_full(CommunityId community_id, Promise<Unit> &&promise, const char *source) {
@@ -1167,6 +1247,53 @@ void CommunityManager::set_community_name(CommunityId community_id, const string
   td_->create_handler<EditCommunityTitleQuery>(std::move(promise))->send(community_id, title);
 }
 
+void CommunityManager::set_community_photo(CommunityId community_id,
+                                           const td_api::object_ptr<td_api::InputChatPhoto> &input_photo,
+                                           Promise<Unit> &&promise) {
+  auto *c = get_community(community_id);
+  if (c == nullptr) {
+    return promise.set_error(400, "Community not found");
+  }
+  auto status = get_community_status(c);
+  if (!status.is_administrator() || !status.can_change_info_and_settings()) {
+    return promise.set_error(400, "Have not enough rights");
+  }
+  td_->dialog_manager_->do_set_dialog_photo(community_id.get_fake_dialog_id(), DialogId(), input_photo,
+                                            std::move(promise));
+}
+
+void CommunityManager::set_community_permissions(CommunityId community_id,
+                                                 const td_api::object_ptr<td_api::communityPermissions> &permissions,
+                                                 Promise<Unit> &&promise) {
+  if (permissions == nullptr) {
+    return promise.set_error(400, "New permissions must be non-empty");
+  }
+
+  auto *c = get_community(community_id);
+  if (c == nullptr) {
+    return promise.set_error(400, "Community not found");
+  }
+  auto status = get_community_status(c);
+  if (!status.can_restrict_members()) {
+    return promise.set_error(400, "Have not enough rights");
+  }
+
+  td_->create_handler<EditCommunityDefaultBannedRightsQuery>(std::move(promise))
+      ->send(community_id, RestrictedRights(permissions));
+}
+
+void CommunityManager::delete_community(CommunityId community_id, Promise<Unit> &&promise) {
+  auto *c = get_community(community_id);
+  if (c == nullptr) {
+    return promise.set_error(400, "Community not found");
+  }
+  auto status = get_community_status(c);
+  if (!status.is_creator()) {
+    return promise.set_error(400, "Have not enough rights");
+  }
+  td_->create_handler<DeleteCommunityQuery>(std::move(promise))->send(community_id);
+}
+
 FileSourceId CommunityManager::get_community_full_file_source_id(CommunityId community_id) {
   if (!community_id.is_valid()) {
     return FileSourceId();
@@ -1255,6 +1382,19 @@ telegram_api::object_ptr<telegram_api::InputChannel> CommunityManager::get_input
     access_hash = c->access_hash;
   }
   return telegram_api::make_object<telegram_api::inputChannel>(community_id.get(), access_hash);
+}
+
+telegram_api::object_ptr<telegram_api::InputPeer> CommunityManager::get_input_peer(CommunityId community_id) const {
+  int64 access_hash = 0;
+  const Community *c = get_community(community_id);
+  if (c == nullptr) {
+    if (!td_->auth_manager_->is_bot() || !community_id.is_valid()) {
+      return nullptr;
+    }
+  } else {
+    access_hash = c->access_hash;
+  }
+  return telegram_api::make_object<telegram_api::inputPeerChannel>(community_id.get(), access_hash);
 }
 
 void CommunityManager::get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const {

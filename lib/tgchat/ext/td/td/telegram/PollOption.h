@@ -27,7 +27,7 @@ class Dependencies;
 class MessageContent;
 class Td;
 
-struct PollOption {
+class PollOption {
   FormattedText text_;
   unique_ptr<MessageContent> media_;
   DialogId added_by_dialog_id_;
@@ -38,12 +38,19 @@ struct PollOption {
 
   friend bool operator==(const PollOption &lhs, const PollOption &rhs);
 
+ public:
   PollOption() = default;
 
   PollOption(FormattedText &&text, unique_ptr<MessageContent> &&media);
 
   PollOption(Td *td, telegram_api::object_ptr<telegram_api::PollAnswer> &&poll_answer_ptr,
              vector<std::pair<ChannelId, MinChannel>> &min_channels);
+
+  PollOption(const PollOption &) = delete;
+  PollOption &operator=(const PollOption &) = delete;
+  PollOption(PollOption &&) noexcept;
+  PollOption &operator=(PollOption &&) noexcept;
+  ~PollOption();
 
   static Result<PollOption> get_poll_option(Td *td, DialogId dialog_id,
                                             td_api::object_ptr<td_api::inputPollOption> &&input_poll_option);
@@ -54,6 +61,16 @@ struct PollOption {
   const FormattedText &get_text() const {
     return text_;
   }
+
+  const MessageContent *get_media() const {
+    return media_.get();
+  }
+
+  unique_ptr<MessageContent> &get_message_content_ref() {
+    return media_;
+  }
+
+  unique_ptr<MessageContent> get_text_message_content() const;
 
   const string &get_data() const {
     return data_;
@@ -102,6 +119,9 @@ struct PollOption {
   WebPageId get_web_page_id() const;
 
   void remove_web_page();
+
+  void merge_media(Td *td, unique_ptr<MessageContent> &&content, DialogId dialog_id, bool need_merge_files,
+                   bool is_content_changed, bool need_update);
 
   string get_search_text() const;
 

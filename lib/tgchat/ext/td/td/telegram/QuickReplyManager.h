@@ -9,7 +9,6 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
-#include "td/telegram/InputMedia.h"
 #include "td/telegram/MessageContentUploadId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/QuickReplyMessageFullId.h"
@@ -41,6 +40,11 @@ class Td;
 class QuickReplyManager final : public Actor {
  public:
   QuickReplyManager(Td *td, ActorShared<> parent);
+  QuickReplyManager(const QuickReplyManager &) = delete;
+  QuickReplyManager &operator=(const QuickReplyManager &) = delete;
+  QuickReplyManager(QuickReplyManager &&) = delete;
+  QuickReplyManager &operator=(QuickReplyManager &&) = delete;
+  ~QuickReplyManager() final;
 
   static Status check_shortcut_name(CSlice name);
 

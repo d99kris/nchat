@@ -1358,6 +1358,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   string whitelisted_bots;
   string ton_stakedice_stake_suggested_amounts;
   string gift_craft_probabilities;
+  int32 wallet_gasless_daily_transfers = 0;
+  vector<string> bot_allowed_suffixes;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1370,8 +1372,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"settings_display_passkeys", "can_use_login_passkey"},
       {"stars_gifts_enabled", "can_gift_stars"},
       {"stars_paid_messages_available", "can_enable_paid_messages"},
+      {"stars_spend_topup_invoice_disabled", "star_top_up_disabled"},
       {"story_weather_preload", "can_preload_weather"},
-      {"video_ignore_alt_documents", ""}};
+      {"video_ignore_alt_documents", ""},
+      {"wallet_available", "can_use_ton_wallet"}};
 
   static const FlatHashMap<Slice, Slice, SliceHash> integer_keys = {
       {"aicompose_tone_examples_num", "text_composition_style_example_count"},
@@ -1380,6 +1384,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"authorization_autoconfirm_period", ""},
       {"boosts_channel_level_max", "chat_boost_level_max"},
       {"boosts_per_sent_gift", "premium_gift_boost_count"},
+      {"bot_additional_usernames_limit", "secondary_bot_username_count_max"},
       {"bot_preview_medias_max", "bot_media_preview_count_max"},
       {"bot_verification_description_length_limit", "bot_verification_custom_description_length_max"},
       {"business_chat_links_limit", "business_chat_link_count_max"},
@@ -1488,7 +1493,9 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stories_changelog_user_id", "stories_changelog_user_id"},
       {"telegram_antispam_user_id", "anti_spam_bot_user_id"},
       {"ton_stakedice_stake_amount_max", "stake_dice_stake_amount_max"},
-      {"ton_stakedice_stake_amount_min", "stake_dice_stake_amount_min"}};
+      {"ton_stakedice_stake_amount_min", "stake_dice_stake_amount_min"},
+      {"wallet_gasless_min_nanos", "ton_wallet_gasless_transfer_amount_min"},
+      {"wallet_transfer_min_nanos", "ton_wallet_transfer_amount_min"}};
   static const FlatHashMap<Slice, Slice, SliceHash> string_keys = {
       {"gif_search_branding", "animation_search_provider"},
       {"music_search_username", "audio_search_bot_username"},
@@ -2036,6 +2043,27 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
+      if (key == "wallet_gasless_daily_transfers") {
+        wallet_gasless_daily_transfers = get_json_value_int(std::move(key_value->value_), key);
+        continue;
+      }
+      if (key == "bot_allowed_suffixes") {
+        if (value->get_id() == telegram_api::jsonArray::ID) {
+          auto suffixes = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
+          for (auto &suffix : suffixes) {
+            auto suffix_text = get_json_value_string(std::move(suffix), key);
+            to_lower_inplace(suffix_text);
+            if (!suffix_text.empty() && suffix_text.find(' ') == string::npos) {
+              bot_allowed_suffixes.push_back(suffix_text);
+            } else {
+              LOG(ERROR) << "Receive an invalid bot suffix";
+            }
+          }
+        } else {
+          LOG(ERROR) << "Receive unexpected bot_allowed_suffixes " << to_string(*value);
+        }
+        continue;
+      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2104,6 +2132,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
     options.set_option_string("starref_start_param_prefixes", implode(starref_start_param_prefixes, ' '));
   }
 
+  options.set_option_string("bot_allowed_suffixes", implode(bot_allowed_suffixes, ' '));
+
   options.set_option_string("emoji_sounds", implode(emoji_sounds, ','));
 
   if (animated_emoji_zoom <= 0 || animated_emoji_zoom > 2.0) {
@@ -2116,6 +2146,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   } else {
     options.set_option_string("animation_search_emojis", animation_search_emojis);
   }
+  options.set_option_integer("ton_wallet_gasless_transfer_daily_count_max", wallet_gasless_daily_transfers);
 
   options.set_option_boolean("can_accept_calls", can_accept_calls);
 
