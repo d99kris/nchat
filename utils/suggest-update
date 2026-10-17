@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+
+# suggest-update
+#
+# Copyright (c) 2026 Kristofer Berggren
+# All rights reserved.
+#
+# suggest-update is distributed under the MIT license.
+#
+# Suggests which upstream commits to pass to utils/tdlib-update,
+# utils/whatsmeow-update and utils/signal-update.
+#
+# tdlib: the commit of the newest release ("Update version to x.y.z.") on
+# master, if newer than the version in lib/tgchat/ext/td/CMakeLists.txt.
+#
+# whatsmeow + signal: the newest pair of commits whose common Go dependencies
+# match, by the same rule as utils/checkgodeps.cmake. Dependencies only change
+# where go.mod changes, so each upstream history (since the currently vendored
+# commit) is split into segments of constant go.mod, and only the newest commit
+# of each segment is a candidate. All segment pairs are then compared in one
+# pass - no checkouts or builds, just a few git show per go.mod change. Each
+# side's effective version is the higher of the upstream go.mod and our wrapper
+# go.mod (lib/wmchat/go, lib/sgchat/go), as go mod tidy never downgrades.
+#
+# The local clones in ../ are cloned if missing, otherwise only fetched; their
+# working trees are left as is.
+
+if [[ "${1}" == "-h" ]]; then
+  echo "usage: ./utils/suggest-update [tdlib|go]"
+  echo ""
+  echo "  tdlib   suggest tdlib commit only"
+  echo "  go      suggest whatsmeow and signal commits only"
+  exit 0
+fi
+
+exiterr()
+{
+  >&2 echo "${1}"
+  exit 1
+}
+
+REPOROOT="$(git rev-parse --show-toplevel)"
+if [[ "${REPOROOT}" == "" ]]; then
+  exit 1
+fi
+
+cd "${REPOROOT}"
+REPOPARENT=$(dirname "${REPOROOT}")
+
+# Clone or fetch source repository: fetch_clone <name> <url>
+fetch_clone()
+{
+  local DIR="${REPOPARENT}/${1}"
+  if [[ ! -d "${DIR}" ]]; then
+    git clone -q "${2}" "${DIR}" || exiterr "git clone ${2} failed"
+  else
+    [[ "$(git -C "${DIR}" remote get-url origin)" == "${2}" ]] || exiterr "clone mismatch: ${DIR}"
+    git -C "${DIR}" fetch -q --prune origin || exiterr "git fetch failed: ${DIR}"
+  fi
+}
+
+# Print "<short sha> (<yyyy-mm-dd>)": commit_desc <dir> <rev>
+commit_desc()
+{
+  git -C "${1}" log -1 --format='%H %cd' --date=format:'%Y-%m-%d' "${2}" | \
+    awk '{ print substr($1, 1, 7) " (" $2 ")" }'
+}
+
+# Print the upstream commit of the last vendor update: vendored_commit <upstream>
+vendored_commit()
+{
+  git log -1 --format=%s --grep="from ${1}@" | sed -nE "s|.*from ${1}@([0-9a-f]+).*|\1|p"
+}
+
+# Print "<module> <version>" for each require in go.mod on stdin, parsed as
+# utils/checkgodeps.cmake does.
+gomod_reqs()
+{
+  awk '{ sub(/\/\/.*$/, ""); sub(/^[ \t]*require[ \t]+/, ""); gsub(/^[ \t]+|[ \t]+$/, "") }
+       !/=>/ && /^[^ \t]+\.[^ \t]+[ \t]+v[^ \t]+$/ { print $1, $2 }'
+}
+
+# Print the newest commit of each go.mod segment, oldest first:
+# segment_ends <dir> <base> <head>
+segment_ends()
+{
+  local CHANGE
+  for CHANGE in $(git -C "${1}" rev-list --first-parent --reverse "${2}..${3}" -- go.mod); do
+    git -C "${1}" rev-parse "${CHANGE}^"
+  done
+  git -C "${1}" rev-parse "${3}"
+}
+
+suggest_tdlib()
+{
+  local DIR="${REPOPARENT}/td"
+  fetch_clone td "https://github.com/tdlib/td"
+
+  local CURVER
+  CURVER="$(sed -nE 's/^project\(TDLib VERSION ([0-9.]+) .*$/\1/p' lib/tgchat/ext/td/CMakeLists.txt)"
+  [[ -n "${CURVER}" ]] || exiterr "could not determine current tdlib version"
+
+  local RELSHA RELVER
+  read -r RELSHA RELVER <<< "$(git -C "${DIR}" log --first-parent --format='%H %s' origin/master -- CMakeLists.txt | \
+    sed -nE 's/^([0-9a-f]+) Update version to ([0-9.]*[0-9])\.?$/\1 \2/p' | head -1)"
+  [[ -n "${RELVER}" ]] || exiterr "could not determine latest tdlib release"
+
+  echo "tdlib: current ${CURVER}, latest release ${RELVER} $(commit_desc "${DIR}" "${RELSHA}")"
+  if [[ "${RELVER}" != "${CURVER}" ]] && \
+     [[ "$(printf '%s\n%s\n' "${CURVER}" "${RELVER}" | sort -V | tail -1)" == "${RELVER}" ]]; then
+    echo "tdlib: suggest $(commit_desc "${DIR}" "${RELSHA}")"
+    echo "  ./utils/tdlib-update ${RELSHA:0:7}"
+  else
+    echo "tdlib: up to date"
+  fi
+}
+
+suggest_go()
+{
+  local WMDIR="${REPOPARENT}/whatsmeow"
+  local SGDIR="${REPOPARENT}/signal"
+  fetch_clone whatsmeow "https://github.com/tulir/whatsmeow"
+  fetch_clone signal "https://github.com/mautrix/signal"
+
+  local WMCUR SGCUR
+  WMCUR="$(vendored_commit tulir/whatsmeow)"
+  SGCUR="$(vendored_commit mautrix/signal)"
+  [[ -n "${WMCUR}" ]] || exiterr "could not determine vendored whatsmeow commit from git log"
+  [[ -n "${SGCUR}" ]] || exiterr "could not determine vendored signal commit from git log"
+  git -C "${WMDIR}" merge-base --is-ancestor "${WMCUR}" origin/main || \
+    exiterr "vendored whatsmeow ${WMCUR} is not an ancestor of origin/main"
+  git -C "${SGDIR}" merge-base --is-ancestor "${SGCUR}" origin/main || \
+    exiterr "vendored signal ${SGCUR} is not an ancestor of origin/main"
+
+  local WMENDS SGENDS
+  WMENDS=($(segment_ends "${WMDIR}" "${WMCUR}" origin/main))
+  SGENDS=($(segment_ends "${SGDIR}" "${SGCUR}" origin/main))
+
+  echo "whatsmeow: current $(commit_desc "${WMDIR}" "${WMCUR}"), latest $(commit_desc "${WMDIR}" origin/main)"
+  echo "signal: current $(commit_desc "${SGDIR}" "${SGCUR}"), latest $(commit_desc "${SGDIR}" origin/main)"
+
+  # Input records "<side> <segment|WRAP> <module> <version>" and
+  # "<side> <segment> TIME <unix time>"
+  local I RESULT
+  RESULT="$(
+    {
+      gomod_reqs < lib/wmchat/go/go.mod | sed "s/^/W WRAP /"
+      gomod_reqs < lib/sgchat/go/go.mod | sed "s/^/S WRAP /"
+      for I in "${!WMENDS[@]}"; do
+        git -C "${WMDIR}" show "${WMENDS[I]}:go.mod" | gomod_reqs | sed "s/^/W ${I} /"
+        echo "W ${I} TIME $(git -C "${WMDIR}" log -1 --format=%ct "${WMENDS[I]}")"
+      done
+      for I in "${!SGENDS[@]}"; do
+        git -C "${SGDIR}" show "${SGENDS[I]}:go.mod" | gomod_reqs | sed "s/^/S ${I} /"
+        echo "S ${I} TIME $(git -C "${SGDIR}" log -1 --format=%ct "${SGENDS[I]}")"
+      done
+    } | awk -v NW="${#WMENDS[@]}" -v NS="${#SGENDS[@]}" '
+      # Base version, i.e. v0.9.12-0.20260717235539-f9ffa7eca58d as v0.9.12
+      function base(v) { sub(/-([0-9A-Za-z.]+\.)?[0-9]+-[0-9a-f]+$/, "", v); return v }
+      # Compared version: the base version, plus commit for untagged modules
+      function short(v,  b) {
+        b = base(v)
+        if (b == "v0.0.0" && match(v, /-[0-9a-f]+$/)) b = b "-" substr(v, RSTART + 1, 7)
+        return b
+      }
+      # Sortable key: base version numbers, then pseudo-version timestamp
+      # (a release sorts after its pseudo-versions)
+      function key(v,  b, p, ts) {
+        b = base(v); split(substr(b, 2), p, /[.-]/); ts = "99999999999999"
+        if (b != v && match(v, /[0-9]+-[0-9a-f]+$/)) ts = substr(v, RSTART, 14)
+        return sprintf("%08d%08d%08d%s", p[1], p[2], p[3], ts)
+      }
+      $3 == "TIME" { t[$1, $2] = $4; next }
+      $2 == "WRAP" { wrap[$1, $3] = $4; next }
+      { v[$1, $2, $3] = $4; mods[$1, $2] = mods[$1, $2] " " $3 }
+      END {
+        # Effective version: higher of wrapper and upstream
+        for (k in wrap) {
+          split(k, a, SUBSEP)
+          n = (a[1] == "W") ? NW : NS
+          for (i = 0; i < n; ++i) {
+            if (!((a[1], i, a[2]) in v)) {
+              v[a[1], i, a[2]] = wrap[k]; mods[a[1], i] = mods[a[1], i] " " a[2]
+            } else if (key(wrap[k]) > key(v[a[1], i, a[2]])) {
+              v[a[1], i, a[2]] = wrap[k]
+            }
+          }
+        }
+
+        # Compare all segment pairs
+        for (i = 0; i < NW; ++i) {
+          n = split(mods["W", i], ms, " ")
+          for (j = 0; j < NS; ++j) {
+            bad = ""
+            for (x = 1; x <= n; ++x) {
+              m = ms[x]
+              if ((("S", j, m) in v) && short(v["W", i, m]) != short(v["S", j, m])) {
+                bad = bad "  " m ": whatsmeow " short(v["W", i, m]) " != signal " short(v["S", j, m]) "\n"
+              }
+            }
+            ok[i, j] = (bad == "")
+            if (i == NW - 1 && j == NS - 1) headbad = bad
+          }
+        }
+
+        # Pareto-optimal compatible pairs, newest whatsmeow first; suggest the
+        # one whose older side is newest
+        bestj = -1; sugg = ""
+        for (i = NW - 1; i >= 0; --i) {
+          for (j = NS - 1; j > bestj; --j) {
+            if (!ok[i, j]) continue
+            print "PARETO", i, j
+            older = (t["W", i] < t["S", j]) ? t["W", i] : t["S", j]
+            newer = (t["W", i] < t["S", j]) ? t["S", j] : t["W", i]
+            if (sugg == "" || older > sold || (older == sold && newer > snew)) {
+              sugg = i " " j; sold = older; snew = newer
+            }
+            bestj = j
+            break
+          }
+        }
+        if (sugg != "") print "SUGGEST", sugg
+        printf "%s", headbad
+      }'
+  )"
+
+  local PARETO SUGGEST
+  PARETO="$(grep '^PARETO ' <<< "${RESULT}")"
+  read -r _ WMSEL SGSEL <<< "$(grep '^SUGGEST ' <<< "${RESULT}")"
+  if [[ -z "${WMSEL}" ]]; then
+    echo "no compatible whatsmeow + signal combination found, latest mismatch:"
+    grep -v -E '^(PARETO|SUGGEST) ' <<< "${RESULT}"
+    exit 1
+  fi
+
+  local LASTW=$(( ${#WMENDS[@]} - 1 ))
+  local LASTS=$(( ${#SGENDS[@]} - 1 ))
+  if [[ "${WMSEL}" == "${LASTW}" ]] && [[ "${SGSEL}" == "${LASTS}" ]]; then
+    echo "common go dependencies match at latest of both"
+  else
+    echo "common go dependency mismatch at latest of both:"
+    grep -v -E '^(PARETO|SUGGEST) ' <<< "${RESULT}"
+    echo "newest compatible combinations:"
+    local P W S MARK
+    while read -r P W S; do
+      MARK=""
+      [[ "${W}" == "${WMSEL}" ]] && [[ "${S}" == "${SGSEL}" ]] && MARK="  <- suggested"
+      echo "  whatsmeow $(commit_desc "${WMDIR}" "${WMENDS[W]}") + signal $(commit_desc "${SGDIR}" "${SGENDS[S]}")${MARK}"
+    done <<< "${PARETO}"
+  fi
+
+  local WMSHA="${WMENDS[WMSEL]}"
+  local SGSHA="${SGENDS[SGSEL]}"
+  echo ""
+  if [[ "$(git -C "${WMDIR}" rev-parse "${WMCUR}")" == "${WMSHA}" ]]; then
+    echo "whatsmeow: up to date"
+  else
+    echo "whatsmeow: suggest $(commit_desc "${WMDIR}" "${WMSHA}")"
+    echo "  ./utils/whatsmeow-update ${WMSHA:0:7}"
+  fi
+  echo ""
+  if [[ "$(git -C "${SGDIR}" rev-parse "${SGCUR}")" == "${SGSHA}" ]]; then
+    echo "signal: up to date"
+  else
+    echo "signal: suggest $(commit_desc "${SGDIR}" "${SGSHA}")"
+    echo "  ./utils/signal-update ${SGSHA:0:7}"
+    local VERFILE="pkg/libsignalgo/signalversion/version.go"
+    local LSCUR LSNEW
+    LSCUR="$(git -C "${SGDIR}" show "${SGCUR}:${VERFILE}" | sed -nE 's/.*const Version = "([^"]+)".*/\1/p')"
+    LSNEW="$(git -C "${SGDIR}" show "${SGSHA}:${VERFILE}" | sed -nE 's/.*const Version = "([^"]+)".*/\1/p')"
+    if [[ "${LSCUR}" != "${LSNEW}" ]]; then
+      echo "  note: libsignal ${LSCUR} -> ${LSNEW}"
+    fi
+  fi
+}
+
+case "${1}" in
+  "")
+    suggest_tdlib
+    echo ""
+    suggest_go
+    ;;
+  tdlib)
+    suggest_tdlib
+    ;;
+  go)
+    suggest_go
+    ;;
+  *)
+    exiterr "unknown argument: ${1}"
+    ;;
+esac
+
+exit 0
