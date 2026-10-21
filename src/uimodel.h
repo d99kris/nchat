@@ -196,6 +196,7 @@ private:
     static bool IsAttachmentDownloaded(const FileInfo& p_FileInfo);
     static bool IsAttachmentDownloadable(const FileInfo& p_FileInfo, bool p_AllowRetryFailed = false);
     static void SanitizeEntryStr(std::string& p_Str);
+    std::map<std::string, std::map<std::string, bool>> m_PendingTextSend;
 
   private:
     void SortChats();
