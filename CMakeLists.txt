@@ -173,7 +173,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
     message(STATUS "Found termux")
     add_compile_definitions(HAVE_TERMUX)
   endif()
-elseif (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD|FreeBSD")
   add_definitions(-D_XOPEN_SOURCE_EXTENDED)
 endif()
 
@@ -184,6 +184,14 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
   set(HAS_SHARED_LIBS OFF)
   set(HAS_DYNAMICLOAD OFF)
   message(STATUS "Disabling WhatsApp, Signal, Shared libs, Dynamic load - OpenBSD restrictions")
+endif()
+
+# FreeBSD restrictions - Go supports c-archive / c-shared build modes only on
+# freebsd/amd64 (see Go src/internal/platform/supported.go)
+if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "amd64|x86_64")
+  set(HAS_WHATSAPP OFF)
+  set(HAS_SIGNAL OFF)
+  message(STATUS "Disabling WhatsApp, Signal - FreeBSD ${CMAKE_SYSTEM_PROCESSOR} restrictions")
 endif()
 
 # Config - Static linking of external library dependencies
@@ -498,6 +506,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
 else()
   set(CURSES_NEED_NCURSES TRUE)
   set(CURSES_NEED_WIDE TRUE)
+  if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+    # FreeBSD base ncurses is wide-char but has no ncursesw/ header dir, which
+    # FindCurses requires with CURSES_NEED_WIDE, so point it at the base headers.
+    find_path(CURSES_INCLUDE_PATH NAMES ncurses.h PATHS /usr/include NO_DEFAULT_PATH)
+  endif()
   find_package(Curses REQUIRED)
   if(HAS_STATIC_EXTLIBS)
     # static ncursesw does not bundle terminfo routines on some distros

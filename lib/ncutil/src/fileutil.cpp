@@ -22,6 +22,8 @@
 
 #if defined(__APPLE__)
 #include <libproc.h>
+#elif defined(__FreeBSD__)
+#include <sys/sysctl.h>
 #endif
 
 #include <libgen.h>
@@ -246,6 +248,14 @@ std::string FileUtil::GetSelfPath()
   {
     return std::string(pathbuf, count);
   }
+#elif defined(__FreeBSD__)
+  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
+  char pathbuf[PATH_MAX];
+  size_t len = sizeof(pathbuf);
+  if (sysctl(mib, 4, pathbuf, &len, nullptr, 0) == 0)
+  {
+    return std::string(pathbuf);
+  }
 #endif
   return "";
 }
@@ -254,7 +264,7 @@ std::string FileUtil::GetLibSuffix()
 {
 #if defined(__APPLE__)
   return ".dylib";
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__FreeBSD__)
   return ".so";
 #endif
   return "";

@@ -15,6 +15,10 @@
 
 #include <sys/wait.h>
 
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+#include <sys/utsname.h>
+#endif
+
 #include "fileutil.h"
 #include "log.h"
 #include "strutil.h"
@@ -137,6 +141,9 @@ std::string SysUtil::GetOsArch(bool p_Verbose)
     std::string name = StrUtil::ExtractString(str, "<key>ProductName</key>\n\t<string>", "</string>");
     std::string ver = StrUtil::ExtractString(str, "<key>ProductVersion</key>\n\t<string>", "</string>");
     return name + " " + ver;
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+    struct utsname uts;
+    return (uname(&uts) == 0) ? (std::string(uts.sysname) + " " + uts.release) : std::string("BSD");
 #else
     return "Unknown";
 #endif
@@ -172,8 +179,9 @@ bool SysUtil::IsSupportedLibc()
   // with a stock Go toolchain (nchat issue #204 / Go PR #69325), so they are
   // only built with a patched toolchain; NCHAT_MUSL_GO_PATCHED (set by CMake
   // when -DHAS_MUSL_GO_PATCHED=ON, as in the official musl release builds)
-  // marks such a build as supported. See doc/MUSLGO.md.
-#if defined(__APPLE__) || defined(__GLIBC__) || defined(NCHAT_MUSL_GO_PATCHED)
+  // marks such a build as supported. See doc/MUSLGO.md. FreeBSD libc passes
+  // argc/argv to shared library initializers like glibc, so it is unaffected.
+#if defined(__APPLE__) || defined(__GLIBC__) || defined(__FreeBSD__) || defined(NCHAT_MUSL_GO_PATCHED)
   return true;
 #else
   return false;
