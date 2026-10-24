@@ -2616,7 +2616,7 @@ void TgChat::Impl::OnAuthStateUpdate()
 
     set_parameters->system_language_code_ = "en";
     set_parameters->device_model_ = "Desktop";
-#if defined (__linux__)
+#if defined(__linux__)
     set_parameters->system_version_ = "Linux";
 #elif defined(__APPLE__)
     set_parameters->system_version_ = "Darwin";
