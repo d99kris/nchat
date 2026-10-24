@@ -2620,6 +2620,10 @@ void TgChat::Impl::OnAuthStateUpdate()
     set_parameters->system_version_ = "Linux";
 #elif defined(__APPLE__)
     set_parameters->system_version_ = "Darwin";
+#elif defined(__FreeBSD__)
+    set_parameters->system_version_ = "FreeBSD";
+#elif defined(__OpenBSD__)
+    set_parameters->system_version_ = "OpenBSD";
 #else
     set_parameters->system_version_ = "Unknown";
 #endif
