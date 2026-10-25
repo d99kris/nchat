@@ -235,7 +235,8 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "toggle_top", "KEY_NONE" },
     { "next_chat", "KEY_TAB" },
     { "prev_chat", "KEY_BTAB" },
-    { "unread_chat", "KEY_CTRLF" },
+    { "next_unread_chat", "\\33\\171" }, // alt/opt-y
+    { "prev_unread_chat", "\\33\\157" }, // alt/opt-o
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
     { "delete_chat", "\\33\\144" }, // alt/opt-d
