@@ -29,8 +29,8 @@ type IdentityKey struct {
 	publicKey *PublicKey
 }
 
-func NewIdentityKeyFromPublicKey(publicKey *PublicKey) (*IdentityKey, error) {
-	return &IdentityKey{publicKey: publicKey}, nil
+func NewIdentityKeyFromPublicKey(publicKey *PublicKey) *IdentityKey {
+	return &IdentityKey{publicKey: publicKey}
 }
 
 func NewIdentityKeyFromBytes(bytes []byte) (*IdentityKey, error) {

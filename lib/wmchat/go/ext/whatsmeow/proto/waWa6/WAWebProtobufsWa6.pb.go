@@ -879,6 +879,7 @@ const (
 	ClientPayload_UserAgent_WAIL           ClientPayload_UserAgent_Platform = 38
 	ClientPayload_UserAgent_WORK_ANDROID   ClientPayload_UserAgent_Platform = 39
 	ClientPayload_UserAgent_WORK_IOS       ClientPayload_UserAgent_Platform = 40
+	ClientPayload_UserAgent_AUTOMOTIVE     ClientPayload_UserAgent_Platform = 41
 )
 
 // Enum value maps for ClientPayload_UserAgent_Platform.
@@ -925,6 +926,7 @@ var (
 		38: "WAIL",
 		39: "WORK_ANDROID",
 		40: "WORK_IOS",
+		41: "AUTOMOTIVE",
 	}
 	ClientPayload_UserAgent_Platform_value = map[string]int32{
 		"ANDROID":        0,
@@ -968,6 +970,7 @@ var (
 		"WAIL":           38,
 		"WORK_ANDROID":   39,
 		"WORK_IOS":       40,
+		"AUTOMOTIVE":     41,
 	}
 )
 
@@ -1106,6 +1109,7 @@ type ClientPayload struct {
 	ProcessingQueueSize    *int32                                       `protobuf:"varint,46,opt,name=processingQueueSize" json:"processingQueueSize,omitempty"`
 	PairedPeripherals      []string                                     `protobuf:"bytes,47,rep,name=pairedPeripherals" json:"pairedPeripherals,omitempty"`
 	TestIsolationID        []byte                                       `protobuf:"bytes,48,opt,name=testIsolationID" json:"testIsolationID,omitempty"`
+	MessageSts             *int64                                       `protobuf:"varint,49,opt,name=messageSts" json:"messageSts,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1390,6 +1394,13 @@ func (x *ClientPayload) GetTestIsolationID() []byte {
 		return x.TestIsolationID
 	}
 	return nil
+}
+
+func (x *ClientPayload) GetMessageSts() int64 {
+	if x != nil && x.MessageSts != nil {
+		return *x.MessageSts
+	}
+	return 0
 }
 
 type HandshakeMessage_ClientFinish struct {
@@ -2381,7 +2392,7 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\x05IKKEM\x10\x05\x12\f\n" +
 	"\bIKKEM_FS\x10\x06\x12\v\n" +
 	"\aXXKEM_2\x10\a\x12\v\n" +
-	"\aIKKEM_2\x10\b\"\x91.\n" +
+	"\aIKKEM_2\x10\b\"\xc1.\n" +
 	"\rClientPayload\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\x04R\busername\x12\x18\n" +
 	"\apassive\x18\x03 \x01(\bR\apassive\x12H\n" +
@@ -2421,7 +2432,10 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\fpreacksCount\x18- \x01(\x05R\fpreacksCount\x120\n" +
 	"\x13processingQueueSize\x18. \x01(\x05R\x13processingQueueSize\x12,\n" +
 	"\x11pairedPeripherals\x18/ \x03(\tR\x11pairedPeripherals\x12(\n" +
-	"\x0ftestIsolationID\x180 \x01(\fR\x0ftestIsolationID\x1a\x8f\x02\n" +
+	"\x0ftestIsolationID\x180 \x01(\fR\x0ftestIsolationID\x12\x1e\n" +
+	"\n" +
+	"messageSts\x181 \x01(\x03R\n" +
+	"messageSts\x1a\x8f\x02\n" +
 	"\tDNSSource\x12\\\n" +
 	"\tdnsMethod\x18\x0f \x01(\x0e2>.WAWebProtobufsWa6.ClientPayload.DNSSource.DNSResolutionMethodR\tdnsMethod\x12\x1c\n" +
 	"\tappCached\x18\x10 \x01(\bR\tappCached\"\x85\x01\n" +
@@ -2464,7 +2478,7 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\x06DARWIN\x10\x03\x12\t\n" +
 	"\x05WIN32\x10\x04\x12\x0e\n" +
 	"\n" +
-	"WIN_HYBRID\x10\x05\x1a\xc9\x0e\n" +
+	"WIN_HYBRID\x10\x05\x1a\xd9\x0e\n" +
 	"\tUserAgent\x12O\n" +
 	"\bplatform\x18\x01 \x01(\x0e23.WAWebProtobufsWa6.ClientPayload.UserAgent.PlatformR\bplatform\x12U\n" +
 	"\n" +
@@ -2515,7 +2529,7 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\aRELEASE\x10\x00\x12\b\n" +
 	"\x04BETA\x10\x01\x12\t\n" +
 	"\x05ALPHA\x10\x02\x12\t\n" +
-	"\x05DEBUG\x10\x03\"\xcf\x04\n" +
+	"\x05DEBUG\x10\x03\"\xdf\x04\n" +
 	"\bPlatform\x12\v\n" +
 	"\aANDROID\x10\x00\x12\a\n" +
 	"\x03IOS\x10\x01\x12\x11\n" +
@@ -2563,7 +2577,9 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\bAR_WRIST\x10%\x12\b\n" +
 	"\x04WAIL\x10&\x12\x10\n" +
 	"\fWORK_ANDROID\x10'\x12\f\n" +
-	"\bWORK_IOS\x10(\x1aq\n" +
+	"\bWORK_IOS\x10(\x12\x0e\n" +
+	"\n" +
+	"AUTOMOTIVE\x10)\x1aq\n" +
 	"\vInteropData\x12\x1c\n" +
 	"\taccountID\x18\x01 \x01(\x04R\taccountID\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\fR\x05token\x12.\n" +

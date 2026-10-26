@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,6 +45,9 @@ type SignalConnector struct {
 	Store   *store.Container
 	Bridge  *bridgev2.Bridge
 	Config  SignalConfig
+
+	lastTxnTS     int64
+	lastTxnTSLock sync.Mutex
 }
 
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
@@ -66,7 +70,6 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 	s.Bridge = bridge
 	s.MsgConv = msgconv.NewMessageConverter(bridge)
 	s.MsgConv.LocationFormat = s.Config.LocationFormat
-	s.MsgConv.DisappearViewOnce = s.Config.DisappearViewOnce
 	s.MsgConv.ExtEvPolls = s.Config.ExtEvPolls
 	bridge.Commands.(*commands.Processor).AddHandlers(CmdDiscardSenderKey)
 }
@@ -117,7 +120,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 		Main:      s,
 		UserLogin: login,
 
-		queueEmptyWaiter: exsync.NewEvent(),
+		recentMessageRooms: exsync.NewRingBuffer[networkid.MessageID, networkid.PortalKey](32),
+		queueEmptyWaiter:   exsync.NewEvent(),
 	}
 	if device != nil {
 		sc.Client = signalmeow.NewClient(
@@ -133,5 +137,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 }
 
 func (s *SignalConnector) GenerateTransactionID(userID id.UserID, roomID id.RoomID, eventType event.Type) networkid.RawTransactionID {
-	return networkid.RawTransactionID(strconv.FormatInt(time.Now().UnixMilli(), 10))
+	s.lastTxnTSLock.Lock()
+	defer s.lastTxnTSLock.Unlock()
+	s.lastTxnTS = max(time.Now().UnixMilli(), s.lastTxnTS+1)
+	return networkid.RawTransactionID(strconv.FormatInt(s.lastTxnTS, 10))
 }

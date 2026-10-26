@@ -292,7 +292,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getMessageProperties &request);
 
-  void on_request(uint64 id, const td_api::getPollOptionProperties &request);
+  void on_request(uint64 id, td_api::getPollOptionProperties &request);
 
   void on_request(uint64 id, const td_api::getChatSponsoredMessages &request);
 
@@ -316,7 +316,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::reportVideoMessageAdvertisement &request);
 
-  void on_request(uint64 id, const td_api::getMessageLink &request);
+  void on_request(uint64 id, td_api::getMessageLink &request);
 
   void on_request(uint64 id, const td_api::getMessageEmbeddingCode &request);
 
@@ -456,11 +456,17 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setPinnedSavedMessagesTopics &request);
 
-  void on_request(uint64 id, const td_api::loadCommunityFullInfo &request);
+  void on_request(uint64 id, const td_api::getCommunityFullInfo &request);
 
   void on_request(uint64 id, td_api::createCommunity &request);
 
   void on_request(uint64 id, td_api::setCommunityName &request);
+
+  void on_request(uint64 id, const td_api::setCommunityPhoto &request);
+
+  void on_request(uint64 id, const td_api::setCommunityPermissions &request);
+
+  void on_request(uint64 id, const td_api::deleteCommunity &request);
 
   void on_request(uint64 id, td_api::searchPublicChat &request);
 
@@ -714,7 +720,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::editEphemeralMessageCaption &request);
 
-  void on_request(uint64 id, td_api::editCallbackQueryMessage &request);
+  void on_request(uint64 id, td_api::replyToCallbackQueryWithEphemeralMessage &request);
 
   void on_request(uint64 id, td_api::editMessageSchedulingState &request);
 
@@ -766,7 +772,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::loadQuickReplyShortcuts &request);
 
-  void on_request(uint64 id, const td_api::setQuickReplyShortcutName &request);
+  void on_request(uint64 id, td_api::setQuickReplyShortcutName &request);
 
   void on_request(uint64 id, const td_api::deleteQuickReplyShortcut &request);
 
@@ -1428,6 +1434,10 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setBotProfilePhoto &request);
 
+  void on_request(uint64 id, td_api::addBotSecondaryUsername &request);
+
+  void on_request(uint64 id, const td_api::deleteBotSecondaryUsername &request);
+
   void on_request(uint64 id, td_api::toggleBotUsernameIsActive &request);
 
   void on_request(uint64 id, td_api::reorderBotActiveUsernames &request);
@@ -1688,21 +1698,95 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getChatRevenueStatistics &request);
 
-  void on_request(uint64 id, const td_api::getChatRevenueWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getChatRevenueWithdrawalUrl &request);
 
   void on_request(uint64 id, td_api::getChatRevenueTransactions &request);
 
   void on_request(uint64 id, td_api::getTonTransactions &request);
 
+  void on_request(uint64 id, td_api::getTonWalletTransactions &request);
+
+  void on_request(uint64 id, td_api::getTonWalletTransaction &request);
+
+  void on_request(uint64 id, td_api::getTonWalletTransactionByMsgHash &request);
+
+  void on_request(uint64 id, const td_api::loadTonWalletState &request);
+
+  void on_request(uint64 id, const td_api::loadTonWalletGaslessTransfersInfo &request);
+
+  void on_request(uint64 id, const td_api::checkWalletBotBalance &request);
+
+  void on_request(uint64 id, const td_api::getUserTonWalletAddresses &request);
+
+  void on_request(uint64 id, const td_api::createUserTonWallet &request);
+
+  void on_request(uint64 id, td_api::getAddressTonWallet &request);
+
+  void on_request(uint64 id, td_api::getTonWalletSecretPhrase &request);
+
+  void on_request(uint64 id, const td_api::getTonWalletOwnershipProofChallenge &request);
+
+  void on_request(uint64 id, td_api::enableTonWalletBackup &request);
+
+  void on_request(uint64 id, td_api::disableTonWalletBackup &request);
+
+  void on_request(uint64 id, td_api::disableTonWalletBackupWithProof &request);
+
+  void on_request(uint64 id, td_api::sendTonWalletTransfer &request);
+
+  void on_request(uint64 id, td_api::deleteTonWallet &request);
+
+  void on_request(uint64 id, td_api::replaceTonWallet &request);
+
+  void on_request(uint64 id, const td_api::getCurrencyExchangeRates &request);
+
+  void on_request(uint64 id, td_api::getTonWalletNfts &request);
+
+  void on_request(uint64 id, const td_api::getTonConnectSessions &request);
+
+  void on_request(uint64 id, td_api::createTonConnectSession &request);
+
+  void on_request(uint64 id, td_api::setTonConnectSessionWalletClientId &request);
+
+  void on_request(uint64 id, td_api::sendTonConnectSessionConnectResult &request);
+
+  void on_request(uint64 id, const td_api::getTonConnectSessionPendingRequests &request);
+
+  void on_request(uint64 id, td_api::getTonConnectDAppPendingRequests &request);
+
+  void on_request(uint64 id, td_api::claimTonConnectRequest &request);
+
+  void on_request(uint64 id, td_api::answerTonConnectRequest &request);
+
+  void on_request(uint64 id, const td_api::getTonConnectSessionNextEventId &request);
+
+  void on_request(uint64 id, const td_api::disconnectTonConnectSession &request);
+
+  void on_request(uint64 id, td_api::getOnRampProviders &request);
+
+  void on_request(uint64 id, td_api::getOnRampProviderBaseCurrencies &request);
+
+  void on_request(uint64 id, td_api::sendTonCenterApiRequest &request);
+
+  void on_request(uint64 id, td_api::getOnRampPaymentAvailability &request);
+
+  void on_request(uint64 id, td_api::getOnRampPaymentLimits &request);
+
+  void on_request(uint64 id, td_api::getOnRampPaymentQuote &request);
+
+  void on_request(uint64 id, td_api::createOnRampPaymentSession &request);
+
+  void on_request(uint64 id, const td_api::getTonCenterStreamingApiUrl &request);
+
   void on_request(uint64 id, const td_api::getStarRevenueStatistics &request);
 
-  void on_request(uint64 id, const td_api::getStarWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getStarWithdrawalUrl &request);
 
   void on_request(uint64 id, const td_api::getStarAdAccountUrl &request);
 
   void on_request(uint64 id, const td_api::getGramRevenueStatistics &request);
 
-  void on_request(uint64 id, const td_api::getGramWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getGramWithdrawalUrl &request);
 
   void on_request(uint64 id, const td_api::getMessageStatistics &request);
 
@@ -1886,7 +1970,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::getUpgradedGiftValueInfo &request);
 
-  void on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getUpgradedGiftWithdrawalUrl &request);
 
   void on_request(uint64 id, const td_api::getUpgradedGiftsPromotionalAnimation &request);
 
@@ -2044,13 +2128,15 @@ class Requests {
 
   void on_request(uint64 id, td_api::getCollectibleItemInfo &request);
 
-  void on_request(uint64 id, const td_api::getApplicationDownloadLink &request);
-
   void on_request(uint64 id, td_api::getDeepLinkInfo &request);
+
+  void on_request(uint64 id, td_api::dismissWebToken &request);
 
   void on_request(uint64 id, const td_api::getApplicationConfig &request);
 
   void on_request(uint64 id, td_api::saveApplicationLogEvent &request);
+
+  void on_request(uint64 id, const td_api::getApplicationDownloadLink &request);
 
   void on_request(uint64 id, td_api::addProxy &request);
 

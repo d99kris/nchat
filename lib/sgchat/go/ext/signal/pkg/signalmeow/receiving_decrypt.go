@@ -328,13 +328,19 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 		return result, fmt.Errorf("decrypting to USMC returned nil")
 	}
 
-	messageType, err := usmc.GetMessageType()
-	if err != nil {
-		return result, fmt.Errorf("failed to get message type: %w", err)
-	}
 	senderCertificate, err := usmc.GetSenderCertificate()
 	if err != nil {
 		return result, fmt.Errorf("failed to get sender certificate: %w", err)
+	}
+	valid, err := senderCertificate.Validate(libsignalgo.ProdTrustRoots, envelope.GetServerTimestamp())
+	if err != nil {
+		return result, fmt.Errorf("failed to validate sender certificate: %w", err)
+	} else if !valid {
+		return result, fmt.Errorf("sender certificate is not valid")
+	}
+	messageType, err := usmc.GetMessageType()
+	if err != nil {
+		return result, fmt.Errorf("failed to get message type: %w", err)
 	}
 	contentHint, err := usmc.GetContentHint()
 	if err != nil {
@@ -352,6 +358,9 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	senderDeviceID, err := senderCertificate.GetDeviceID()
 	if err != nil {
 		return result, fmt.Errorf("failed to get sender device ID: %w", err)
+	}
+	if senderUUID == cli.Store.ACI && senderDeviceID == uint32(cli.Store.DeviceID) {
+		return result, fmt.Errorf("received unidentified sender envelope from self")
 	}
 	senderAddress, err := libsignalgo.NewACIServiceID(senderUUID).Address(uint(senderDeviceID))
 	if err != nil {

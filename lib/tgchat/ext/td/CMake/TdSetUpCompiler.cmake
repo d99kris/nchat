@@ -69,6 +69,16 @@ function(td_set_up_compiler)
           # Enable 16 KB ELF alignment
           set(TD_LINKER_FLAGS "${TD_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
         endif()
+        if (ANDROID_PLATFORM MATCHES "^(android-)?[0-9]+$")
+          string(REGEX REPLACE "[^0-9]" "" ANDROID_PLATFORM_NUMBER ${ANDROID_PLATFORM})
+          if (ANDROID_PLATFORM_NUMBER GREATER_EQUAL 30)
+            set(TD_LINKER_FLAGS "${TD_LINKER_FLAGS} -Wl,--pack-dyn-relocs=android+relr -Wl,--no-use-android-relr-tags")
+          elseif (ANDROID_PLATFORM_NUMBER GREATER_EQUAL 28)
+            set(TD_LINKER_FLAGS "${TD_LINKER_FLAGS} -Wl,--pack-dyn-relocs=android+relr -Wl,--use-android-relr-tags")
+          elseif (ANDROID_PLATFORM_NUMBER GREATER_EQUAL 23)
+            set(TD_LINKER_FLAGS "${TD_LINKER_FLAGS} -Wl,--pack-dyn-relocs=android")
+          endif()
+        endif()
       else()
         set(TD_LINKER_FLAGS "-Wl,--gc-sections -Wl,--exclude-libs,ALL")
       endif()
@@ -143,6 +153,11 @@ function(td_set_up_compiler)
 
   #external headers like openssl
   #  add_cxx_compiler_flag("-Wzero-as-null-pointer-constant")
+  endif()
+
+  if (ANDROID OR IOS)
+    add_cxx_compiler_flag("-fno-unwind-tables")
+    add_cxx_compiler_flag("-fno-asynchronous-unwind-tables")
   endif()
 
   if (GCC)

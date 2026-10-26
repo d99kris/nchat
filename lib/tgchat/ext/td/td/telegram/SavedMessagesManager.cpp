@@ -1528,9 +1528,10 @@ void SavedMessagesManager::get_saved_dialogs(TopicList *topic_list, int32 limit,
   CHECK(topic_list != nullptr);
   topic_list->load_queries_.push_back(std::move(promise));
   if (topic_list->load_queries_.size() == 1) {
-    auto query_promise = PromiseCreator::lambda([actor_id = actor_id(this), topic_list](Result<Unit> &&result) {
-      send_closure(actor_id, &SavedMessagesManager::on_get_saved_dialogs, topic_list, std::move(result));
-    });
+    auto query_promise =
+        PromiseCreator::lambda([actor_id = actor_id(this), dialog_id = topic_list->dialog_id_](Result<Unit> &&result) {
+          send_closure(actor_id, &SavedMessagesManager::on_get_saved_dialogs, dialog_id, std::move(result));
+        });
     td_->create_handler<GetSavedDialogsQuery>(std::move(query_promise))
         ->send(topic_list->dialog_id_, topic_list->generation_, topic_list->offset_date_,
                topic_list->offset_message_id_, topic_list->offset_dialog_id_, limit);
@@ -1568,9 +1569,12 @@ SavedMessagesManager::SavedMessagesTopicInfo SavedMessagesManager::get_saved_mes
   return result;
 }
 
-void SavedMessagesManager::on_get_saved_dialogs(TopicList *topic_list, Result<Unit> &&result) {
+void SavedMessagesManager::on_get_saved_dialogs(DialogId dialog_id, Result<Unit> &&result) {
   G()->ignore_result_if_closing(result);
-  CHECK(topic_list != nullptr);
+  auto topic_list = get_topic_list(dialog_id);
+  if (topic_list == nullptr) {
+    return;
+  }
   if (result.is_error()) {
     fail_promises(topic_list->load_queries_, result.move_as_error());
   } else {
@@ -1697,7 +1701,6 @@ void SavedMessagesManager::process_saved_messages_topics(
       total_count--;
       continue;
     }
-    added_saved_messages_topic_ids.push_back(saved_messages_topic_id);
 
     auto last_topic_message_id = topic_info.last_topic_message_id_;
     auto message_date = 0;
@@ -1736,6 +1739,7 @@ void SavedMessagesManager::process_saved_messages_topics(
       total_count--;
       continue;
     }
+    added_saved_messages_topic_ids.push_back(saved_messages_topic_id);
 
     auto *topic = add_topic(topic_list, saved_messages_topic_id, true);
     if (last_topic_message_id.is_valid() && !topic->ordered_messages_.has_message(last_topic_message_id)) {

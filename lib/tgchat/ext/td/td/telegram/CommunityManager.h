@@ -53,7 +53,7 @@ class CommunityManager final : public Actor {
 
   void on_get_community_forbidden(telegram_api::communityForbidden &community, const char *source);
 
-  void load_community_full(CommunityId community_id, Promise<Unit> &&promise, const char *source);
+  void get_community_full(CommunityId community_id, Promise<td_api::object_ptr<td_api::communityFullInfo>> &&promise);
 
   void reload_community_full(CommunityId community_id, Promise<Unit> &&promise, const char *source);
 
@@ -66,6 +66,15 @@ class CommunityManager final : public Actor {
 
   void set_community_name(CommunityId community_id, const string &name, Promise<Unit> &&promise);
 
+  void set_community_photo(CommunityId community_id, const td_api::object_ptr<td_api::InputChatPhoto> &input_photo,
+                           Promise<Unit> &&promise);
+
+  void set_community_permissions(CommunityId community_id,
+                                 const td_api::object_ptr<td_api::communityPermissions> &permissions,
+                                 Promise<Unit> &&promise);
+
+  void delete_community(CommunityId community_id, Promise<Unit> &&promise);
+
   FileSourceId get_community_full_file_source_id(CommunityId community_id);
 
   int64 get_community_id_object(CommunityId community_id, const char *source) const;
@@ -73,6 +82,8 @@ class CommunityManager final : public Actor {
   td_api::object_ptr<td_api::community> get_community_object(CommunityId community_id) const;
 
   telegram_api::object_ptr<telegram_api::InputChannel> get_input_community(CommunityId community_id) const;
+
+  telegram_api::object_ptr<telegram_api::InputPeer> get_input_peer(CommunityId community_id) const;
 
   void on_binlog_community_event(BinlogEvent &&event);
 
@@ -191,6 +202,9 @@ class CommunityManager final : public Actor {
   void load_community_from_database_impl(CommunityId community_id, Promise<Unit> promise);
 
   void on_load_community_from_database(CommunityId community_id, string value, bool force);
+
+  void return_community_full(CommunityId community_id,
+                             Promise<td_api::object_ptr<td_api::communityFullInfo>> &&promise);
 
   void update_community(Community *c, CommunityId community_id, bool from_binlog = false, bool from_database = false);
 

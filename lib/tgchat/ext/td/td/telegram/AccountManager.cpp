@@ -542,6 +542,31 @@ class ResetWebAuthorizationsQuery final : public Td::ResultHandler {
   }
 };
 
+class CancelWebTokenAuthorizationQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit CancelWebTokenAuthorizationQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(const string &token) {
+    send_query(G()->net_query_creator().create(telegram_api::auth_cancelWebTokenAuthorization(token)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::auth_cancelWebTokenAuthorization>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class ExportContactTokenQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::userLink>> promise_;
 
@@ -1202,6 +1227,10 @@ void AccountManager::disconnect_all_websites(Promise<Unit> &&promise) {
   reset_web_authorizations_on_server(0, std::move(promise));
 }
 
+void AccountManager::cancel_web_token(const string &token, Promise<Unit> &&promise) {
+  td_->create_handler<CancelWebTokenAuthorizationQuery>(std::move(promise))->send(token);
+}
+
 void AccountManager::get_user_link(Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
   td_->user_manager_->get_me(
       PromiseCreator::lambda([actor_id = actor_id(this), promise = std::move(promise)](Result<Unit> &&result) mutable {
@@ -1218,7 +1247,7 @@ void AccountManager::get_user_link_impl(Promise<td_api::object_ptr<td_api::userL
   auto username = td_->user_manager_->get_user_first_username(td_->user_manager_->get_my_id());
   if (!username.empty()) {
     return promise.set_value(
-        td_api::make_object<td_api::userLink>(LinkManager::get_public_dialog_link(username, Slice(), false, true), 0));
+        td_api::make_object<td_api::userLink>(LinkManager::get_public_dialog_link(username, Slice(), false, false), 0));
   }
   td_->create_handler<ExportContactTokenQuery>(std::move(promise))->send();
 }

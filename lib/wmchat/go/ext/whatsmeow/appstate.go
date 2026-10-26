@@ -15,7 +15,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exslices"
-	"go.mau.fi/util/ptr"
 
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -74,6 +73,9 @@ func (cli *Client) fetchAppState(ctx context.Context, name appstate.WAPatchName,
 	for hasMore {
 		patches, err := cli.fetchAppStatePatches(ctx, name, state.Version, wantSnapshot)
 		if err != nil {
+			if fullSync && ctx.Err() == nil && cli.BackgroundEventCtx.Err() == nil {
+				cli.dispatchEvent(&events.AppStateSyncError{Name: name, FullSync: fullSync, Error: err})
+			}
 			return nil, fmt.Errorf("failed to fetch app state %s patches: %w", name, err)
 		} else if !wantSnapshot && patches.Snapshot != nil {
 			return nil, fmt.Errorf("server unexpectedly returned snapshot for %s without asking", name)
@@ -435,6 +437,15 @@ func (cli *Client) dispatchAppState(ctx context.Context, name appstate.WAPatchNa
 				Secret: secret.GetRootSecret(),
 			}
 		}))
+		if storeUpdateError == nil && cli.Store.ChatSettings != nil {
+			var active *waSyncAction.WASARootSecretAction_RootSecretEntry
+			for _, secret := range inputSecrets {
+				if secret.GetStatus() == waSyncAction.WASARootSecretAction_RootSecretEntry_ACTIVE && (active == nil || secret.GetEpoch() > active.GetEpoch()) {
+					active = secret
+				}
+			}
+			storeUpdateError = cli.Store.ChatSettings.PutWASARootSecretID(ctx, botJID, types.MessageID(active.GetID()))
+		}
 		if storeUpdateError == nil {
 			zerolog.Ctx(ctx).Debug().
 				Strs("ids", ids).
@@ -653,7 +664,7 @@ func BuildFatalAppStateExceptionNotification(collections ...appstate.WAPatchName
 			Type: waE2E.ProtocolMessage_APP_STATE_FATAL_EXCEPTION_NOTIFICATION.Enum(),
 			AppStateFatalExceptionNotification: &waE2E.AppStateFatalExceptionNotification{
 				CollectionNames: exslices.CastToString[string](collections),
-				Timestamp:       ptr.Ptr(time.Now().UnixMilli()),
+				Timestamp:       new(time.Now().UnixMilli()),
 			},
 		},
 	}
@@ -672,7 +683,7 @@ func BuildAppStateRecoveryRequest(collection appstate.WAPatchName) *waE2E.Messag
 				PeerDataOperationRequestType: waE2E.PeerDataOperationRequestType_COMPANION_SYNCD_SNAPSHOT_FATAL_RECOVERY.Enum(),
 				SyncdCollectionFatalRecoveryRequest: &waE2E.PeerDataOperationRequestMessage_SyncDCollectionFatalRecoveryRequest{
 					CollectionName: (*string)(&collection),
-					Timestamp:      ptr.Ptr(time.Now().Unix()),
+					Timestamp:      new(time.Now().Unix()),
 				},
 			},
 		},

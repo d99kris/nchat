@@ -26,6 +26,7 @@ if(HAS_STATIC_EXTLIBS)
   endforeach()
 endif()
 find_package(SQLite3 REQUIRED)
+find_package(Threads REQUIRED)
 
 # Platform specifics
 if (${CMAKE_SYSTEM_NAME} MATCHES "Android")
@@ -100,7 +101,7 @@ target_include_directories(ncutil PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated
 check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)
 if(FOUND_EXECINFO_H)
   target_compile_definitions(ncutil PRIVATE HAVE_EXECINFO_H=1)
-  if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD|FreeBSD")
     find_library(EXECINFO_LIBRARY execinfo)
     if(EXECINFO_LIBRARY)
       target_link_libraries(ncutil PUBLIC ${EXECINFO_LIBRARY})
@@ -148,7 +149,7 @@ target_common_config(ncutil)
 target_include_directories(ncutil PRIVATE "../ncutil/src" ${MAGIC_INCLUDE_DIR})
 target_include_directories(ncutil PRIVATE "../common/src")
 target_include_directories(ncutil PRIVATE "ext/apathy")
-target_include_directories(ncutil PRIVATE "ext/sqlite_modern_cpp/hdr")
+target_include_directories(ncutil PRIVATE "ext/sqlite_modern_cpp/hdr" ${SQLite3_INCLUDE_DIRS})
 target_include_directories(ncutil PRIVATE "ext/clip")
 target_include_directories(ncutil PRIVATE "ext/cereal/include")
 
@@ -160,4 +161,4 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} ${SQLite3_LIBRARIES} clip qrcodegen stb ${WORDEXP_LIBRARY})
+target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} ${SQLite3_LIBRARIES} clip qrcodegen stb ${WORDEXP_LIBRARY} Threads::Threads)

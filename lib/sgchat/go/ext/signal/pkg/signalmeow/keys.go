@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -621,22 +622,24 @@ func (cli *Client) keyCheckLoop(ctx context.Context) {
 				windowSize = 25
 				continue
 			}
-			err = cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
-			if err != nil {
-				if errors.Is(err, errPrekeyUpload422) {
-					log.Err(err).Msg("Got 422 error while uploading PNI prekeys, deleting session")
-					disconnectErr := cli.ClearKeysAndDisconnect(ctx)
-					if disconnectErr != nil {
-						log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
+			if cli.Store.PNI != uuid.Nil {
+				err = cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
+				if err != nil {
+					if errors.Is(err, errPrekeyUpload422) {
+						log.Err(err).Msg("Got 422 error while uploading PNI prekeys, deleting session")
+						disconnectErr := cli.ClearKeysAndDisconnect(ctx)
+						if disconnectErr != nil {
+							log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
+						}
+						cli.handleEvent(&events.LoggedOut{Error: err})
+						return
 					}
-					cli.handleEvent(&events.LoggedOut{Error: err})
-					return
+					log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
+					// Retry within half an hour
+					windowStart = 5
+					windowSize = 25
+					continue
 				}
-				log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
-				// Retry within half an hour
-				windowStart = 5
-				windowSize = 25
-				continue
 			}
 			// After a successful check, check again in 36 to 60 hours
 			windowStart = 36 * 60

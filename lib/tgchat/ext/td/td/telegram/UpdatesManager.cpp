@@ -92,6 +92,7 @@
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/TimeZoneManager.h"
 #include "td/telegram/TonAmount.h"
+#include "td/telegram/TonWalletManager.h"
 #include "td/telegram/TranscriptionManager.h"
 #include "td/telegram/TranslationManager.h"
 #include "td/telegram/UserManager.h"
@@ -1000,6 +1001,8 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         case telegram_api::messageActionPollAppendAnswer::ID:
         case telegram_api::messageActionPollDeleteAnswer::ID:
         case telegram_api::messageActionManagedBotCreated::ID:
+        case telegram_api::messageActionGramTransfer::ID:
+        case telegram_api::messageActionWalletTonConnectRequest::ID:
           break;
         case telegram_api::messageActionChatCreate::ID: {
           auto action = static_cast<const telegram_api::messageActionChatCreate *>(action_ptr);
@@ -1656,6 +1659,17 @@ telegram_api::object_ptr<telegram_api::StoryItem> UpdatesManager::extract_story(
           (is_business || update->story_->get_id() == telegram_api::storyItem::ID)) {
         return std::move(update->story_);
       }
+    }
+  }
+  return nullptr;
+}
+
+telegram_api::object_ptr<telegram_api::updateSentWalletTransaction> UpdatesManager::extract_sent_wallet_transaction(
+    telegram_api::Updates *updates_ptr) {
+  auto updates = get_updates(updates_ptr);
+  for (auto it = updates->begin(); it != updates->end(); ++it) {
+    if ((*it)->get_id() == telegram_api::updateSentWalletTransaction::ID) {
+      return telegram_api::move_object_as<telegram_api::updateSentWalletTransaction>(*it);
     }
   }
   return nullptr;
@@ -2460,6 +2474,7 @@ void UpdatesManager::try_reload_data() {
   td_->theme_manager_->reload_chat_themes();
   td_->theme_manager_->reload_profile_accent_colors();
   td_->time_zone_manager_->reload_time_zones(Auto());
+  td_->ton_wallet_manager_->get_wallet_state(Auto());
   td_->translation_manager_->reload_ai_compose_tones(Auto());
   td_->user_manager_->reload_contact_birthdates(false);
   td_->user_manager_->reload_my_saved_music_list(Auto());
@@ -5103,6 +5118,36 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsBalance> u
     default:
       UNREACHABLE();
   }
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateWalletState> update, Promise<Unit> &&promise) {
+  td_->ton_wallet_manager_->on_update_wallet_state(std::move(update->state_));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateWalletGaslessInfo> update, Promise<Unit> &&promise) {
+  td_->ton_wallet_manager_->on_update_wallet_gasless_info(std::move(update));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateSentWalletTransaction> update,
+                               Promise<Unit> &&promise) {
+  LOG(INFO) << "Ignore unexpected " << to_string(update);
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateWalletTonConnectSession> update,
+                               Promise<Unit> &&promise) {
+  td_->ton_wallet_manager_->on_update_wallet_ton_connect_session(std::move(update->session_));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateWalletTonConnectPendingDisconnect> update,
+                               Promise<Unit> &&promise) {
+  send_closure(
+      G()->td(), &Td::send_update,
+      td_api::make_object<td_api::updateTonWalletTonConnectSessionDisconnectRequired>(std::move(update->session_ids_)));
   promise.set_value(Unit());
 }
 

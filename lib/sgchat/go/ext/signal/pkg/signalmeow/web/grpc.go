@@ -114,7 +114,7 @@ func (gc *GRPCClient) ResetConnectBackoff() {
 	gc.UnauthConn.ResetConnectBackoff()
 }
 
-const GRPCTarget = "dns://grpc.chat.signal.org:443"
+const GRPCTarget = "dns:///grpc.chat.signal.org:443"
 
 func NewGRPCClient(username, password string) (*GRPCClient, error) {
 	grpcTLSConfig := credentials.NewTLS(SignalTLSConfig)

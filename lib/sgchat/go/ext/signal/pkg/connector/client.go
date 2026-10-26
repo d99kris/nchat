@@ -40,8 +40,9 @@ type SignalClient struct {
 	Client    *signalmeow.Client
 	Ghost     *bridgev2.Ghost
 
-	queueEmptyWaiter *exsync.Event
-	cancelChatSync   atomic.Pointer[context.CancelFunc]
+	recentMessageRooms *exsync.RingBuffer[networkid.MessageID, networkid.PortalKey]
+	queueEmptyWaiter   *exsync.Event
+	cancelChatSync     atomic.Pointer[context.CancelFunc]
 }
 
 var (
@@ -342,7 +343,7 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, noLoginSy
 		if s.Client.Store.EphemeralBackupKey != nil {
 			go func() {
 				if s.Client.Store.MasterKey != nil {
-					s.Client.SyncStorage(ctx)
+					s.Client.StorageSync(ctx)
 				} else {
 					s.UserLogin.Log.Warn().Msg("No master key for storage sync before backup sync")
 				}
@@ -351,7 +352,7 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, noLoginSy
 		} else {
 			cancel()
 			if s.Client.Store.MasterKey != nil {
-				go s.Client.SyncStorage(ctx)
+				s.Client.QueueStorageSync(ctx)
 			}
 		}
 	}

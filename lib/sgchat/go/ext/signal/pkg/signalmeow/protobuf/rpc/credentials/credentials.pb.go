@@ -11,6 +11,7 @@
 package credentials
 
 import (
+	common "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/common"
 	_ "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/require"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -497,10 +498,10 @@ type GetGroupCredentialsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A collection of credentials allowing the holder to anonymously
 	// authenticate themselves for group-related actions
-	GroupCredentials []*GetGroupCredentialsResponse_CredentialAndRedemptionTime `protobuf:"bytes,1,rep,name=group_credentials,json=groupCredentials,proto3" json:"group_credentials,omitempty"`
+	GroupCredentials []*common.ZkCredential `protobuf:"bytes,1,rep,name=group_credentials,json=groupCredentials,proto3" json:"group_credentials,omitempty"`
 	// A collection of credentials allowing the holder to read, update, and delete
 	// group call links
-	CallLinkAuthCredentials []*GetGroupCredentialsResponse_CredentialAndRedemptionTime `protobuf:"bytes,2,rep,name=call_link_auth_credentials,json=callLinkAuthCredentials,proto3" json:"call_link_auth_credentials,omitempty"`
+	CallLinkAuthCredentials []*common.ZkCredential `protobuf:"bytes,2,rep,name=call_link_auth_credentials,json=callLinkAuthCredentials,proto3" json:"call_link_auth_credentials,omitempty"`
 	// The phone number identifier for which the included credentials were
 	// generated. Empty if the account does not have a phone number.
 	Pni           []byte `protobuf:"bytes,3,opt,name=pni,proto3" json:"pni,omitempty"`
@@ -538,14 +539,14 @@ func (*GetGroupCredentialsResponse) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_credentials_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *GetGroupCredentialsResponse) GetGroupCredentials() []*GetGroupCredentialsResponse_CredentialAndRedemptionTime {
+func (x *GetGroupCredentialsResponse) GetGroupCredentials() []*common.ZkCredential {
 	if x != nil {
 		return x.GroupCredentials
 	}
 	return nil
 }
 
-func (x *GetGroupCredentialsResponse) GetCallLinkAuthCredentials() []*GetGroupCredentialsResponse_CredentialAndRedemptionTime {
+func (x *GetGroupCredentialsResponse) GetCallLinkAuthCredentials() []*common.ZkCredential {
 	if x != nil {
 		return x.CallLinkAuthCredentials
 	}
@@ -559,7 +560,7 @@ func (x *GetGroupCredentialsResponse) GetPni() []byte {
 	return nil
 }
 
-type GetCreateCallLinkCredentialsRequest struct {
+type GetCreateCallLinkCredentialRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A zero-knowledge credential request
 	CredentialRequest []byte `protobuf:"bytes,1,opt,name=credential_request,json=credentialRequest,proto3" json:"credential_request,omitempty"`
@@ -567,20 +568,20 @@ type GetCreateCallLinkCredentialsRequest struct {
 	sizeCache         protoimpl.SizeCache
 }
 
-func (x *GetCreateCallLinkCredentialsRequest) Reset() {
-	*x = GetCreateCallLinkCredentialsRequest{}
+func (x *GetCreateCallLinkCredentialRequest) Reset() {
+	*x = GetCreateCallLinkCredentialRequest{}
 	mi := &file_org_signal_chat_credentials_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetCreateCallLinkCredentialsRequest) String() string {
+func (x *GetCreateCallLinkCredentialRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetCreateCallLinkCredentialsRequest) ProtoMessage() {}
+func (*GetCreateCallLinkCredentialRequest) ProtoMessage() {}
 
-func (x *GetCreateCallLinkCredentialsRequest) ProtoReflect() protoreflect.Message {
+func (x *GetCreateCallLinkCredentialRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_credentials_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -592,44 +593,41 @@ func (x *GetCreateCallLinkCredentialsRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCreateCallLinkCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*GetCreateCallLinkCredentialsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetCreateCallLinkCredentialRequest.ProtoReflect.Descriptor instead.
+func (*GetCreateCallLinkCredentialRequest) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_credentials_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *GetCreateCallLinkCredentialsRequest) GetCredentialRequest() []byte {
+func (x *GetCreateCallLinkCredentialRequest) GetCredentialRequest() []byte {
 	if x != nil {
 		return x.CredentialRequest
 	}
 	return nil
 }
 
-type GetCreateCallLinkCredentialsResponse struct {
+type GetCreateCallLinkCredentialResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A zero-knowledge credential that may be redeemed at or up to one day after
 	// the given redemption time
-	Credential []byte `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
-	// The earliest time, in seconds since the epoch, at which the associated
-	// credential may be redeemed
-	RedemptionTimeSeconds uint64 `protobuf:"varint,2,opt,name=redemption_time_seconds,json=redemptionTimeSeconds,proto3" json:"redemption_time_seconds,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	Credential    []byte `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetCreateCallLinkCredentialsResponse) Reset() {
-	*x = GetCreateCallLinkCredentialsResponse{}
+func (x *GetCreateCallLinkCredentialResponse) Reset() {
+	*x = GetCreateCallLinkCredentialResponse{}
 	mi := &file_org_signal_chat_credentials_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetCreateCallLinkCredentialsResponse) String() string {
+func (x *GetCreateCallLinkCredentialResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetCreateCallLinkCredentialsResponse) ProtoMessage() {}
+func (*GetCreateCallLinkCredentialResponse) ProtoMessage() {}
 
-func (x *GetCreateCallLinkCredentialsResponse) ProtoReflect() protoreflect.Message {
+func (x *GetCreateCallLinkCredentialResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_credentials_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -641,84 +639,23 @@ func (x *GetCreateCallLinkCredentialsResponse) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCreateCallLinkCredentialsResponse.ProtoReflect.Descriptor instead.
-func (*GetCreateCallLinkCredentialsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetCreateCallLinkCredentialResponse.ProtoReflect.Descriptor instead.
+func (*GetCreateCallLinkCredentialResponse) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_credentials_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *GetCreateCallLinkCredentialsResponse) GetCredential() []byte {
+func (x *GetCreateCallLinkCredentialResponse) GetCredential() []byte {
 	if x != nil {
 		return x.Credential
 	}
 	return nil
-}
-
-func (x *GetCreateCallLinkCredentialsResponse) GetRedemptionTimeSeconds() uint64 {
-	if x != nil {
-		return x.RedemptionTimeSeconds
-	}
-	return 0
-}
-
-// A zero-knowledge credential that may be redeemed at or up to one day after
-// the given redemption time
-type GetGroupCredentialsResponse_CredentialAndRedemptionTime struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Credential            []byte                 `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
-	RedemptionTimeSeconds uint64                 `protobuf:"varint,2,opt,name=redemption_time_seconds,json=redemptionTimeSeconds,proto3" json:"redemption_time_seconds,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
-}
-
-func (x *GetGroupCredentialsResponse_CredentialAndRedemptionTime) Reset() {
-	*x = GetGroupCredentialsResponse_CredentialAndRedemptionTime{}
-	mi := &file_org_signal_chat_credentials_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetGroupCredentialsResponse_CredentialAndRedemptionTime) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetGroupCredentialsResponse_CredentialAndRedemptionTime) ProtoMessage() {}
-
-func (x *GetGroupCredentialsResponse_CredentialAndRedemptionTime) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_credentials_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetGroupCredentialsResponse_CredentialAndRedemptionTime.ProtoReflect.Descriptor instead.
-func (*GetGroupCredentialsResponse_CredentialAndRedemptionTime) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_credentials_proto_rawDescGZIP(), []int{7, 0}
-}
-
-func (x *GetGroupCredentialsResponse_CredentialAndRedemptionTime) GetCredential() []byte {
-	if x != nil {
-		return x.Credential
-	}
-	return nil
-}
-
-func (x *GetGroupCredentialsResponse_CredentialAndRedemptionTime) GetRedemptionTimeSeconds() uint64 {
-	if x != nil {
-		return x.RedemptionTimeSeconds
-	}
-	return 0
 }
 
 var File_org_signal_chat_credentials_proto protoreflect.FileDescriptor
 
 const file_org_signal_chat_credentials_proto_rawDesc = "" +
 	"\n" +
-	"!org/signal/chat/credentials.proto\x12\x1borg.signal.chat.credentials\x1a\x1dorg/signal/chat/require.proto\"\x82\x01\n" +
+	"!org/signal/chat/credentials.proto\x12\x1borg.signal.chat.credentials\x1a\x1corg/signal/chat/common.proto\x1a\x1dorg/signal/chat/require.proto\"\x82\x01\n" +
 	"$GetExternalServiceCredentialsRequest\x12Z\n" +
 	"\x0fexternalService\x18\x01 \x01(\x0e20.org.signal.chat.credentials.ExternalServiceTypeR\x0fexternalService\"_\n" +
 	"%GetExternalServiceCredentialsResponse\x12\x1a\n" +
@@ -740,23 +677,17 @@ const file_org_signal_chat_credentials_proto_rawDesc = "" +
 	"\x18certificate_without_e164\x18\x02 \x01(\fR\x16certificateWithoutE164\"\x8c\x01\n" +
 	"\x1aGetGroupCredentialsRequest\x128\n" +
 	"\x18redemption_start_seconds\x18\x01 \x01(\x04R\x16redemptionStartSeconds\x124\n" +
-	"\x16redemption_end_seconds\x18\x02 \x01(\x04R\x14redemptionEndSeconds\"\xbe\x03\n" +
-	"\x1bGetGroupCredentialsResponse\x12\x81\x01\n" +
-	"\x11group_credentials\x18\x01 \x03(\v2T.org.signal.chat.credentials.GetGroupCredentialsResponse.CredentialAndRedemptionTimeR\x10groupCredentials\x12\x91\x01\n" +
-	"\x1acall_link_auth_credentials\x18\x02 \x03(\v2T.org.signal.chat.credentials.GetGroupCredentialsResponse.CredentialAndRedemptionTimeR\x17callLinkAuthCredentials\x12\x10\n" +
-	"\x03pni\x18\x03 \x01(\fR\x03pni\x1au\n" +
-	"\x1bCredentialAndRedemptionTime\x12\x1e\n" +
+	"\x16redemption_end_seconds\x18\x02 \x01(\x04R\x14redemptionEndSeconds\"\xe5\x01\n" +
+	"\x1bGetGroupCredentialsResponse\x12Q\n" +
+	"\x11group_credentials\x18\x01 \x03(\v2$.org.signal.chat.common.ZkCredentialR\x10groupCredentials\x12a\n" +
+	"\x1acall_link_auth_credentials\x18\x02 \x03(\v2$.org.signal.chat.common.ZkCredentialR\x17callLinkAuthCredentials\x12\x10\n" +
+	"\x03pni\x18\x03 \x01(\fR\x03pni\"S\n" +
+	"\"GetCreateCallLinkCredentialRequest\x12-\n" +
+	"\x12credential_request\x18\x01 \x01(\fR\x11credentialRequest\"E\n" +
+	"#GetCreateCallLinkCredentialResponse\x12\x1e\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\fR\n" +
-	"credential\x126\n" +
-	"\x17redemption_time_seconds\x18\x02 \x01(\x04R\x15redemptionTimeSeconds\"T\n" +
-	"#GetCreateCallLinkCredentialsRequest\x12-\n" +
-	"\x12credential_request\x18\x01 \x01(\fR\x11credentialRequest\"~\n" +
-	"$GetCreateCallLinkCredentialsResponse\x12\x1e\n" +
-	"\n" +
-	"credential\x18\x01 \x01(\fR\n" +
-	"credential\x126\n" +
-	"\x17redemption_time_seconds\x18\x02 \x01(\x04R\x15redemptionTimeSeconds*\xc7\x01\n" +
+	"credential*\xc7\x01\n" +
 	"\x13ExternalServiceType\x12%\n" +
 	"!EXTERNAL_SERVICE_TYPE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fEXTERNAL_SERVICE_TYPE_DIRECTORY\x10\x01\x12\"\n" +
@@ -767,12 +698,12 @@ const file_org_signal_chat_credentials_proto_rawDesc = "" +
 	"\x1dAUTH_CHECK_RESULT_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17AUTH_CHECK_RESULT_MATCH\x10\x01\x12\x1e\n" +
 	"\x1aAUTH_CHECK_RESULT_NO_MATCH\x10\x02\x12\x1d\n" +
-	"\x19AUTH_CHECK_RESULT_INVALID\x10\x032\x89\x05\n" +
+	"\x19AUTH_CHECK_RESULT_INVALID\x10\x032\x86\x05\n" +
 	"\vCredentials\x12\xa8\x01\n" +
 	"\x1dGetExternalServiceCredentials\x12A.org.signal.chat.credentials.GetExternalServiceCredentialsRequest\x1aB.org.signal.chat.credentials.GetExternalServiceCredentialsResponse\"\x00\x12\x93\x01\n" +
 	"\x16GetDeliveryCertificate\x12:.org.signal.chat.credentials.GetDeliveryCertificateRequest\x1a;.org.signal.chat.credentials.GetDeliveryCertificateResponse\"\x00\x12\x8a\x01\n" +
-	"\x13GetGroupCredentials\x127.org.signal.chat.credentials.GetGroupCredentialsRequest\x1a8.org.signal.chat.credentials.GetGroupCredentialsResponse\"\x00\x12\xa5\x01\n" +
-	"\x1cGetCreateCallLinkCredentials\x12@.org.signal.chat.credentials.GetCreateCallLinkCredentialsRequest\x1aA.org.signal.chat.credentials.GetCreateCallLinkCredentialsResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xa9\x01\n" +
+	"\x13GetGroupCredentials\x127.org.signal.chat.credentials.GetGroupCredentialsRequest\x1a8.org.signal.chat.credentials.GetGroupCredentialsResponse\"\x00\x12\xa2\x01\n" +
+	"\x1bGetCreateCallLinkCredential\x12?.org.signal.chat.credentials.GetCreateCallLinkCredentialRequest\x1a@.org.signal.chat.credentials.GetCreateCallLinkCredentialResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xa9\x01\n" +
 	"\x14CredentialsAnonymous\x12\x8a\x01\n" +
 	"\x13CheckSvrCredentials\x127.org.signal.chat.credentials.CheckSvrCredentialsRequest\x1a8.org.signal.chat.credentials.CheckSvrCredentialsResponse\"\x00\x1a\x04\xc8\xd5\"\x02B\x02P\x01b\x06proto3"
 
@@ -789,7 +720,7 @@ func file_org_signal_chat_credentials_proto_rawDescGZIP() []byte {
 }
 
 var file_org_signal_chat_credentials_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_org_signal_chat_credentials_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_org_signal_chat_credentials_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_org_signal_chat_credentials_proto_goTypes = []any{
 	(ExternalServiceType)(0),                      // 0: org.signal.chat.credentials.ExternalServiceType
 	(AuthCheckResult)(0),                          // 1: org.signal.chat.credentials.AuthCheckResult
@@ -801,26 +732,26 @@ var file_org_signal_chat_credentials_proto_goTypes = []any{
 	(*GetDeliveryCertificateResponse)(nil),        // 7: org.signal.chat.credentials.GetDeliveryCertificateResponse
 	(*GetGroupCredentialsRequest)(nil),            // 8: org.signal.chat.credentials.GetGroupCredentialsRequest
 	(*GetGroupCredentialsResponse)(nil),           // 9: org.signal.chat.credentials.GetGroupCredentialsResponse
-	(*GetCreateCallLinkCredentialsRequest)(nil),   // 10: org.signal.chat.credentials.GetCreateCallLinkCredentialsRequest
-	(*GetCreateCallLinkCredentialsResponse)(nil),  // 11: org.signal.chat.credentials.GetCreateCallLinkCredentialsResponse
-	nil, // 12: org.signal.chat.credentials.CheckSvrCredentialsResponse.MatchesEntry
-	(*GetGroupCredentialsResponse_CredentialAndRedemptionTime)(nil), // 13: org.signal.chat.credentials.GetGroupCredentialsResponse.CredentialAndRedemptionTime
+	(*GetCreateCallLinkCredentialRequest)(nil),    // 10: org.signal.chat.credentials.GetCreateCallLinkCredentialRequest
+	(*GetCreateCallLinkCredentialResponse)(nil),   // 11: org.signal.chat.credentials.GetCreateCallLinkCredentialResponse
+	nil,                         // 12: org.signal.chat.credentials.CheckSvrCredentialsResponse.MatchesEntry
+	(*common.ZkCredential)(nil), // 13: org.signal.chat.common.ZkCredential
 }
 var file_org_signal_chat_credentials_proto_depIdxs = []int32{
 	0,  // 0: org.signal.chat.credentials.GetExternalServiceCredentialsRequest.externalService:type_name -> org.signal.chat.credentials.ExternalServiceType
 	12, // 1: org.signal.chat.credentials.CheckSvrCredentialsResponse.matches:type_name -> org.signal.chat.credentials.CheckSvrCredentialsResponse.MatchesEntry
-	13, // 2: org.signal.chat.credentials.GetGroupCredentialsResponse.group_credentials:type_name -> org.signal.chat.credentials.GetGroupCredentialsResponse.CredentialAndRedemptionTime
-	13, // 3: org.signal.chat.credentials.GetGroupCredentialsResponse.call_link_auth_credentials:type_name -> org.signal.chat.credentials.GetGroupCredentialsResponse.CredentialAndRedemptionTime
+	13, // 2: org.signal.chat.credentials.GetGroupCredentialsResponse.group_credentials:type_name -> org.signal.chat.common.ZkCredential
+	13, // 3: org.signal.chat.credentials.GetGroupCredentialsResponse.call_link_auth_credentials:type_name -> org.signal.chat.common.ZkCredential
 	1,  // 4: org.signal.chat.credentials.CheckSvrCredentialsResponse.MatchesEntry.value:type_name -> org.signal.chat.credentials.AuthCheckResult
 	2,  // 5: org.signal.chat.credentials.Credentials.GetExternalServiceCredentials:input_type -> org.signal.chat.credentials.GetExternalServiceCredentialsRequest
 	6,  // 6: org.signal.chat.credentials.Credentials.GetDeliveryCertificate:input_type -> org.signal.chat.credentials.GetDeliveryCertificateRequest
 	8,  // 7: org.signal.chat.credentials.Credentials.GetGroupCredentials:input_type -> org.signal.chat.credentials.GetGroupCredentialsRequest
-	10, // 8: org.signal.chat.credentials.Credentials.GetCreateCallLinkCredentials:input_type -> org.signal.chat.credentials.GetCreateCallLinkCredentialsRequest
+	10, // 8: org.signal.chat.credentials.Credentials.GetCreateCallLinkCredential:input_type -> org.signal.chat.credentials.GetCreateCallLinkCredentialRequest
 	4,  // 9: org.signal.chat.credentials.CredentialsAnonymous.CheckSvrCredentials:input_type -> org.signal.chat.credentials.CheckSvrCredentialsRequest
 	3,  // 10: org.signal.chat.credentials.Credentials.GetExternalServiceCredentials:output_type -> org.signal.chat.credentials.GetExternalServiceCredentialsResponse
 	7,  // 11: org.signal.chat.credentials.Credentials.GetDeliveryCertificate:output_type -> org.signal.chat.credentials.GetDeliveryCertificateResponse
 	9,  // 12: org.signal.chat.credentials.Credentials.GetGroupCredentials:output_type -> org.signal.chat.credentials.GetGroupCredentialsResponse
-	11, // 13: org.signal.chat.credentials.Credentials.GetCreateCallLinkCredentials:output_type -> org.signal.chat.credentials.GetCreateCallLinkCredentialsResponse
+	11, // 13: org.signal.chat.credentials.Credentials.GetCreateCallLinkCredential:output_type -> org.signal.chat.credentials.GetCreateCallLinkCredentialResponse
 	5,  // 14: org.signal.chat.credentials.CredentialsAnonymous.CheckSvrCredentials:output_type -> org.signal.chat.credentials.CheckSvrCredentialsResponse
 	10, // [10:15] is the sub-list for method output_type
 	5,  // [5:10] is the sub-list for method input_type
@@ -840,7 +771,7 @@ func file_org_signal_chat_credentials_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_org_signal_chat_credentials_proto_rawDesc), len(file_org_signal_chat_credentials_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

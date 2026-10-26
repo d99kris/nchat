@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -78,28 +79,53 @@ func (s *sqlStore) SaveIdentityKey(ctx context.Context, theirServiceID libsignal
 	if err != nil {
 		return false, fmt.Errorf("failed to serialize identity key: %w", err)
 	}
-	oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.AccountID, theirServiceID))
-	if err != nil {
-		return false, fmt.Errorf("failed to get old identity key: %w", err)
-	}
 	var replacing bool
-	if oldKey != nil {
-		equal, err := oldKey.Equal(identityKey)
+	err = s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
+		oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.AccountID, theirServiceID))
 		if err != nil {
-			return false, fmt.Errorf("failed to compare new and old identity keys: %w", err)
+			return fmt.Errorf("failed to get old identity key: %w", err)
 		}
-		// We are replacing the old key if the old key exists, and it is not equal to the new key
-		replacing = !equal
-	}
-	_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.AccountID, theirServiceID, serialized, trustLevel)
-	if err != nil {
-		return replacing, fmt.Errorf("failed to insert new identity key: %w", err)
+		if oldKey != nil {
+			equal, err := oldKey.Equal(identityKey)
+			if err != nil {
+				return fmt.Errorf("failed to compare new and old identity keys: %w", err)
+			}
+			// We are replacing the old key if the old key exists, and it is not equal to the new key
+			replacing = !equal
+		}
+		_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.AccountID, theirServiceID, serialized, trustLevel)
+		if err != nil {
+			return fmt.Errorf("failed to insert new identity key: %w", err)
+		}
+		if replacing {
+			zerolog.Ctx(ctx).Debug().
+				Stringer("their_service_id", theirServiceID).
+				Msg("Identity key changed, archiving sessions")
+			err = s.aciStore.ArchiveAllSessionsForServiceID(ctx, theirServiceID)
+			if err != nil {
+				return fmt.Errorf("failed to archive sessions for ACI store: %w", err)
+			}
+			if s.pniStore != nil {
+				err = s.pniStore.ArchiveAllSessionsForServiceID(ctx, theirServiceID)
+				if err != nil {
+					return fmt.Errorf("failed to archive sessions for PNI store: %w", err)
+				}
+			}
+		}
+		return nil
+	})
+	if err == nil && replacing && s.identityChangeCallback != nil {
+		go s.identityChangeCallback(theirServiceID)
 	}
 	return replacing, err
 }
 
 func (s *sqlStore) IsTrustedIdentity(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error) {
-	// TODO: this should check direction, and probably some other stuff (though whisperfish is pretty basic)
+	if theirServiceID == s.aciStore.ServiceID {
+		return identityKey.Equal(s.aciIdentity)
+	} else if s.pniStore != nil && theirServiceID == s.pniStore.ServiceID {
+		return identityKey.Equal(s.pniIdentity)
+	}
 	var trustLevel string
 	err := s.db.QueryRow(ctx, getIdentityKeyTrustLevelQuery, s.AccountID, theirServiceID).Scan(&trustLevel)
 	if errors.Is(err, sql.ErrNoRows) {

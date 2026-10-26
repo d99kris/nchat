@@ -232,7 +232,7 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32) (*http.Re
 	}
 	log.Debug().Str("host", host).Msg("getting attachment")
 	urlStr := "https://" + host + path
-	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if err != nil {
 		return nil, err
 	}

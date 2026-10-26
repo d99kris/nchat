@@ -20,10 +20,12 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"runtime/debug"
 	"slices"
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/random"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -78,6 +80,24 @@ func (cli *Client) sendRetryRequest(ctx context.Context, result DecryptionResult
 		Stringer("group_id", result.GroupID).
 		Msg("Sent retry receipt")
 	return nil
+}
+
+func (cli *Client) tryHandleRetryRequest(
+	ctx context.Context,
+	result DecryptionResult,
+	dem *libsignalgo.DecryptionErrorMessage,
+) {
+	defer func() {
+		if v := recover(); v != nil {
+			zerolog.Ctx(ctx).Err(exerrors.RecoverToError(v)).
+				Bytes(zerolog.ErrorStackFieldName, debug.Stack()).
+				Msg("Panic in retry request handler")
+		}
+	}()
+	err := cli.handleRetryRequest(ctx, result, dem)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to handle decryption error message in background")
+	}
 }
 
 func (cli *Client) handleRetryRequest(
@@ -141,7 +161,13 @@ func (cli *Client) handleRetryRequest(
 		if err != nil {
 			return fmt.Errorf("failed to get own address: %w", err)
 		}
-		if slices.Contains(ski.SharedWith[serviceID], int(deviceID)) {
+		if ski == nil {
+			zerolog.Ctx(ctx).Debug().
+				Stringer("group_id", result.GroupID).
+				Stringer("sender_service_id", serviceID).
+				Uint("sender_device_id", deviceID).
+				Msg("No sender key info for group for retry receipt")
+		} else if slices.Contains(ski.SharedWith[serviceID], int(deviceID)) {
 			skdm, err := libsignalgo.NewSenderKeyDistributionMessage(ctx, myAddress, ski.DistributionID, cli.Store.SenderKeyStore)
 			if err != nil {
 				return fmt.Errorf("failed to create sender key distribution message: %w", err)

@@ -26,7 +26,7 @@ const (
 	Credentials_GetExternalServiceCredentials_FullMethodName = "/org.signal.chat.credentials.Credentials/GetExternalServiceCredentials"
 	Credentials_GetDeliveryCertificate_FullMethodName        = "/org.signal.chat.credentials.Credentials/GetDeliveryCertificate"
 	Credentials_GetGroupCredentials_FullMethodName           = "/org.signal.chat.credentials.Credentials/GetGroupCredentials"
-	Credentials_GetCreateCallLinkCredentials_FullMethodName  = "/org.signal.chat.credentials.Credentials/GetCreateCallLinkCredentials"
+	Credentials_GetCreateCallLinkCredential_FullMethodName   = "/org.signal.chat.credentials.Credentials/GetCreateCallLinkCredential"
 )
 
 // CredentialsClient is the client API for Credentials service.
@@ -47,7 +47,7 @@ type CredentialsClient interface {
 	// actions.
 	GetGroupCredentials(ctx context.Context, in *GetGroupCredentialsRequest, opts ...grpc.CallOption) (*GetGroupCredentialsResponse, error)
 	// Generates zero-knowledge credentials for creating call links.
-	GetCreateCallLinkCredentials(ctx context.Context, in *GetCreateCallLinkCredentialsRequest, opts ...grpc.CallOption) (*GetCreateCallLinkCredentialsResponse, error)
+	GetCreateCallLinkCredential(ctx context.Context, in *GetCreateCallLinkCredentialRequest, opts ...grpc.CallOption) (*GetCreateCallLinkCredentialResponse, error)
 }
 
 type credentialsClient struct {
@@ -88,10 +88,10 @@ func (c *credentialsClient) GetGroupCredentials(ctx context.Context, in *GetGrou
 	return out, nil
 }
 
-func (c *credentialsClient) GetCreateCallLinkCredentials(ctx context.Context, in *GetCreateCallLinkCredentialsRequest, opts ...grpc.CallOption) (*GetCreateCallLinkCredentialsResponse, error) {
+func (c *credentialsClient) GetCreateCallLinkCredential(ctx context.Context, in *GetCreateCallLinkCredentialRequest, opts ...grpc.CallOption) (*GetCreateCallLinkCredentialResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetCreateCallLinkCredentialsResponse)
-	err := c.cc.Invoke(ctx, Credentials_GetCreateCallLinkCredentials_FullMethodName, in, out, cOpts...)
+	out := new(GetCreateCallLinkCredentialResponse)
+	err := c.cc.Invoke(ctx, Credentials_GetCreateCallLinkCredential_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ type CredentialsServer interface {
 	// actions.
 	GetGroupCredentials(context.Context, *GetGroupCredentialsRequest) (*GetGroupCredentialsResponse, error)
 	// Generates zero-knowledge credentials for creating call links.
-	GetCreateCallLinkCredentials(context.Context, *GetCreateCallLinkCredentialsRequest) (*GetCreateCallLinkCredentialsResponse, error)
+	GetCreateCallLinkCredential(context.Context, *GetCreateCallLinkCredentialRequest) (*GetCreateCallLinkCredentialResponse, error)
 	mustEmbedUnimplementedCredentialsServer()
 }
 
@@ -136,8 +136,8 @@ func (UnimplementedCredentialsServer) GetDeliveryCertificate(context.Context, *G
 func (UnimplementedCredentialsServer) GetGroupCredentials(context.Context, *GetGroupCredentialsRequest) (*GetGroupCredentialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGroupCredentials not implemented")
 }
-func (UnimplementedCredentialsServer) GetCreateCallLinkCredentials(context.Context, *GetCreateCallLinkCredentialsRequest) (*GetCreateCallLinkCredentialsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetCreateCallLinkCredentials not implemented")
+func (UnimplementedCredentialsServer) GetCreateCallLinkCredential(context.Context, *GetCreateCallLinkCredentialRequest) (*GetCreateCallLinkCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCreateCallLinkCredential not implemented")
 }
 func (UnimplementedCredentialsServer) mustEmbedUnimplementedCredentialsServer() {}
 func (UnimplementedCredentialsServer) testEmbeddedByValue()                     {}
@@ -214,20 +214,20 @@ func _Credentials_GetGroupCredentials_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Credentials_GetCreateCallLinkCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCreateCallLinkCredentialsRequest)
+func _Credentials_GetCreateCallLinkCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCreateCallLinkCredentialRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CredentialsServer).GetCreateCallLinkCredentials(ctx, in)
+		return srv.(CredentialsServer).GetCreateCallLinkCredential(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Credentials_GetCreateCallLinkCredentials_FullMethodName,
+		FullMethod: Credentials_GetCreateCallLinkCredential_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CredentialsServer).GetCreateCallLinkCredentials(ctx, req.(*GetCreateCallLinkCredentialsRequest))
+		return srv.(CredentialsServer).GetCreateCallLinkCredential(ctx, req.(*GetCreateCallLinkCredentialRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -252,8 +252,8 @@ var Credentials_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Credentials_GetGroupCredentials_Handler,
 		},
 		{
-			MethodName: "GetCreateCallLinkCredentials",
-			Handler:    _Credentials_GetCreateCallLinkCredentials_Handler,
+			MethodName: "GetCreateCallLinkCredential",
+			Handler:    _Credentials_GetCreateCallLinkCredential_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

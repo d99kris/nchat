@@ -26,6 +26,7 @@ const (
 	Messages_SendMessage_FullMethodName     = "/org.signal.chat.messages.Messages/SendMessage"
 	Messages_SendSyncMessage_FullMethodName = "/org.signal.chat.messages.Messages/SendSyncMessage"
 	Messages_GetMessages_FullMethodName     = "/org.signal.chat.messages.Messages/GetMessages"
+	Messages_ReportMessage_FullMethodName   = "/org.signal.chat.messages.Messages/ReportMessage"
 )
 
 // MessagesClient is the client API for Messages service.
@@ -58,6 +59,8 @@ type MessagesClient interface {
 	// a STREAM_CLOSED error reason. A GetMessagesStreamClosed message will be
 	// present in the error details.
 	GetMessages(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GetMessagesRequest, GetMessagesResponse], error)
+	// Reports a message as spam.
+	ReportMessage(ctx context.Context, in *ReportMessageRequest, opts ...grpc.CallOption) (*ReportMessageResponse, error)
 }
 
 type messagesClient struct {
@@ -101,6 +104,16 @@ func (c *messagesClient) GetMessages(ctx context.Context, opts ...grpc.CallOptio
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Messages_GetMessagesClient = grpc.BidiStreamingClient[GetMessagesRequest, GetMessagesResponse]
 
+func (c *messagesClient) ReportMessage(ctx context.Context, in *ReportMessageRequest, opts ...grpc.CallOption) (*ReportMessageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportMessageResponse)
+	err := c.cc.Invoke(ctx, Messages_ReportMessage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MessagesServer is the server API for Messages service.
 // All implementations must embed UnimplementedMessagesServer
 // for forward compatibility.
@@ -131,6 +144,8 @@ type MessagesServer interface {
 	// a STREAM_CLOSED error reason. A GetMessagesStreamClosed message will be
 	// present in the error details.
 	GetMessages(grpc.BidiStreamingServer[GetMessagesRequest, GetMessagesResponse]) error
+	// Reports a message as spam.
+	ReportMessage(context.Context, *ReportMessageRequest) (*ReportMessageResponse, error)
 	mustEmbedUnimplementedMessagesServer()
 }
 
@@ -149,6 +164,9 @@ func (UnimplementedMessagesServer) SendSyncMessage(context.Context, *SendSyncMes
 }
 func (UnimplementedMessagesServer) GetMessages(grpc.BidiStreamingServer[GetMessagesRequest, GetMessagesResponse]) error {
 	return status.Error(codes.Unimplemented, "method GetMessages not implemented")
+}
+func (UnimplementedMessagesServer) ReportMessage(context.Context, *ReportMessageRequest) (*ReportMessageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportMessage not implemented")
 }
 func (UnimplementedMessagesServer) mustEmbedUnimplementedMessagesServer() {}
 func (UnimplementedMessagesServer) testEmbeddedByValue()                  {}
@@ -214,6 +232,24 @@ func _Messages_GetMessages_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Messages_GetMessagesServer = grpc.BidiStreamingServer[GetMessagesRequest, GetMessagesResponse]
 
+func _Messages_ReportMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessagesServer).ReportMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Messages_ReportMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessagesServer).ReportMessage(ctx, req.(*ReportMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Messages_ServiceDesc is the grpc.ServiceDesc for Messages service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +264,10 @@ var Messages_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendSyncMessage",
 			Handler:    _Messages_SendSyncMessage_Handler,
+		},
+		{
+			MethodName: "ReportMessage",
+			Handler:    _Messages_ReportMessage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

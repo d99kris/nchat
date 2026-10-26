@@ -2399,11 +2399,8 @@ tl_object_ptr<td_api::stickerSet> StickersManager::get_sticker_set_object(Sticke
   for (auto sticker_id : sticker_set->sticker_ids_) {
     stickers.push_back(get_sticker_object(sticker_id));
 
-    vector<string> sticker_emojis;
     auto it = sticker_set->sticker_emojis_map_.find(sticker_id);
-    if (it != sticker_set->sticker_emojis_map_.end()) {
-      sticker_emojis = it->second;
-    }
+    auto sticker_emojis = it != sticker_set->sticker_emojis_map_.end() ? it->second : vector<string>();
     emojis.push_back(make_tl_object<td_api::emojis>(std::move(sticker_emojis)));
   }
   return td_api::make_object<td_api::stickerSet>(
@@ -2778,7 +2775,8 @@ td_api::object_ptr<td_api::animatedEmoji> StickersManager::get_animated_emoji_ob
     auto default_custom_emoji_dimension = static_cast<int32>(512 * animated_emoji_zoom_ + 0.5);
     auto sticker_width = sticker == nullptr ? default_custom_emoji_dimension : sticker->width_;
     auto sticker_height = sticker == nullptr ? default_custom_emoji_dimension : sticker->height_;
-    return td_api::make_object<td_api::animatedEmoji>(std::move(sticker), sticker_width, sticker_height, 0, nullptr);
+    return td_api::make_object<td_api::animatedEmoji>(std::move(sticker), sticker_width, sticker_height, 0, nullptr,
+                                                      false);
   }
 
   auto it = emoji_messages_.find(emoji);
@@ -2800,7 +2798,7 @@ td_api::object_ptr<td_api::animatedEmoji> StickersManager::get_animated_emoji_ob
   auto sticker_height = sticker->height_;
   return td_api::make_object<td_api::animatedEmoji>(
       std::move(sticker), sticker_width, sticker_height, animated_sticker.second,
-      sound_file_id.is_valid() ? td_->file_manager_->get_file_object(sound_file_id) : nullptr);
+      sound_file_id.is_valid() ? td_->file_manager_->get_file_object(sound_file_id) : nullptr, true);
 }
 
 tl_object_ptr<telegram_api::InputStickerSet> StickersManager::get_input_sticker_set(StickerSetId sticker_set_id) const {
@@ -3191,21 +3189,19 @@ void StickersManager::delete_sticker_thumbnail(FileId file_id) {
   sticker->s_thumbnail_ = PhotoSize();
 }
 
-vector<FileId> StickersManager::get_sticker_file_ids(FileId file_id) const {
-  vector<FileId> result;
+void StickersManager::append_sticker_file_ids(FileId file_id, vector<FileId> &file_ids) const {
   auto sticker = get_sticker(file_id);
   CHECK(sticker != nullptr);
-  result.push_back(file_id);
+  file_ids.push_back(file_id);
   if (sticker->s_thumbnail_.file_id.is_valid()) {
-    result.push_back(sticker->s_thumbnail_.file_id);
+    file_ids.push_back(sticker->s_thumbnail_.file_id);
   }
   if (sticker->m_thumbnail_.file_id.is_valid()) {
-    result.push_back(sticker->m_thumbnail_.file_id);
+    file_ids.push_back(sticker->m_thumbnail_.file_id);
   }
   if (sticker->premium_animation_file_id_.is_valid()) {
-    result.push_back(sticker->premium_animation_file_id_);
+    file_ids.push_back(sticker->premium_animation_file_id_);
   }
-  return result;
 }
 
 FileId StickersManager::dup_sticker(FileId new_id, FileId old_id) {
@@ -9320,7 +9316,7 @@ void StickersManager::send_update_recent_stickers(bool is_attached, bool from_da
 
   vector<FileId> new_recent_sticker_file_ids;
   for (auto &sticker_id : recent_sticker_ids_[is_attached]) {
-    append(new_recent_sticker_file_ids, get_sticker_file_ids(sticker_id));
+    append_sticker_file_ids(sticker_id, new_recent_sticker_file_ids);
   }
   std::sort(new_recent_sticker_file_ids.begin(), new_recent_sticker_file_ids.end());
   if (new_recent_sticker_file_ids != recent_sticker_file_ids_[is_attached]) {
@@ -9682,7 +9678,7 @@ void StickersManager::send_update_favorite_stickers(bool from_database) {
   if (are_favorite_stickers_loaded_) {
     vector<FileId> new_favorite_sticker_file_ids;
     for (auto &sticker_id : favorite_sticker_ids_) {
-      append(new_favorite_sticker_file_ids, get_sticker_file_ids(sticker_id));
+      append_sticker_file_ids(sticker_id, new_favorite_sticker_file_ids);
     }
     std::sort(new_favorite_sticker_file_ids.begin(), new_favorite_sticker_file_ids.end());
     if (new_favorite_sticker_file_ids != favorite_sticker_file_ids_) {

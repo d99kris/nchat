@@ -26,6 +26,7 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/HashtagHints.h"
 #include "td/telegram/InlineQueriesManager.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/InputMessageText.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
@@ -90,7 +91,7 @@ class GetRichMessageQuery final : public Td::ResultHandler {
 
   void send(MessageFullId message_full_id) {
     dialog_id_ = message_full_id.get_dialog_id();
-    auto input_peer = td_->dialog_manager_->get_input_peer(message_full_id.get_dialog_id(), AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Chat not found"));
     }
@@ -279,7 +280,7 @@ class ReportMessageDeliveryQuery final : public Td::ResultHandler {
  public:
   void send(MessageFullId message_full_id, bool from_push) {
     dialog_id_ = message_full_id.get_dialog_id();
-    auto input_peer = td_->dialog_manager_->get_input_peer(message_full_id.get_dialog_id(), AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return;
     }
@@ -1520,9 +1521,9 @@ class EditCallbackQueryMessageQuery final : public Td::ResultHandler {
   MessageContentUploadId upload_id_;
 
  public:
-  void send(int64 callback_query_id, bool noforwards, const FormattedText *text, bool disable_web_page_preview,
-            MessageContentUploadId upload_id, InputMedia &&input_media, bool invert_media,
-            const unique_ptr<ReplyMarkup> &reply_markup) {
+  void send(int64 callback_query_id, bool anchor, bool noforwards, const FormattedText *text,
+            bool disable_web_page_preview, MessageContentUploadId upload_id, InputMedia &&input_media,
+            bool invert_media, const unique_ptr<ReplyMarkup> &reply_markup) {
     upload_id_ = upload_id;
     int32 flags = telegram_api::ephemeral_sendMessage::QUERY_ID_MASK;
     auto entities = get_input_message_entities(td_->user_manager_.get(), text, "SendMediaQuery");
@@ -1541,8 +1542,9 @@ class EditCallbackQueryMessageQuery final : public Td::ResultHandler {
     }
     td_->message_query_manager_->on_start_sending_message_content(upload_id_, input_media);
     send_query(G()->net_query_creator().create(telegram_api::ephemeral_sendMessage(
-        flags, invert_media, false, true, noforwards, nullptr, telegram_api::make_object<telegram_api::inputUserSelf>(),
-        callback_query_id, text == nullptr ? string() : text->text, std::move(entities), std::move(input_media.media_),
+        flags, invert_media, false, anchor, noforwards, nullptr,
+        telegram_api::make_object<telegram_api::inputUserSelf>(), callback_query_id,
+        text == nullptr ? string() : text->text, std::move(entities), std::move(input_media.media_),
         std::move(input_reply_markup), std::move(input_media.rich_message_), Random::secure_int64(), nullptr)));
   }
 
@@ -2396,7 +2398,7 @@ class MessageQueryManager::UploadEphemeralMessageContentCallback final
     if (query.is_send_) {
       const FormattedText *text = get_message_content_text(query.content_.get());
       manager_->td_->create_handler<EditCallbackQueryMessageQuery>()->send(
-          query.callback_query_id_, query.noforwards_, text, query.disable_web_page_preview_, upload_id,
+          query.callback_query_id_, query.anchor_, query.noforwards_, text, query.disable_web_page_preview_, upload_id,
           std::move(input_media), query.invert_media_, query.reply_markup_);
     } else {
       const FormattedText *caption = get_message_content_caption(query.content_.get());
@@ -2412,7 +2414,11 @@ class MessageQueryManager::UploadEphemeralMessageContentCallback final
 
   void on_uploaded_message_content_updated(MessageContentUploadId upload_id, unique_ptr<MessageContent> &&content,
                                            bool need_merge_files, bool is_content_changed, bool need_update) final {
-    UNREACHABLE();
+    auto &query = manager_->edit_ephemeral_message_queries_[upload_id];
+    merge_and_compare_message_contents(manager_->td_, query.content_.get(), content.get(), true, query.dialog_id_,
+                                       need_merge_files, vector<FileUploadId>(), MessageSelfDestructType(), 0.0,
+                                       nullptr, is_content_changed, need_update);
+    query.content_ = std::move(content);
   }
 
   void on_failed_to_upload_message_content(MessageContentUploadId upload_id, Status error) final {
@@ -4198,10 +4204,8 @@ void MessageQueryManager::edit_ephemeral_message_caption(DialogId dialog_id, Use
 }
 
 void MessageQueryManager::edit_callback_query_message(
-    int64 callback_query_id, bool noforwards, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+    int64 callback_query_id, bool anchor, bool noforwards, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
     td_api::object_ptr<td_api::InputMessageContent> &&input_message_content, Promise<Unit> &&promise) {
-  return promise.set_error(500, "Unsupported");
-
   auto is_bot = td_->auth_manager_->is_bot();
   CHECK(is_bot);
 
@@ -4222,6 +4226,7 @@ void MessageQueryManager::edit_callback_query_message(
                                                        upload_ephemeral_message_content_callback_);
   auto &query = edit_ephemeral_message_queries_[upload_id];
   query.is_send_ = true;
+  query.anchor_ = anchor;
   query.noforwards_ = noforwards;
   query.disable_web_page_preview_ = content.disable_web_page_preview;
   query.callback_query_id_ = callback_query_id;

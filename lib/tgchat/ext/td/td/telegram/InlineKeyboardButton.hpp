@@ -15,12 +15,13 @@
 namespace td {
 
 template <class StorerT>
-void store(const InlineKeyboardButton &button, StorerT &storer) {
-  bool has_id = button.id != 0;
-  bool has_user_id = button.user_id.is_valid();
-  bool has_forward_text = !button.forward_text.empty();
-  bool has_data = !button.data.empty();
-  bool has_style = !button.style.is_default();
+void InlineKeyboardButton::store(StorerT &storer) const {
+  using td::store;
+  bool has_id = id_ != 0;
+  bool has_user_id = user_id_.is_valid();
+  bool has_forward_text = !forward_text_.empty();
+  bool has_data = !data_.empty();
+  bool has_style = !style_.is_default();
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_id);
   STORE_FLAG(has_user_id);
@@ -28,27 +29,28 @@ void store(const InlineKeyboardButton &button, StorerT &storer) {
   STORE_FLAG(has_data);
   STORE_FLAG(has_style);
   END_STORE_FLAGS();
-  store(button.type, storer);
+  store(type_, storer);
   if (has_id) {
-    store(button.id, storer);
+    store(id_, storer);
   }
   if (has_user_id) {
-    store(button.user_id, storer);
+    store(user_id_, storer);
   }
-  store(button.text, storer);
+  store(text_, storer);
   if (has_forward_text) {
-    store(button.forward_text, storer);
+    store(forward_text_, storer);
   }
   if (has_data) {
-    store(button.data, storer);
+    store(data_, storer);
   }
   if (has_style) {
-    store(button.style, storer);
+    store(style_, storer);
   }
 }
 
 template <class ParserT>
-void parse(InlineKeyboardButton &button, ParserT &parser) {
+void InlineKeyboardButton::parse(ParserT &parser) {
+  using td::parse;
   if (parser.version() >= static_cast<int32>(Version::AddKeyboardButtonFlags)) {
     bool has_id;
     bool has_user_id;
@@ -62,36 +64,36 @@ void parse(InlineKeyboardButton &button, ParserT &parser) {
     PARSE_FLAG(has_data);
     PARSE_FLAG(has_style);
     END_PARSE_FLAGS();
-    parse(button.type, parser);
+    parse(type_, parser);
     if (has_id) {
-      parse(button.id, parser);
+      parse(id_, parser);
     }
     if (has_user_id) {
-      parse(button.user_id, parser);
+      parse(user_id_, parser);
     }
-    parse(button.text, parser);
+    parse(text_, parser);
     if (has_forward_text) {
-      parse(button.forward_text, parser);
+      parse(forward_text_, parser);
     }
     if (has_data) {
-      parse(button.data, parser);
+      parse(data_, parser);
     }
     if (has_style) {
-      parse(button.style, parser);
+      parse(style_, parser);
     }
   } else {
-    parse(button.type, parser);
-    if (button.type == InlineKeyboardButton::Type::UrlAuth) {
+    parse(type_, parser);
+    if (type_ == InlineKeyboardButton::Type::UrlAuth) {
       if (parser.version() >= static_cast<int32>(Version::Support64BitIds)) {
-        parse(button.id, parser);
+        parse(id_, parser);
       } else {
         int32 old_id;
         parse(old_id, parser);
-        button.id = old_id;
+        id_ = old_id;
       }
     }
-    parse(button.text, parser);
-    parse(button.data, parser);
+    parse(text_, parser);
+    parse(data_, parser);
   }
 }
 

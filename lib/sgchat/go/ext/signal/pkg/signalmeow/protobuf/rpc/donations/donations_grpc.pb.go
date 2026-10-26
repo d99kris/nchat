@@ -31,7 +31,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DonationsClient interface {
-	//  Redeem a receipt acquired from Subscriptions.CreateSubscriptionReceiptCredentials
+	//  Redeem a receipt acquired from Subscriptions.GetReceiptCredential
 	//  to add a badge to the account. After successful redemption, profile
 	//  responses will include the corresponding badge (if configured as visible)
 	//  until the expiration time on the receipt.
@@ -74,7 +74,7 @@ func (c *donationsClient) CreateDonationPermit(ctx context.Context, in *CreateDo
 // All implementations must embed UnimplementedDonationsServer
 // for forward compatibility.
 type DonationsServer interface {
-	//  Redeem a receipt acquired from Subscriptions.CreateSubscriptionReceiptCredentials
+	//  Redeem a receipt acquired from Subscriptions.GetReceiptCredential
 	//  to add a badge to the account. After successful redemption, profile
 	//  responses will include the corresponding badge (if configured as visible)
 	//  until the expiration time on the receipt.

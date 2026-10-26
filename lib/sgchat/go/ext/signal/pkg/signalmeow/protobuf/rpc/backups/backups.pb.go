@@ -375,6 +375,60 @@ func (x *GetBackupAuthCredentialsResponse) GetCredentials() *GetBackupAuthCreden
 	return nil
 }
 
+type GetBackupIdLimitsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// If true, a call to SetBackupId may succeed without waiting
+	HasPermitsRemaining bool `protobuf:"varint,1,opt,name=hasPermitsRemaining,proto3" json:"hasPermitsRemaining,omitempty"`
+	// How long to wait before a permit becomes available, in seconds
+	RetryAfterSeconds uint64 `protobuf:"varint,2,opt,name=retryAfterSeconds,proto3" json:"retryAfterSeconds,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetBackupIdLimitsResponse) Reset() {
+	*x = GetBackupIdLimitsResponse{}
+	mi := &file_org_signal_chat_backups_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBackupIdLimitsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBackupIdLimitsResponse) ProtoMessage() {}
+
+func (x *GetBackupIdLimitsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_backups_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBackupIdLimitsResponse.ProtoReflect.Descriptor instead.
+func (*GetBackupIdLimitsResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetBackupIdLimitsResponse) GetHasPermitsRemaining() bool {
+	if x != nil {
+		return x.HasPermitsRemaining
+	}
+	return false
+}
+
+func (x *GetBackupIdLimitsResponse) GetRetryAfterSeconds() uint64 {
+	if x != nil {
+		return x.RetryAfterSeconds
+	}
+	return 0
+}
+
 type SignedPresentation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Presentation of a BackupAuthCredential previously retrieved from
@@ -389,7 +443,7 @@ type SignedPresentation struct {
 
 func (x *SignedPresentation) Reset() {
 	*x = SignedPresentation{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[6]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -401,7 +455,7 @@ func (x *SignedPresentation) String() string {
 func (*SignedPresentation) ProtoMessage() {}
 
 func (x *SignedPresentation) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[6]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -414,7 +468,7 @@ func (x *SignedPresentation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedPresentation.ProtoReflect.Descriptor instead.
 func (*SignedPresentation) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{6}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SignedPresentation) GetPresentation() []byte {
@@ -442,7 +496,7 @@ type SetPublicKeyRequest struct {
 
 func (x *SetPublicKeyRequest) Reset() {
 	*x = SetPublicKeyRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[7]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -454,7 +508,7 @@ func (x *SetPublicKeyRequest) String() string {
 func (*SetPublicKeyRequest) ProtoMessage() {}
 
 func (x *SetPublicKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[7]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -467,7 +521,7 @@ func (x *SetPublicKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPublicKeyRequest.ProtoReflect.Descriptor instead.
 func (*SetPublicKeyRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{7}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SetPublicKeyRequest) GetSignedPresentation() *SignedPresentation {
@@ -497,7 +551,7 @@ type SetPublicKeyResponse struct {
 
 func (x *SetPublicKeyResponse) Reset() {
 	*x = SetPublicKeyResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[8]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -509,7 +563,7 @@ func (x *SetPublicKeyResponse) String() string {
 func (*SetPublicKeyResponse) ProtoMessage() {}
 
 func (x *SetPublicKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[8]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -522,7 +576,7 @@ func (x *SetPublicKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPublicKeyResponse.ProtoReflect.Descriptor instead.
 func (*SetPublicKeyResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{8}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SetPublicKeyResponse) GetResponse() isSetPublicKeyResponse_Response {
@@ -584,7 +638,7 @@ type GetCdnCredentialsRequest struct {
 
 func (x *GetCdnCredentialsRequest) Reset() {
 	*x = GetCdnCredentialsRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[9]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -596,7 +650,7 @@ func (x *GetCdnCredentialsRequest) String() string {
 func (*GetCdnCredentialsRequest) ProtoMessage() {}
 
 func (x *GetCdnCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[9]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -609,7 +663,7 @@ func (x *GetCdnCredentialsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCdnCredentialsRequest.ProtoReflect.Descriptor instead.
 func (*GetCdnCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{9}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetCdnCredentialsRequest) GetSignedPresentation() *SignedPresentation {
@@ -639,7 +693,7 @@ type GetCdnCredentialsResponse struct {
 
 func (x *GetCdnCredentialsResponse) Reset() {
 	*x = GetCdnCredentialsResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[10]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +705,7 @@ func (x *GetCdnCredentialsResponse) String() string {
 func (*GetCdnCredentialsResponse) ProtoMessage() {}
 
 func (x *GetCdnCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[10]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -664,7 +718,7 @@ func (x *GetCdnCredentialsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCdnCredentialsResponse.ProtoReflect.Descriptor instead.
 func (*GetCdnCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{10}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetCdnCredentialsResponse) GetResponse() isGetCdnCredentialsResponse_Response {
@@ -723,7 +777,7 @@ type GetSvrBCredentialsRequest struct {
 
 func (x *GetSvrBCredentialsRequest) Reset() {
 	*x = GetSvrBCredentialsRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[11]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +789,7 @@ func (x *GetSvrBCredentialsRequest) String() string {
 func (*GetSvrBCredentialsRequest) ProtoMessage() {}
 
 func (x *GetSvrBCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[11]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +802,7 @@ func (x *GetSvrBCredentialsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSvrBCredentialsRequest.ProtoReflect.Descriptor instead.
 func (*GetSvrBCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{11}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetSvrBCredentialsRequest) GetSignedPresentation() *SignedPresentation {
@@ -771,7 +825,7 @@ type GetSvrBCredentialsResponse struct {
 
 func (x *GetSvrBCredentialsResponse) Reset() {
 	*x = GetSvrBCredentialsResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[12]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -783,7 +837,7 @@ func (x *GetSvrBCredentialsResponse) String() string {
 func (*GetSvrBCredentialsResponse) ProtoMessage() {}
 
 func (x *GetSvrBCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[12]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -796,7 +850,7 @@ func (x *GetSvrBCredentialsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSvrBCredentialsResponse.ProtoReflect.Descriptor instead.
 func (*GetSvrBCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{12}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetSvrBCredentialsResponse) GetResponse() isGetSvrBCredentialsResponse_Response {
@@ -853,7 +907,7 @@ type GetBackupInfoRequest struct {
 
 func (x *GetBackupInfoRequest) Reset() {
 	*x = GetBackupInfoRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[13]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -865,7 +919,7 @@ func (x *GetBackupInfoRequest) String() string {
 func (*GetBackupInfoRequest) ProtoMessage() {}
 
 func (x *GetBackupInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[13]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -878,7 +932,7 @@ func (x *GetBackupInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBackupInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetBackupInfoRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{13}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetBackupInfoRequest) GetSignedPresentation() *SignedPresentation {
@@ -901,7 +955,7 @@ type GetMessageBackupInfoResponse struct {
 
 func (x *GetMessageBackupInfoResponse) Reset() {
 	*x = GetMessageBackupInfoResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[14]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -913,7 +967,7 @@ func (x *GetMessageBackupInfoResponse) String() string {
 func (*GetMessageBackupInfoResponse) ProtoMessage() {}
 
 func (x *GetMessageBackupInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[14]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -926,7 +980,7 @@ func (x *GetMessageBackupInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMessageBackupInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetMessageBackupInfoResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{14}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetMessageBackupInfoResponse) GetResponse() isGetMessageBackupInfoResponse_Response {
@@ -987,7 +1041,7 @@ type GetMediaBackupInfoResponse struct {
 
 func (x *GetMediaBackupInfoResponse) Reset() {
 	*x = GetMediaBackupInfoResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[15]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -999,7 +1053,7 @@ func (x *GetMediaBackupInfoResponse) String() string {
 func (*GetMediaBackupInfoResponse) ProtoMessage() {}
 
 func (x *GetMediaBackupInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[15]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1012,7 +1066,7 @@ func (x *GetMediaBackupInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMediaBackupInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetMediaBackupInfoResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{15}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetMediaBackupInfoResponse) GetResponse() isGetMediaBackupInfoResponse_Response {
@@ -1069,7 +1123,7 @@ type RefreshRequest struct {
 
 func (x *RefreshRequest) Reset() {
 	*x = RefreshRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[16]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1081,7 +1135,7 @@ func (x *RefreshRequest) String() string {
 func (*RefreshRequest) ProtoMessage() {}
 
 func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[16]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1094,7 +1148,7 @@ func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshRequest.ProtoReflect.Descriptor instead.
 func (*RefreshRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{16}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RefreshRequest) GetSignedPresentation() *SignedPresentation {
@@ -1117,7 +1171,7 @@ type RefreshResponse struct {
 
 func (x *RefreshResponse) Reset() {
 	*x = RefreshResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[17]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1129,7 +1183,7 @@ func (x *RefreshResponse) String() string {
 func (*RefreshResponse) ProtoMessage() {}
 
 func (x *RefreshResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[17]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1142,7 +1196,7 @@ func (x *RefreshResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshResponse.ProtoReflect.Descriptor instead.
 func (*RefreshResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{17}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RefreshResponse) GetResponse() isRefreshResponse_Response {
@@ -1208,7 +1262,7 @@ type GetUploadFormRequest struct {
 
 func (x *GetUploadFormRequest) Reset() {
 	*x = GetUploadFormRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[18]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1220,7 +1274,7 @@ func (x *GetUploadFormRequest) String() string {
 func (*GetUploadFormRequest) ProtoMessage() {}
 
 func (x *GetUploadFormRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[18]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1233,7 +1287,7 @@ func (x *GetUploadFormRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUploadFormRequest.ProtoReflect.Descriptor instead.
 func (*GetUploadFormRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{18}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetUploadFormRequest) GetSignedPresentation() *SignedPresentation {
@@ -1312,7 +1366,7 @@ type GetUploadFormResponse struct {
 
 func (x *GetUploadFormResponse) Reset() {
 	*x = GetUploadFormResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[19]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1324,7 +1378,7 @@ func (x *GetUploadFormResponse) String() string {
 func (*GetUploadFormResponse) ProtoMessage() {}
 
 func (x *GetUploadFormResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[19]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1337,7 +1391,7 @@ func (x *GetUploadFormResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUploadFormResponse.ProtoReflect.Descriptor instead.
 func (*GetUploadFormResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{19}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetUploadFormResponse) GetResponse() isGetUploadFormResponse_Response {
@@ -1424,7 +1478,7 @@ type CopyMediaItem struct {
 
 func (x *CopyMediaItem) Reset() {
 	*x = CopyMediaItem{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[20]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1436,7 +1490,7 @@ func (x *CopyMediaItem) String() string {
 func (*CopyMediaItem) ProtoMessage() {}
 
 func (x *CopyMediaItem) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[20]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1449,7 +1503,7 @@ func (x *CopyMediaItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyMediaItem.ProtoReflect.Descriptor instead.
 func (*CopyMediaItem) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{20}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CopyMediaItem) GetSourceAttachmentCdn() uint32 {
@@ -1505,7 +1559,7 @@ type CopyMediaRequest struct {
 
 func (x *CopyMediaRequest) Reset() {
 	*x = CopyMediaRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[21]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1517,7 +1571,7 @@ func (x *CopyMediaRequest) String() string {
 func (*CopyMediaRequest) ProtoMessage() {}
 
 func (x *CopyMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[21]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1530,7 +1584,7 @@ func (x *CopyMediaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyMediaRequest.ProtoReflect.Descriptor instead.
 func (*CopyMediaRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{21}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CopyMediaRequest) GetSignedPresentation() *SignedPresentation {
@@ -1564,7 +1618,7 @@ type CopyMediaResponse struct {
 
 func (x *CopyMediaResponse) Reset() {
 	*x = CopyMediaResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[22]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1576,7 +1630,7 @@ func (x *CopyMediaResponse) String() string {
 func (*CopyMediaResponse) ProtoMessage() {}
 
 func (x *CopyMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[22]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1589,7 +1643,7 @@ func (x *CopyMediaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyMediaResponse.ProtoReflect.Descriptor instead.
 func (*CopyMediaResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{22}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CopyMediaResponse) GetMediaId() []byte {
@@ -1687,7 +1741,7 @@ type BackupStreamClosed struct {
 
 func (x *BackupStreamClosed) Reset() {
 	*x = BackupStreamClosed{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[23]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1699,7 +1753,7 @@ func (x *BackupStreamClosed) String() string {
 func (*BackupStreamClosed) ProtoMessage() {}
 
 func (x *BackupStreamClosed) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[23]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1712,7 +1766,7 @@ func (x *BackupStreamClosed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupStreamClosed.ProtoReflect.Descriptor instead.
 func (*BackupStreamClosed) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{23}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *BackupStreamClosed) GetReason() isBackupStreamClosed_Reason {
@@ -1759,7 +1813,7 @@ type ListMediaRequest struct {
 
 func (x *ListMediaRequest) Reset() {
 	*x = ListMediaRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[24]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +1825,7 @@ func (x *ListMediaRequest) String() string {
 func (*ListMediaRequest) ProtoMessage() {}
 
 func (x *ListMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[24]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1784,7 +1838,7 @@ func (x *ListMediaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMediaRequest.ProtoReflect.Descriptor instead.
 func (*ListMediaRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{24}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ListMediaRequest) GetSignedPresentation() *SignedPresentation {
@@ -1821,7 +1875,7 @@ type ListMediaResponse struct {
 
 func (x *ListMediaResponse) Reset() {
 	*x = ListMediaResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[25]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1833,7 +1887,7 @@ func (x *ListMediaResponse) String() string {
 func (*ListMediaResponse) ProtoMessage() {}
 
 func (x *ListMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[25]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1846,7 +1900,7 @@ func (x *ListMediaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMediaResponse.ProtoReflect.Descriptor instead.
 func (*ListMediaResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{25}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListMediaResponse) GetResponse() isListMediaResponse_Response {
@@ -1903,7 +1957,7 @@ type DeleteAllRequest struct {
 
 func (x *DeleteAllRequest) Reset() {
 	*x = DeleteAllRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[26]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1915,7 +1969,7 @@ func (x *DeleteAllRequest) String() string {
 func (*DeleteAllRequest) ProtoMessage() {}
 
 func (x *DeleteAllRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[26]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1928,7 +1982,7 @@ func (x *DeleteAllRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{26}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DeleteAllRequest) GetSignedPresentation() *SignedPresentation {
@@ -1951,7 +2005,7 @@ type DeleteAllResponse struct {
 
 func (x *DeleteAllResponse) Reset() {
 	*x = DeleteAllResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[27]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1963,7 +2017,7 @@ func (x *DeleteAllResponse) String() string {
 func (*DeleteAllResponse) ProtoMessage() {}
 
 func (x *DeleteAllResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[27]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1976,7 +2030,7 @@ func (x *DeleteAllResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAllResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{27}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DeleteAllResponse) GetResponse() isDeleteAllResponse_Response {
@@ -2037,7 +2091,7 @@ type DeleteMediaItem struct {
 
 func (x *DeleteMediaItem) Reset() {
 	*x = DeleteMediaItem{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[28]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +2103,7 @@ func (x *DeleteMediaItem) String() string {
 func (*DeleteMediaItem) ProtoMessage() {}
 
 func (x *DeleteMediaItem) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[28]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +2116,7 @@ func (x *DeleteMediaItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMediaItem.ProtoReflect.Descriptor instead.
 func (*DeleteMediaItem) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{28}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DeleteMediaItem) GetCdn() uint32 {
@@ -2089,7 +2143,7 @@ type DeleteMediaRequest struct {
 
 func (x *DeleteMediaRequest) Reset() {
 	*x = DeleteMediaRequest{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[29]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2101,7 +2155,7 @@ func (x *DeleteMediaRequest) String() string {
 func (*DeleteMediaRequest) ProtoMessage() {}
 
 func (x *DeleteMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[29]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2114,7 +2168,7 @@ func (x *DeleteMediaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMediaRequest.ProtoReflect.Descriptor instead.
 func (*DeleteMediaRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{29}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DeleteMediaRequest) GetSignedPresentation() *SignedPresentation {
@@ -2140,7 +2194,7 @@ type DeleteMediaResponse struct {
 
 func (x *DeleteMediaResponse) Reset() {
 	*x = DeleteMediaResponse{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[30]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2152,7 +2206,7 @@ func (x *DeleteMediaResponse) String() string {
 func (*DeleteMediaResponse) ProtoMessage() {}
 
 func (x *DeleteMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[30]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2165,7 +2219,7 @@ func (x *DeleteMediaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMediaResponse.ProtoReflect.Descriptor instead.
 func (*DeleteMediaResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{30}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DeleteMediaResponse) GetDeletedItem() *DeleteMediaItem {
@@ -2191,7 +2245,7 @@ type GetBackupAuthCredentialsResponse_Credentials struct {
 
 func (x *GetBackupAuthCredentialsResponse_Credentials) Reset() {
 	*x = GetBackupAuthCredentialsResponse_Credentials{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[31]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2203,7 +2257,7 @@ func (x *GetBackupAuthCredentialsResponse_Credentials) String() string {
 func (*GetBackupAuthCredentialsResponse_Credentials) ProtoMessage() {}
 
 func (x *GetBackupAuthCredentialsResponse_Credentials) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[31]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2242,7 +2296,7 @@ type GetCdnCredentialsResponse_CdnCredentials struct {
 
 func (x *GetCdnCredentialsResponse_CdnCredentials) Reset() {
 	*x = GetCdnCredentialsResponse_CdnCredentials{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[34]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2254,7 +2308,7 @@ func (x *GetCdnCredentialsResponse_CdnCredentials) String() string {
 func (*GetCdnCredentialsResponse_CdnCredentials) ProtoMessage() {}
 
 func (x *GetCdnCredentialsResponse_CdnCredentials) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[34]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2267,7 +2321,7 @@ func (x *GetCdnCredentialsResponse_CdnCredentials) ProtoReflect() protoreflect.M
 
 // Deprecated: Use GetCdnCredentialsResponse_CdnCredentials.ProtoReflect.Descriptor instead.
 func (*GetCdnCredentialsResponse_CdnCredentials) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{10, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{11, 0}
 }
 
 func (x *GetCdnCredentialsResponse_CdnCredentials) GetHeaders() map[string]string {
@@ -2289,7 +2343,7 @@ type GetSvrBCredentialsResponse_SvrBCredentials struct {
 
 func (x *GetSvrBCredentialsResponse_SvrBCredentials) Reset() {
 	*x = GetSvrBCredentialsResponse_SvrBCredentials{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[36]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2301,7 +2355,7 @@ func (x *GetSvrBCredentialsResponse_SvrBCredentials) String() string {
 func (*GetSvrBCredentialsResponse_SvrBCredentials) ProtoMessage() {}
 
 func (x *GetSvrBCredentialsResponse_SvrBCredentials) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[36]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2314,7 +2368,7 @@ func (x *GetSvrBCredentialsResponse_SvrBCredentials) ProtoReflect() protoreflect
 
 // Deprecated: Use GetSvrBCredentialsResponse_SvrBCredentials.ProtoReflect.Descriptor instead.
 func (*GetSvrBCredentialsResponse_SvrBCredentials) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{12, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{13, 0}
 }
 
 func (x *GetSvrBCredentialsResponse_SvrBCredentials) GetUsername() string {
@@ -2352,7 +2406,7 @@ type GetMessageBackupInfoResponse_MessageBackupInfo struct {
 
 func (x *GetMessageBackupInfoResponse_MessageBackupInfo) Reset() {
 	*x = GetMessageBackupInfoResponse_MessageBackupInfo{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[37]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2364,7 +2418,7 @@ func (x *GetMessageBackupInfoResponse_MessageBackupInfo) String() string {
 func (*GetMessageBackupInfoResponse_MessageBackupInfo) ProtoMessage() {}
 
 func (x *GetMessageBackupInfoResponse_MessageBackupInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[37]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2377,7 +2431,7 @@ func (x *GetMessageBackupInfoResponse_MessageBackupInfo) ProtoReflect() protoref
 
 // Deprecated: Use GetMessageBackupInfoResponse_MessageBackupInfo.ProtoReflect.Descriptor instead.
 func (*GetMessageBackupInfoResponse_MessageBackupInfo) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{14, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{15, 0}
 }
 
 func (x *GetMessageBackupInfoResponse_MessageBackupInfo) GetBackupDir() string {
@@ -2421,7 +2475,7 @@ type GetMediaBackupInfoResponse_MediaBackupInfo struct {
 
 func (x *GetMediaBackupInfoResponse_MediaBackupInfo) Reset() {
 	*x = GetMediaBackupInfoResponse_MediaBackupInfo{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[38]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2433,7 +2487,7 @@ func (x *GetMediaBackupInfoResponse_MediaBackupInfo) String() string {
 func (*GetMediaBackupInfoResponse_MediaBackupInfo) ProtoMessage() {}
 
 func (x *GetMediaBackupInfoResponse_MediaBackupInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[38]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2446,7 +2500,7 @@ func (x *GetMediaBackupInfoResponse_MediaBackupInfo) ProtoReflect() protoreflect
 
 // Deprecated: Use GetMediaBackupInfoResponse_MediaBackupInfo.ProtoReflect.Descriptor instead.
 func (*GetMediaBackupInfoResponse_MediaBackupInfo) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{15, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{16, 0}
 }
 
 func (x *GetMediaBackupInfoResponse_MediaBackupInfo) GetBackupDir() string {
@@ -2478,7 +2532,7 @@ type GetUploadFormRequest_MessagesUploadType struct {
 
 func (x *GetUploadFormRequest_MessagesUploadType) Reset() {
 	*x = GetUploadFormRequest_MessagesUploadType{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[39]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2490,7 +2544,7 @@ func (x *GetUploadFormRequest_MessagesUploadType) String() string {
 func (*GetUploadFormRequest_MessagesUploadType) ProtoMessage() {}
 
 func (x *GetUploadFormRequest_MessagesUploadType) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[39]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2503,7 +2557,7 @@ func (x *GetUploadFormRequest_MessagesUploadType) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use GetUploadFormRequest_MessagesUploadType.ProtoReflect.Descriptor instead.
 func (*GetUploadFormRequest_MessagesUploadType) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{18, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{19, 0}
 }
 
 type GetUploadFormRequest_MediaUploadType struct {
@@ -2514,7 +2568,7 @@ type GetUploadFormRequest_MediaUploadType struct {
 
 func (x *GetUploadFormRequest_MediaUploadType) Reset() {
 	*x = GetUploadFormRequest_MediaUploadType{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[40]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2526,7 +2580,7 @@ func (x *GetUploadFormRequest_MediaUploadType) String() string {
 func (*GetUploadFormRequest_MediaUploadType) ProtoMessage() {}
 
 func (x *GetUploadFormRequest_MediaUploadType) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[40]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2539,7 +2593,7 @@ func (x *GetUploadFormRequest_MediaUploadType) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use GetUploadFormRequest_MediaUploadType.ProtoReflect.Descriptor instead.
 func (*GetUploadFormRequest_MediaUploadType) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{18, 1}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{19, 1}
 }
 
 type CopyMediaResponse_SourceNotFound struct {
@@ -2550,7 +2604,7 @@ type CopyMediaResponse_SourceNotFound struct {
 
 func (x *CopyMediaResponse_SourceNotFound) Reset() {
 	*x = CopyMediaResponse_SourceNotFound{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[41]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2562,7 +2616,7 @@ func (x *CopyMediaResponse_SourceNotFound) String() string {
 func (*CopyMediaResponse_SourceNotFound) ProtoMessage() {}
 
 func (x *CopyMediaResponse_SourceNotFound) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[41]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2575,7 +2629,7 @@ func (x *CopyMediaResponse_SourceNotFound) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyMediaResponse_SourceNotFound.ProtoReflect.Descriptor instead.
 func (*CopyMediaResponse_SourceNotFound) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{22, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{23, 0}
 }
 
 type CopyMediaResponse_WrongSourceLength struct {
@@ -2586,7 +2640,7 @@ type CopyMediaResponse_WrongSourceLength struct {
 
 func (x *CopyMediaResponse_WrongSourceLength) Reset() {
 	*x = CopyMediaResponse_WrongSourceLength{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[42]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2598,7 +2652,7 @@ func (x *CopyMediaResponse_WrongSourceLength) String() string {
 func (*CopyMediaResponse_WrongSourceLength) ProtoMessage() {}
 
 func (x *CopyMediaResponse_WrongSourceLength) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[42]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2611,7 +2665,7 @@ func (x *CopyMediaResponse_WrongSourceLength) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use CopyMediaResponse_WrongSourceLength.ProtoReflect.Descriptor instead.
 func (*CopyMediaResponse_WrongSourceLength) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{22, 1}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{23, 1}
 }
 
 type CopyMediaResponse_OutOfSpace struct {
@@ -2622,7 +2676,7 @@ type CopyMediaResponse_OutOfSpace struct {
 
 func (x *CopyMediaResponse_OutOfSpace) Reset() {
 	*x = CopyMediaResponse_OutOfSpace{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[43]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2634,7 +2688,7 @@ func (x *CopyMediaResponse_OutOfSpace) String() string {
 func (*CopyMediaResponse_OutOfSpace) ProtoMessage() {}
 
 func (x *CopyMediaResponse_OutOfSpace) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[43]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2647,7 +2701,7 @@ func (x *CopyMediaResponse_OutOfSpace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyMediaResponse_OutOfSpace.ProtoReflect.Descriptor instead.
 func (*CopyMediaResponse_OutOfSpace) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{22, 2}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{23, 2}
 }
 
 type CopyMediaResponse_CopySuccess struct {
@@ -2660,7 +2714,7 @@ type CopyMediaResponse_CopySuccess struct {
 
 func (x *CopyMediaResponse_CopySuccess) Reset() {
 	*x = CopyMediaResponse_CopySuccess{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[44]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2672,7 +2726,7 @@ func (x *CopyMediaResponse_CopySuccess) String() string {
 func (*CopyMediaResponse_CopySuccess) ProtoMessage() {}
 
 func (x *CopyMediaResponse_CopySuccess) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[44]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2685,7 +2739,7 @@ func (x *CopyMediaResponse_CopySuccess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyMediaResponse_CopySuccess.ProtoReflect.Descriptor instead.
 func (*CopyMediaResponse_CopySuccess) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{22, 3}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{23, 3}
 }
 
 func (x *CopyMediaResponse_CopySuccess) GetCdn() uint32 {
@@ -2709,7 +2763,7 @@ type ListMediaResponse_ListEntry struct {
 
 func (x *ListMediaResponse_ListEntry) Reset() {
 	*x = ListMediaResponse_ListEntry{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[45]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2721,7 +2775,7 @@ func (x *ListMediaResponse_ListEntry) String() string {
 func (*ListMediaResponse_ListEntry) ProtoMessage() {}
 
 func (x *ListMediaResponse_ListEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[45]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2734,7 +2788,7 @@ func (x *ListMediaResponse_ListEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMediaResponse_ListEntry.ProtoReflect.Descriptor instead.
 func (*ListMediaResponse_ListEntry) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{25, 0}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{26, 0}
 }
 
 func (x *ListMediaResponse_ListEntry) GetCdn() uint32 {
@@ -2779,7 +2833,7 @@ type ListMediaResponse_ListResult struct {
 
 func (x *ListMediaResponse_ListResult) Reset() {
 	*x = ListMediaResponse_ListResult{}
-	mi := &file_org_signal_chat_backups_proto_msgTypes[46]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2791,7 +2845,7 @@ func (x *ListMediaResponse_ListResult) String() string {
 func (*ListMediaResponse_ListResult) ProtoMessage() {}
 
 func (x *ListMediaResponse_ListResult) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_backups_proto_msgTypes[46]
+	mi := &file_org_signal_chat_backups_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2804,7 +2858,7 @@ func (x *ListMediaResponse_ListResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMediaResponse_ListResult.ProtoReflect.Descriptor instead.
 func (*ListMediaResponse_ListResult) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{25, 1}
+	return file_org_signal_chat_backups_proto_rawDescGZIP(), []int{26, 1}
 }
 
 func (x *ListMediaResponse_ListResult) GetPage() []*ListMediaResponse_ListEntry {
@@ -2866,6 +2920,9 @@ const file_org_signal_chat_backups_proto_rawDesc = "" +
 	"\x15MediaCredentialsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12:\n" +
 	"\x05value\x18\x02 \x01(\v2$.org.signal.chat.common.ZkCredentialR\x05value:\x028\x01\"{\n" +
+	"\x19GetBackupIdLimitsResponse\x120\n" +
+	"\x13hasPermitsRemaining\x18\x01 \x01(\bR\x13hasPermitsRemaining\x12,\n" +
+	"\x11retryAfterSeconds\x18\x02 \x01(\x04R\x11retryAfterSeconds\"{\n" +
 	"\x12SignedPresentation\x12(\n" +
 	"\fpresentation\x18\x01 \x01(\fB\x04\x88\x97\"\x01R\fpresentation\x12;\n" +
 	"\x16presentation_signature\x18\x02 \x01(\fB\x04\x88\x97\"\x01R\x15presentationSignature\"\x97\x01\n" +
@@ -3016,11 +3073,12 @@ const file_org_signal_chat_backups_proto_rawDesc = "" +
 	"\x13signed_presentation\x18\x01 \x01(\v2*.org.signal.chat.backup.SignedPresentationR\x12signedPresentation\x12H\n" +
 	"\x05items\x18\x02 \x03(\v2'.org.signal.chat.backup.DeleteMediaItemB\t\x9a\x97\"\x05\b\x01\x10\xe8\aR\x05items\"a\n" +
 	"\x13DeleteMediaResponse\x12J\n" +
-	"\fdeleted_item\x18\x01 \x01(\v2'.org.signal.chat.backup.DeleteMediaItemR\vdeletedItem2\xfb\x02\n" +
+	"\fdeleted_item\x18\x01 \x01(\v2'.org.signal.chat.backup.DeleteMediaItemR\vdeletedItem2\xdd\x03\n" +
 	"\aBackups\x12h\n" +
 	"\vSetBackupId\x12*.org.signal.chat.backup.SetBackupIdRequest\x1a+.org.signal.chat.backup.SetBackupIdResponse\"\x00\x12n\n" +
 	"\rRedeemReceipt\x12,.org.signal.chat.backup.RedeemReceiptRequest\x1a-.org.signal.chat.backup.RedeemReceiptResponse\"\x00\x12\x8f\x01\n" +
-	"\x18GetBackupAuthCredentials\x127.org.signal.chat.backup.GetBackupAuthCredentialsRequest\x1a8.org.signal.chat.backup.GetBackupAuthCredentialsResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xe0\t\n" +
+	"\x18GetBackupAuthCredentials\x127.org.signal.chat.backup.GetBackupAuthCredentialsRequest\x1a8.org.signal.chat.backup.GetBackupAuthCredentialsResponse\"\x00\x12`\n" +
+	"\x11GetBackupIdLimits\x12\x16.google.protobuf.Empty\x1a1.org.signal.chat.backup.GetBackupIdLimitsResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xe0\t\n" +
 	"\x10BackupsAnonymous\x12z\n" +
 	"\x11GetCdnCredentials\x120.org.signal.chat.backup.GetCdnCredentialsRequest\x1a1.org.signal.chat.backup.GetCdnCredentialsResponse\"\x00\x12}\n" +
 	"\x12GetSvrBCredentials\x121.org.signal.chat.backup.GetSvrBCredentialsRequest\x1a2.org.signal.chat.backup.GetSvrBCredentialsResponse\"\x00\x12|\n" +
@@ -3046,7 +3104,7 @@ func file_org_signal_chat_backups_proto_rawDescGZIP() []byte {
 	return file_org_signal_chat_backups_proto_rawDescData
 }
 
-var file_org_signal_chat_backups_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
+var file_org_signal_chat_backups_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_org_signal_chat_backups_proto_goTypes = []any{
 	(*SetBackupIdRequest)(nil),                           // 0: org.signal.chat.backup.SetBackupIdRequest
 	(*SetBackupIdResponse)(nil),                          // 1: org.signal.chat.backup.SetBackupIdResponse
@@ -3054,133 +3112,136 @@ var file_org_signal_chat_backups_proto_goTypes = []any{
 	(*RedeemReceiptResponse)(nil),                        // 3: org.signal.chat.backup.RedeemReceiptResponse
 	(*GetBackupAuthCredentialsRequest)(nil),              // 4: org.signal.chat.backup.GetBackupAuthCredentialsRequest
 	(*GetBackupAuthCredentialsResponse)(nil),             // 5: org.signal.chat.backup.GetBackupAuthCredentialsResponse
-	(*SignedPresentation)(nil),                           // 6: org.signal.chat.backup.SignedPresentation
-	(*SetPublicKeyRequest)(nil),                          // 7: org.signal.chat.backup.SetPublicKeyRequest
-	(*SetPublicKeyResponse)(nil),                         // 8: org.signal.chat.backup.SetPublicKeyResponse
-	(*GetCdnCredentialsRequest)(nil),                     // 9: org.signal.chat.backup.GetCdnCredentialsRequest
-	(*GetCdnCredentialsResponse)(nil),                    // 10: org.signal.chat.backup.GetCdnCredentialsResponse
-	(*GetSvrBCredentialsRequest)(nil),                    // 11: org.signal.chat.backup.GetSvrBCredentialsRequest
-	(*GetSvrBCredentialsResponse)(nil),                   // 12: org.signal.chat.backup.GetSvrBCredentialsResponse
-	(*GetBackupInfoRequest)(nil),                         // 13: org.signal.chat.backup.GetBackupInfoRequest
-	(*GetMessageBackupInfoResponse)(nil),                 // 14: org.signal.chat.backup.GetMessageBackupInfoResponse
-	(*GetMediaBackupInfoResponse)(nil),                   // 15: org.signal.chat.backup.GetMediaBackupInfoResponse
-	(*RefreshRequest)(nil),                               // 16: org.signal.chat.backup.RefreshRequest
-	(*RefreshResponse)(nil),                              // 17: org.signal.chat.backup.RefreshResponse
-	(*GetUploadFormRequest)(nil),                         // 18: org.signal.chat.backup.GetUploadFormRequest
-	(*GetUploadFormResponse)(nil),                        // 19: org.signal.chat.backup.GetUploadFormResponse
-	(*CopyMediaItem)(nil),                                // 20: org.signal.chat.backup.CopyMediaItem
-	(*CopyMediaRequest)(nil),                             // 21: org.signal.chat.backup.CopyMediaRequest
-	(*CopyMediaResponse)(nil),                            // 22: org.signal.chat.backup.CopyMediaResponse
-	(*BackupStreamClosed)(nil),                           // 23: org.signal.chat.backup.BackupStreamClosed
-	(*ListMediaRequest)(nil),                             // 24: org.signal.chat.backup.ListMediaRequest
-	(*ListMediaResponse)(nil),                            // 25: org.signal.chat.backup.ListMediaResponse
-	(*DeleteAllRequest)(nil),                             // 26: org.signal.chat.backup.DeleteAllRequest
-	(*DeleteAllResponse)(nil),                            // 27: org.signal.chat.backup.DeleteAllResponse
-	(*DeleteMediaItem)(nil),                              // 28: org.signal.chat.backup.DeleteMediaItem
-	(*DeleteMediaRequest)(nil),                           // 29: org.signal.chat.backup.DeleteMediaRequest
-	(*DeleteMediaResponse)(nil),                          // 30: org.signal.chat.backup.DeleteMediaResponse
-	(*GetBackupAuthCredentialsResponse_Credentials)(nil), // 31: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials
-	nil, // 32: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MessageCredentialsEntry
-	nil, // 33: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MediaCredentialsEntry
-	(*GetCdnCredentialsResponse_CdnCredentials)(nil), // 34: org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials
-	nil, // 35: org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials.HeadersEntry
-	(*GetSvrBCredentialsResponse_SvrBCredentials)(nil),     // 36: org.signal.chat.backup.GetSvrBCredentialsResponse.SvrBCredentials
-	(*GetMessageBackupInfoResponse_MessageBackupInfo)(nil), // 37: org.signal.chat.backup.GetMessageBackupInfoResponse.MessageBackupInfo
-	(*GetMediaBackupInfoResponse_MediaBackupInfo)(nil),     // 38: org.signal.chat.backup.GetMediaBackupInfoResponse.MediaBackupInfo
-	(*GetUploadFormRequest_MessagesUploadType)(nil),        // 39: org.signal.chat.backup.GetUploadFormRequest.MessagesUploadType
-	(*GetUploadFormRequest_MediaUploadType)(nil),           // 40: org.signal.chat.backup.GetUploadFormRequest.MediaUploadType
-	(*CopyMediaResponse_SourceNotFound)(nil),               // 41: org.signal.chat.backup.CopyMediaResponse.SourceNotFound
-	(*CopyMediaResponse_WrongSourceLength)(nil),            // 42: org.signal.chat.backup.CopyMediaResponse.WrongSourceLength
-	(*CopyMediaResponse_OutOfSpace)(nil),                   // 43: org.signal.chat.backup.CopyMediaResponse.OutOfSpace
-	(*CopyMediaResponse_CopySuccess)(nil),                  // 44: org.signal.chat.backup.CopyMediaResponse.CopySuccess
-	(*ListMediaResponse_ListEntry)(nil),                    // 45: org.signal.chat.backup.ListMediaResponse.ListEntry
-	(*ListMediaResponse_ListResult)(nil),                   // 46: org.signal.chat.backup.ListMediaResponse.ListResult
-	(*emptypb.Empty)(nil),                                  // 47: google.protobuf.Empty
-	(*errors.FailedPrecondition)(nil),                      // 48: org.signal.chat.errors.FailedPrecondition
-	(*errors.FailedZkAuthentication)(nil),                  // 49: org.signal.chat.errors.FailedZkAuthentication
-	(*common.UploadForm)(nil),                              // 50: org.signal.chat.common.UploadForm
-	(*common.ZkCredential)(nil),                            // 51: org.signal.chat.common.ZkCredential
+	(*GetBackupIdLimitsResponse)(nil),                    // 6: org.signal.chat.backup.GetBackupIdLimitsResponse
+	(*SignedPresentation)(nil),                           // 7: org.signal.chat.backup.SignedPresentation
+	(*SetPublicKeyRequest)(nil),                          // 8: org.signal.chat.backup.SetPublicKeyRequest
+	(*SetPublicKeyResponse)(nil),                         // 9: org.signal.chat.backup.SetPublicKeyResponse
+	(*GetCdnCredentialsRequest)(nil),                     // 10: org.signal.chat.backup.GetCdnCredentialsRequest
+	(*GetCdnCredentialsResponse)(nil),                    // 11: org.signal.chat.backup.GetCdnCredentialsResponse
+	(*GetSvrBCredentialsRequest)(nil),                    // 12: org.signal.chat.backup.GetSvrBCredentialsRequest
+	(*GetSvrBCredentialsResponse)(nil),                   // 13: org.signal.chat.backup.GetSvrBCredentialsResponse
+	(*GetBackupInfoRequest)(nil),                         // 14: org.signal.chat.backup.GetBackupInfoRequest
+	(*GetMessageBackupInfoResponse)(nil),                 // 15: org.signal.chat.backup.GetMessageBackupInfoResponse
+	(*GetMediaBackupInfoResponse)(nil),                   // 16: org.signal.chat.backup.GetMediaBackupInfoResponse
+	(*RefreshRequest)(nil),                               // 17: org.signal.chat.backup.RefreshRequest
+	(*RefreshResponse)(nil),                              // 18: org.signal.chat.backup.RefreshResponse
+	(*GetUploadFormRequest)(nil),                         // 19: org.signal.chat.backup.GetUploadFormRequest
+	(*GetUploadFormResponse)(nil),                        // 20: org.signal.chat.backup.GetUploadFormResponse
+	(*CopyMediaItem)(nil),                                // 21: org.signal.chat.backup.CopyMediaItem
+	(*CopyMediaRequest)(nil),                             // 22: org.signal.chat.backup.CopyMediaRequest
+	(*CopyMediaResponse)(nil),                            // 23: org.signal.chat.backup.CopyMediaResponse
+	(*BackupStreamClosed)(nil),                           // 24: org.signal.chat.backup.BackupStreamClosed
+	(*ListMediaRequest)(nil),                             // 25: org.signal.chat.backup.ListMediaRequest
+	(*ListMediaResponse)(nil),                            // 26: org.signal.chat.backup.ListMediaResponse
+	(*DeleteAllRequest)(nil),                             // 27: org.signal.chat.backup.DeleteAllRequest
+	(*DeleteAllResponse)(nil),                            // 28: org.signal.chat.backup.DeleteAllResponse
+	(*DeleteMediaItem)(nil),                              // 29: org.signal.chat.backup.DeleteMediaItem
+	(*DeleteMediaRequest)(nil),                           // 30: org.signal.chat.backup.DeleteMediaRequest
+	(*DeleteMediaResponse)(nil),                          // 31: org.signal.chat.backup.DeleteMediaResponse
+	(*GetBackupAuthCredentialsResponse_Credentials)(nil), // 32: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials
+	nil, // 33: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MessageCredentialsEntry
+	nil, // 34: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MediaCredentialsEntry
+	(*GetCdnCredentialsResponse_CdnCredentials)(nil), // 35: org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials
+	nil, // 36: org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials.HeadersEntry
+	(*GetSvrBCredentialsResponse_SvrBCredentials)(nil),     // 37: org.signal.chat.backup.GetSvrBCredentialsResponse.SvrBCredentials
+	(*GetMessageBackupInfoResponse_MessageBackupInfo)(nil), // 38: org.signal.chat.backup.GetMessageBackupInfoResponse.MessageBackupInfo
+	(*GetMediaBackupInfoResponse_MediaBackupInfo)(nil),     // 39: org.signal.chat.backup.GetMediaBackupInfoResponse.MediaBackupInfo
+	(*GetUploadFormRequest_MessagesUploadType)(nil),        // 40: org.signal.chat.backup.GetUploadFormRequest.MessagesUploadType
+	(*GetUploadFormRequest_MediaUploadType)(nil),           // 41: org.signal.chat.backup.GetUploadFormRequest.MediaUploadType
+	(*CopyMediaResponse_SourceNotFound)(nil),               // 42: org.signal.chat.backup.CopyMediaResponse.SourceNotFound
+	(*CopyMediaResponse_WrongSourceLength)(nil),            // 43: org.signal.chat.backup.CopyMediaResponse.WrongSourceLength
+	(*CopyMediaResponse_OutOfSpace)(nil),                   // 44: org.signal.chat.backup.CopyMediaResponse.OutOfSpace
+	(*CopyMediaResponse_CopySuccess)(nil),                  // 45: org.signal.chat.backup.CopyMediaResponse.CopySuccess
+	(*ListMediaResponse_ListEntry)(nil),                    // 46: org.signal.chat.backup.ListMediaResponse.ListEntry
+	(*ListMediaResponse_ListResult)(nil),                   // 47: org.signal.chat.backup.ListMediaResponse.ListResult
+	(*emptypb.Empty)(nil),                                  // 48: google.protobuf.Empty
+	(*errors.FailedPrecondition)(nil),                      // 49: org.signal.chat.errors.FailedPrecondition
+	(*errors.FailedZkAuthentication)(nil),                  // 50: org.signal.chat.errors.FailedZkAuthentication
+	(*common.UploadForm)(nil),                              // 51: org.signal.chat.common.UploadForm
+	(*common.ZkCredential)(nil),                            // 52: org.signal.chat.common.ZkCredential
 }
 var file_org_signal_chat_backups_proto_depIdxs = []int32{
-	47, // 0: org.signal.chat.backup.RedeemReceiptResponse.success:type_name -> google.protobuf.Empty
-	48, // 1: org.signal.chat.backup.RedeemReceiptResponse.account_missing_commitment:type_name -> org.signal.chat.errors.FailedPrecondition
-	48, // 2: org.signal.chat.backup.RedeemReceiptResponse.invalid_receipt:type_name -> org.signal.chat.errors.FailedPrecondition
-	31, // 3: org.signal.chat.backup.GetBackupAuthCredentialsResponse.credentials:type_name -> org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials
-	6,  // 4: org.signal.chat.backup.SetPublicKeyRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	47, // 5: org.signal.chat.backup.SetPublicKeyResponse.success:type_name -> google.protobuf.Empty
-	49, // 6: org.signal.chat.backup.SetPublicKeyResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 7: org.signal.chat.backup.GetCdnCredentialsRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	34, // 8: org.signal.chat.backup.GetCdnCredentialsResponse.cdn_credentials:type_name -> org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials
-	49, // 9: org.signal.chat.backup.GetCdnCredentialsResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 10: org.signal.chat.backup.GetSvrBCredentialsRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	36, // 11: org.signal.chat.backup.GetSvrBCredentialsResponse.svrb_credentials:type_name -> org.signal.chat.backup.GetSvrBCredentialsResponse.SvrBCredentials
-	49, // 12: org.signal.chat.backup.GetSvrBCredentialsResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 13: org.signal.chat.backup.GetBackupInfoRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	37, // 14: org.signal.chat.backup.GetMessageBackupInfoResponse.backup_info:type_name -> org.signal.chat.backup.GetMessageBackupInfoResponse.MessageBackupInfo
-	49, // 15: org.signal.chat.backup.GetMessageBackupInfoResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	38, // 16: org.signal.chat.backup.GetMediaBackupInfoResponse.backup_info:type_name -> org.signal.chat.backup.GetMediaBackupInfoResponse.MediaBackupInfo
-	49, // 17: org.signal.chat.backup.GetMediaBackupInfoResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 18: org.signal.chat.backup.RefreshRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	47, // 19: org.signal.chat.backup.RefreshResponse.success:type_name -> google.protobuf.Empty
-	49, // 20: org.signal.chat.backup.RefreshResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 21: org.signal.chat.backup.GetUploadFormRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	39, // 22: org.signal.chat.backup.GetUploadFormRequest.messages:type_name -> org.signal.chat.backup.GetUploadFormRequest.MessagesUploadType
-	40, // 23: org.signal.chat.backup.GetUploadFormRequest.media:type_name -> org.signal.chat.backup.GetUploadFormRequest.MediaUploadType
-	50, // 24: org.signal.chat.backup.GetUploadFormResponse.upload_form:type_name -> org.signal.chat.common.UploadForm
-	49, // 25: org.signal.chat.backup.GetUploadFormResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	48, // 26: org.signal.chat.backup.GetUploadFormResponse.exceeds_max_upload_length:type_name -> org.signal.chat.errors.FailedPrecondition
-	6,  // 27: org.signal.chat.backup.CopyMediaRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	20, // 28: org.signal.chat.backup.CopyMediaRequest.items:type_name -> org.signal.chat.backup.CopyMediaItem
-	44, // 29: org.signal.chat.backup.CopyMediaResponse.success:type_name -> org.signal.chat.backup.CopyMediaResponse.CopySuccess
-	41, // 30: org.signal.chat.backup.CopyMediaResponse.source_not_found:type_name -> org.signal.chat.backup.CopyMediaResponse.SourceNotFound
-	42, // 31: org.signal.chat.backup.CopyMediaResponse.wrong_source_length:type_name -> org.signal.chat.backup.CopyMediaResponse.WrongSourceLength
-	43, // 32: org.signal.chat.backup.CopyMediaResponse.out_of_space:type_name -> org.signal.chat.backup.CopyMediaResponse.OutOfSpace
-	49, // 33: org.signal.chat.backup.BackupStreamClosed.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 34: org.signal.chat.backup.ListMediaRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	46, // 35: org.signal.chat.backup.ListMediaResponse.list_result:type_name -> org.signal.chat.backup.ListMediaResponse.ListResult
-	49, // 36: org.signal.chat.backup.ListMediaResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 37: org.signal.chat.backup.DeleteAllRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	47, // 38: org.signal.chat.backup.DeleteAllResponse.success:type_name -> google.protobuf.Empty
-	49, // 39: org.signal.chat.backup.DeleteAllResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	6,  // 40: org.signal.chat.backup.DeleteMediaRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
-	28, // 41: org.signal.chat.backup.DeleteMediaRequest.items:type_name -> org.signal.chat.backup.DeleteMediaItem
-	28, // 42: org.signal.chat.backup.DeleteMediaResponse.deleted_item:type_name -> org.signal.chat.backup.DeleteMediaItem
-	32, // 43: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.message_credentials:type_name -> org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MessageCredentialsEntry
-	33, // 44: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.media_credentials:type_name -> org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MediaCredentialsEntry
-	51, // 45: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MessageCredentialsEntry.value:type_name -> org.signal.chat.common.ZkCredential
-	51, // 46: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MediaCredentialsEntry.value:type_name -> org.signal.chat.common.ZkCredential
-	35, // 47: org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials.headers:type_name -> org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials.HeadersEntry
-	45, // 48: org.signal.chat.backup.ListMediaResponse.ListResult.page:type_name -> org.signal.chat.backup.ListMediaResponse.ListEntry
+	48, // 0: org.signal.chat.backup.RedeemReceiptResponse.success:type_name -> google.protobuf.Empty
+	49, // 1: org.signal.chat.backup.RedeemReceiptResponse.account_missing_commitment:type_name -> org.signal.chat.errors.FailedPrecondition
+	49, // 2: org.signal.chat.backup.RedeemReceiptResponse.invalid_receipt:type_name -> org.signal.chat.errors.FailedPrecondition
+	32, // 3: org.signal.chat.backup.GetBackupAuthCredentialsResponse.credentials:type_name -> org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials
+	7,  // 4: org.signal.chat.backup.SetPublicKeyRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	48, // 5: org.signal.chat.backup.SetPublicKeyResponse.success:type_name -> google.protobuf.Empty
+	50, // 6: org.signal.chat.backup.SetPublicKeyResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 7: org.signal.chat.backup.GetCdnCredentialsRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	35, // 8: org.signal.chat.backup.GetCdnCredentialsResponse.cdn_credentials:type_name -> org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials
+	50, // 9: org.signal.chat.backup.GetCdnCredentialsResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 10: org.signal.chat.backup.GetSvrBCredentialsRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	37, // 11: org.signal.chat.backup.GetSvrBCredentialsResponse.svrb_credentials:type_name -> org.signal.chat.backup.GetSvrBCredentialsResponse.SvrBCredentials
+	50, // 12: org.signal.chat.backup.GetSvrBCredentialsResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 13: org.signal.chat.backup.GetBackupInfoRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	38, // 14: org.signal.chat.backup.GetMessageBackupInfoResponse.backup_info:type_name -> org.signal.chat.backup.GetMessageBackupInfoResponse.MessageBackupInfo
+	50, // 15: org.signal.chat.backup.GetMessageBackupInfoResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	39, // 16: org.signal.chat.backup.GetMediaBackupInfoResponse.backup_info:type_name -> org.signal.chat.backup.GetMediaBackupInfoResponse.MediaBackupInfo
+	50, // 17: org.signal.chat.backup.GetMediaBackupInfoResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 18: org.signal.chat.backup.RefreshRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	48, // 19: org.signal.chat.backup.RefreshResponse.success:type_name -> google.protobuf.Empty
+	50, // 20: org.signal.chat.backup.RefreshResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 21: org.signal.chat.backup.GetUploadFormRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	40, // 22: org.signal.chat.backup.GetUploadFormRequest.messages:type_name -> org.signal.chat.backup.GetUploadFormRequest.MessagesUploadType
+	41, // 23: org.signal.chat.backup.GetUploadFormRequest.media:type_name -> org.signal.chat.backup.GetUploadFormRequest.MediaUploadType
+	51, // 24: org.signal.chat.backup.GetUploadFormResponse.upload_form:type_name -> org.signal.chat.common.UploadForm
+	50, // 25: org.signal.chat.backup.GetUploadFormResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	49, // 26: org.signal.chat.backup.GetUploadFormResponse.exceeds_max_upload_length:type_name -> org.signal.chat.errors.FailedPrecondition
+	7,  // 27: org.signal.chat.backup.CopyMediaRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	21, // 28: org.signal.chat.backup.CopyMediaRequest.items:type_name -> org.signal.chat.backup.CopyMediaItem
+	45, // 29: org.signal.chat.backup.CopyMediaResponse.success:type_name -> org.signal.chat.backup.CopyMediaResponse.CopySuccess
+	42, // 30: org.signal.chat.backup.CopyMediaResponse.source_not_found:type_name -> org.signal.chat.backup.CopyMediaResponse.SourceNotFound
+	43, // 31: org.signal.chat.backup.CopyMediaResponse.wrong_source_length:type_name -> org.signal.chat.backup.CopyMediaResponse.WrongSourceLength
+	44, // 32: org.signal.chat.backup.CopyMediaResponse.out_of_space:type_name -> org.signal.chat.backup.CopyMediaResponse.OutOfSpace
+	50, // 33: org.signal.chat.backup.BackupStreamClosed.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 34: org.signal.chat.backup.ListMediaRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	47, // 35: org.signal.chat.backup.ListMediaResponse.list_result:type_name -> org.signal.chat.backup.ListMediaResponse.ListResult
+	50, // 36: org.signal.chat.backup.ListMediaResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 37: org.signal.chat.backup.DeleteAllRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	48, // 38: org.signal.chat.backup.DeleteAllResponse.success:type_name -> google.protobuf.Empty
+	50, // 39: org.signal.chat.backup.DeleteAllResponse.failed_authentication:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	7,  // 40: org.signal.chat.backup.DeleteMediaRequest.signed_presentation:type_name -> org.signal.chat.backup.SignedPresentation
+	29, // 41: org.signal.chat.backup.DeleteMediaRequest.items:type_name -> org.signal.chat.backup.DeleteMediaItem
+	29, // 42: org.signal.chat.backup.DeleteMediaResponse.deleted_item:type_name -> org.signal.chat.backup.DeleteMediaItem
+	33, // 43: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.message_credentials:type_name -> org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MessageCredentialsEntry
+	34, // 44: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.media_credentials:type_name -> org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MediaCredentialsEntry
+	52, // 45: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MessageCredentialsEntry.value:type_name -> org.signal.chat.common.ZkCredential
+	52, // 46: org.signal.chat.backup.GetBackupAuthCredentialsResponse.Credentials.MediaCredentialsEntry.value:type_name -> org.signal.chat.common.ZkCredential
+	36, // 47: org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials.headers:type_name -> org.signal.chat.backup.GetCdnCredentialsResponse.CdnCredentials.HeadersEntry
+	46, // 48: org.signal.chat.backup.ListMediaResponse.ListResult.page:type_name -> org.signal.chat.backup.ListMediaResponse.ListEntry
 	0,  // 49: org.signal.chat.backup.Backups.SetBackupId:input_type -> org.signal.chat.backup.SetBackupIdRequest
 	2,  // 50: org.signal.chat.backup.Backups.RedeemReceipt:input_type -> org.signal.chat.backup.RedeemReceiptRequest
 	4,  // 51: org.signal.chat.backup.Backups.GetBackupAuthCredentials:input_type -> org.signal.chat.backup.GetBackupAuthCredentialsRequest
-	9,  // 52: org.signal.chat.backup.BackupsAnonymous.GetCdnCredentials:input_type -> org.signal.chat.backup.GetCdnCredentialsRequest
-	11, // 53: org.signal.chat.backup.BackupsAnonymous.GetSvrBCredentials:input_type -> org.signal.chat.backup.GetSvrBCredentialsRequest
-	13, // 54: org.signal.chat.backup.BackupsAnonymous.GetMessageBackupInfo:input_type -> org.signal.chat.backup.GetBackupInfoRequest
-	13, // 55: org.signal.chat.backup.BackupsAnonymous.GetMediaBackupInfo:input_type -> org.signal.chat.backup.GetBackupInfoRequest
-	7,  // 56: org.signal.chat.backup.BackupsAnonymous.SetPublicKey:input_type -> org.signal.chat.backup.SetPublicKeyRequest
-	16, // 57: org.signal.chat.backup.BackupsAnonymous.Refresh:input_type -> org.signal.chat.backup.RefreshRequest
-	18, // 58: org.signal.chat.backup.BackupsAnonymous.GetUploadForm:input_type -> org.signal.chat.backup.GetUploadFormRequest
-	21, // 59: org.signal.chat.backup.BackupsAnonymous.CopyMedia:input_type -> org.signal.chat.backup.CopyMediaRequest
-	24, // 60: org.signal.chat.backup.BackupsAnonymous.ListMedia:input_type -> org.signal.chat.backup.ListMediaRequest
-	29, // 61: org.signal.chat.backup.BackupsAnonymous.DeleteMedia:input_type -> org.signal.chat.backup.DeleteMediaRequest
-	26, // 62: org.signal.chat.backup.BackupsAnonymous.DeleteAll:input_type -> org.signal.chat.backup.DeleteAllRequest
-	1,  // 63: org.signal.chat.backup.Backups.SetBackupId:output_type -> org.signal.chat.backup.SetBackupIdResponse
-	3,  // 64: org.signal.chat.backup.Backups.RedeemReceipt:output_type -> org.signal.chat.backup.RedeemReceiptResponse
-	5,  // 65: org.signal.chat.backup.Backups.GetBackupAuthCredentials:output_type -> org.signal.chat.backup.GetBackupAuthCredentialsResponse
-	10, // 66: org.signal.chat.backup.BackupsAnonymous.GetCdnCredentials:output_type -> org.signal.chat.backup.GetCdnCredentialsResponse
-	12, // 67: org.signal.chat.backup.BackupsAnonymous.GetSvrBCredentials:output_type -> org.signal.chat.backup.GetSvrBCredentialsResponse
-	14, // 68: org.signal.chat.backup.BackupsAnonymous.GetMessageBackupInfo:output_type -> org.signal.chat.backup.GetMessageBackupInfoResponse
-	15, // 69: org.signal.chat.backup.BackupsAnonymous.GetMediaBackupInfo:output_type -> org.signal.chat.backup.GetMediaBackupInfoResponse
-	8,  // 70: org.signal.chat.backup.BackupsAnonymous.SetPublicKey:output_type -> org.signal.chat.backup.SetPublicKeyResponse
-	17, // 71: org.signal.chat.backup.BackupsAnonymous.Refresh:output_type -> org.signal.chat.backup.RefreshResponse
-	19, // 72: org.signal.chat.backup.BackupsAnonymous.GetUploadForm:output_type -> org.signal.chat.backup.GetUploadFormResponse
-	22, // 73: org.signal.chat.backup.BackupsAnonymous.CopyMedia:output_type -> org.signal.chat.backup.CopyMediaResponse
-	25, // 74: org.signal.chat.backup.BackupsAnonymous.ListMedia:output_type -> org.signal.chat.backup.ListMediaResponse
-	30, // 75: org.signal.chat.backup.BackupsAnonymous.DeleteMedia:output_type -> org.signal.chat.backup.DeleteMediaResponse
-	27, // 76: org.signal.chat.backup.BackupsAnonymous.DeleteAll:output_type -> org.signal.chat.backup.DeleteAllResponse
-	63, // [63:77] is the sub-list for method output_type
-	49, // [49:63] is the sub-list for method input_type
+	48, // 52: org.signal.chat.backup.Backups.GetBackupIdLimits:input_type -> google.protobuf.Empty
+	10, // 53: org.signal.chat.backup.BackupsAnonymous.GetCdnCredentials:input_type -> org.signal.chat.backup.GetCdnCredentialsRequest
+	12, // 54: org.signal.chat.backup.BackupsAnonymous.GetSvrBCredentials:input_type -> org.signal.chat.backup.GetSvrBCredentialsRequest
+	14, // 55: org.signal.chat.backup.BackupsAnonymous.GetMessageBackupInfo:input_type -> org.signal.chat.backup.GetBackupInfoRequest
+	14, // 56: org.signal.chat.backup.BackupsAnonymous.GetMediaBackupInfo:input_type -> org.signal.chat.backup.GetBackupInfoRequest
+	8,  // 57: org.signal.chat.backup.BackupsAnonymous.SetPublicKey:input_type -> org.signal.chat.backup.SetPublicKeyRequest
+	17, // 58: org.signal.chat.backup.BackupsAnonymous.Refresh:input_type -> org.signal.chat.backup.RefreshRequest
+	19, // 59: org.signal.chat.backup.BackupsAnonymous.GetUploadForm:input_type -> org.signal.chat.backup.GetUploadFormRequest
+	22, // 60: org.signal.chat.backup.BackupsAnonymous.CopyMedia:input_type -> org.signal.chat.backup.CopyMediaRequest
+	25, // 61: org.signal.chat.backup.BackupsAnonymous.ListMedia:input_type -> org.signal.chat.backup.ListMediaRequest
+	30, // 62: org.signal.chat.backup.BackupsAnonymous.DeleteMedia:input_type -> org.signal.chat.backup.DeleteMediaRequest
+	27, // 63: org.signal.chat.backup.BackupsAnonymous.DeleteAll:input_type -> org.signal.chat.backup.DeleteAllRequest
+	1,  // 64: org.signal.chat.backup.Backups.SetBackupId:output_type -> org.signal.chat.backup.SetBackupIdResponse
+	3,  // 65: org.signal.chat.backup.Backups.RedeemReceipt:output_type -> org.signal.chat.backup.RedeemReceiptResponse
+	5,  // 66: org.signal.chat.backup.Backups.GetBackupAuthCredentials:output_type -> org.signal.chat.backup.GetBackupAuthCredentialsResponse
+	6,  // 67: org.signal.chat.backup.Backups.GetBackupIdLimits:output_type -> org.signal.chat.backup.GetBackupIdLimitsResponse
+	11, // 68: org.signal.chat.backup.BackupsAnonymous.GetCdnCredentials:output_type -> org.signal.chat.backup.GetCdnCredentialsResponse
+	13, // 69: org.signal.chat.backup.BackupsAnonymous.GetSvrBCredentials:output_type -> org.signal.chat.backup.GetSvrBCredentialsResponse
+	15, // 70: org.signal.chat.backup.BackupsAnonymous.GetMessageBackupInfo:output_type -> org.signal.chat.backup.GetMessageBackupInfoResponse
+	16, // 71: org.signal.chat.backup.BackupsAnonymous.GetMediaBackupInfo:output_type -> org.signal.chat.backup.GetMediaBackupInfoResponse
+	9,  // 72: org.signal.chat.backup.BackupsAnonymous.SetPublicKey:output_type -> org.signal.chat.backup.SetPublicKeyResponse
+	18, // 73: org.signal.chat.backup.BackupsAnonymous.Refresh:output_type -> org.signal.chat.backup.RefreshResponse
+	20, // 74: org.signal.chat.backup.BackupsAnonymous.GetUploadForm:output_type -> org.signal.chat.backup.GetUploadFormResponse
+	23, // 75: org.signal.chat.backup.BackupsAnonymous.CopyMedia:output_type -> org.signal.chat.backup.CopyMediaResponse
+	26, // 76: org.signal.chat.backup.BackupsAnonymous.ListMedia:output_type -> org.signal.chat.backup.ListMediaResponse
+	31, // 77: org.signal.chat.backup.BackupsAnonymous.DeleteMedia:output_type -> org.signal.chat.backup.DeleteMediaResponse
+	28, // 78: org.signal.chat.backup.BackupsAnonymous.DeleteAll:output_type -> org.signal.chat.backup.DeleteAllResponse
+	64, // [64:79] is the sub-list for method output_type
+	49, // [49:64] is the sub-list for method input_type
 	49, // [49:49] is the sub-list for extension type_name
 	49, // [49:49] is the sub-list for extension extendee
 	0,  // [0:49] is the sub-list for field type_name
@@ -3196,65 +3257,65 @@ func file_org_signal_chat_backups_proto_init() {
 		(*RedeemReceiptResponse_AccountMissingCommitment)(nil),
 		(*RedeemReceiptResponse_InvalidReceipt)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[8].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[9].OneofWrappers = []any{
 		(*SetPublicKeyResponse_Success)(nil),
 		(*SetPublicKeyResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[10].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[11].OneofWrappers = []any{
 		(*GetCdnCredentialsResponse_CdnCredentials_)(nil),
 		(*GetCdnCredentialsResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[12].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[13].OneofWrappers = []any{
 		(*GetSvrBCredentialsResponse_SvrbCredentials)(nil),
 		(*GetSvrBCredentialsResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[14].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[15].OneofWrappers = []any{
 		(*GetMessageBackupInfoResponse_BackupInfo)(nil),
 		(*GetMessageBackupInfoResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[15].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[16].OneofWrappers = []any{
 		(*GetMediaBackupInfoResponse_BackupInfo)(nil),
 		(*GetMediaBackupInfoResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[17].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[18].OneofWrappers = []any{
 		(*RefreshResponse_Success)(nil),
 		(*RefreshResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[18].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[19].OneofWrappers = []any{
 		(*GetUploadFormRequest_Messages)(nil),
 		(*GetUploadFormRequest_Media)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[19].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[20].OneofWrappers = []any{
 		(*GetUploadFormResponse_UploadForm)(nil),
 		(*GetUploadFormResponse_FailedAuthentication)(nil),
 		(*GetUploadFormResponse_ExceedsMaxUploadLength)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[22].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[23].OneofWrappers = []any{
 		(*CopyMediaResponse_Success)(nil),
 		(*CopyMediaResponse_SourceNotFound_)(nil),
 		(*CopyMediaResponse_WrongSourceLength_)(nil),
 		(*CopyMediaResponse_OutOfSpace_)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[23].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[24].OneofWrappers = []any{
 		(*BackupStreamClosed_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[24].OneofWrappers = []any{}
-	file_org_signal_chat_backups_proto_msgTypes[25].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[25].OneofWrappers = []any{}
+	file_org_signal_chat_backups_proto_msgTypes[26].OneofWrappers = []any{
 		(*ListMediaResponse_ListResult_)(nil),
 		(*ListMediaResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[27].OneofWrappers = []any{
+	file_org_signal_chat_backups_proto_msgTypes[28].OneofWrappers = []any{
 		(*DeleteAllResponse_Success)(nil),
 		(*DeleteAllResponse_FailedAuthentication)(nil),
 	}
-	file_org_signal_chat_backups_proto_msgTypes[46].OneofWrappers = []any{}
+	file_org_signal_chat_backups_proto_msgTypes[47].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_org_signal_chat_backups_proto_rawDesc), len(file_org_signal_chat_backups_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   47,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

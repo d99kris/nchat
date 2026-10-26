@@ -293,6 +293,38 @@ TEST(MessageEntities, bank_card_number) {
   check_bank_card_number("+1234567890128", {});
 }
 
+static void check_ton_address(const td::string &str, const td::vector<td::string> &expected) {
+  auto result_slice = td::find_ton_addresses(str);
+  td::vector<td::string> result;
+  for (auto &it : result_slice) {
+    result.push_back(it.str());
+  }
+  if (result != expected) {
+    LOG(FATAL) << td::tag("text", str) << td::tag("receive", result) << td::tag("expected", expected);
+  }
+}
+
+TEST(MessageEntities, ton_address) {
+  check_ton_address("", {});
+  check_ton_address("EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N",
+                    {"EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N"});
+  check_ton_address("UQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqEBI",
+                    {"UQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqEBI"});
+  check_ton_address("UQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqEBJ", {});
+  check_ton_address("UQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqEB", {});
+  check_ton_address("UQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqEBIA", {});
+  check_ton_address("UQDqgkqefbZu_fZ7-8eib6h3vLubZxQfu-KRi829HBBUGzWm",
+                    {"UQDqgkqefbZu_fZ7-8eib6h3vLubZxQfu-KRi829HBBUGzWm"});
+  check_ton_address("UQDqgkqefbZu/fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm",
+                    {"UQDqgkqefbZu/fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm"});
+  check_ton_address("UQDqgkqefbZu_fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm", {});
+  check_ton_address("====UQDqgkqefbZu/fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm.",
+                    {"UQDqgkqefbZu/fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm"});
+  check_ton_address(
+      "#UQDqgkqefbZu/fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N",
+      {"UQDqgkqefbZu/fZ7+8eib6h3vLubZxQfu+KRi829HBBUGzWm", "EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N"});
+}
+
 static void check_tg_url(const td::string &str, const td::vector<td::string> &expected) {
   auto result_slice = td::find_tg_urls(str);
   td::vector<td::string> result;
@@ -1137,7 +1169,7 @@ TEST(MessageEntities, fix_formatted_text) {
 
     auto n = td::Random::fast(1, 20);
     td::vector<td::MessageEntity> entities;
-    for (int j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++) {
       td::int32 type = td::Random::fast(4, static_cast<int>(td::MessageEntity::Type::Size) - 1);
       td::int32 offset = td::Random::fast(0, static_cast<int>(str.size()) - 1);
       auto max_length = static_cast<int>(str.size() - offset);
@@ -1885,6 +1917,26 @@ TEST(MessageEntities, parse_markdown_v3) {
                           {{td::MessageEntity::Type::TextUrl, 0, 1, "http://t.me/"},
                            {td::MessageEntity::Type::Italic, 2, 5},
                            {td::MessageEntity::Type::Italic, 11, 4}});
+  check_parse_markdown_v3("https://test.com/__whatever__", "https://test.com/__whatever__", {});
+  check_parse_markdown_v3("test.com/a__b__c__", "test.com/a__b__c__", {});
+  check_parse_markdown_v3("**test.com/**x", "**test.com/**x", {});
+  check_parse_markdown_v3("https://test.com/a__ b__", "https://test.com/a__ b__", {});
+  check_parse_markdown_v3("a__b__c@test.com", "a__b__c@test.com", {});
+  check_parse_markdown_v3("__https://test.com/whatever__", "https://test.com/whatever",
+                          {{td::MessageEntity::Type::Italic, 0, 25}});
+  check_parse_markdown_v3("__see https://test.com/__whatever__", "see https://test.com/__whatever",
+                          {{td::MessageEntity::Type::Italic, 0, 31}});
+  check_parse_markdown_v3("~~test.com/a~~", "test.com/a", {{td::MessageEntity::Type::Strikethrough, 0, 10}});
+  check_parse_markdown_v3("||test.com/a||", "test.com/a", {{td::MessageEntity::Type::Spoiler, 0, 10}});
+  check_parse_markdown_v3("**a@test.com**", "a@test.com", {{td::MessageEntity::Type::Bold, 0, 10}});
+  check_parse_markdown_v3("🏟 https://a.com/__b__ 🏟 a__b__c@test.com __c.com/d__",
+                          "🏟 https://a.com/__b__ 🏟 a__b__c@test.com c.com/d",
+                          {{td::MessageEntity::Type::Italic, 43, 7}});
+  check_parse_markdown_v3("__ a__b.com __", " ab.com __", {{td::MessageEntity::Type::Italic, 0, 2}});
+  check_parse_markdown_v3("a__d.bc.com __", "a__d.bc.com __", {});
+  check_parse_markdown_v3("~~ ~~test.com/a~~", " ~~test.com/a", {{td::MessageEntity::Type::Strikethrough, 0, 13}});
+  check_parse_markdown_v3("|| ||test.com/a||", " test.com/a||", {{td::MessageEntity::Type::Spoiler, 0, 1}});
+  check_parse_markdown_v3("test.com/a~~ ~~b~~", "test.com/a~~ b", {{td::MessageEntity::Type::Strikethrough, 13, 1}});
   check_parse_markdown_v3("__**~~__gh**~~", "gh",
                           {{td::MessageEntity::Type::Bold, 0, 2}, {td::MessageEntity::Type::Strikethrough, 0, 2}});
   check_parse_markdown_v3("__ab**cd~~ef__gh**ij~~", "abcdefghij",
@@ -1966,7 +2018,7 @@ TEST(MessageEntities, parse_markdown_v3) {
   check_parse_markdown_v3("```\n```", {{td::MessageEntity::Type::BlockQuote, 0, 7}}, "\n",
                           {{td::MessageEntity::Type::BlockQuote, 0, 1}, {td::MessageEntity::Type::Pre, 0, 1}});
 
-  td::vector<td::string> parts{"a", " #test__a", "__", "**", "~~", "||", "[", "](t.me)", "`"};
+  td::vector<td::string> parts{"a", " #test__a", "__", "**", "~~", "||", "[", "](t.me)", "`", "t.me"};
   td::vector<td::MessageEntity::Type> types{
       td::MessageEntity::Type::Bold,          td::MessageEntity::Type::Italic,  td::MessageEntity::Type::Underline,
       td::MessageEntity::Type::Strikethrough, td::MessageEntity::Type::Spoiler, td::MessageEntity::Type::Code,

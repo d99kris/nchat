@@ -1599,6 +1599,105 @@ func (x *ChallengeRequired) GetRetryAfterSeconds() uint64 {
 	return 0
 }
 
+type ReportMessageRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service identifier of the party that sent the offending message
+	SourceServiceIdentifier *common.ServiceIdentifier `protobuf:"bytes,1,opt,name=source_service_identifier,json=sourceServiceIdentifier,proto3" json:"source_service_identifier,omitempty"`
+	// The GUID of the offending message
+	MessageGuid []byte `protobuf:"bytes,2,opt,name=message_guid,json=messageGuid,proto3" json:"message_guid,omitempty"`
+	// The spam-reporting token attached to the offending message
+	ReportSpamToken []byte `protobuf:"bytes,3,opt,name=report_spam_token,json=reportSpamToken,proto3" json:"report_spam_token,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ReportMessageRequest) Reset() {
+	*x = ReportMessageRequest{}
+	mi := &file_org_signal_chat_messages_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportMessageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportMessageRequest) ProtoMessage() {}
+
+func (x *ReportMessageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_messages_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportMessageRequest.ProtoReflect.Descriptor instead.
+func (*ReportMessageRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_messages_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ReportMessageRequest) GetSourceServiceIdentifier() *common.ServiceIdentifier {
+	if x != nil {
+		return x.SourceServiceIdentifier
+	}
+	return nil
+}
+
+func (x *ReportMessageRequest) GetMessageGuid() []byte {
+	if x != nil {
+		return x.MessageGuid
+	}
+	return nil
+}
+
+func (x *ReportMessageRequest) GetReportSpamToken() []byte {
+	if x != nil {
+		return x.ReportSpamToken
+	}
+	return nil
+}
+
+type ReportMessageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportMessageResponse) Reset() {
+	*x = ReportMessageResponse{}
+	mi := &file_org_signal_chat_messages_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportMessageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportMessageResponse) ProtoMessage() {}
+
+func (x *ReportMessageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_messages_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportMessageResponse.ProtoReflect.Descriptor instead.
+func (*ReportMessageResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_messages_proto_rawDescGZIP(), []int{19}
+}
+
 type GetMessagesRequest_GetMessageOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// If present and true, the server will not deliver any messages with the
@@ -1611,7 +1710,7 @@ type GetMessagesRequest_GetMessageOptions struct {
 
 func (x *GetMessagesRequest_GetMessageOptions) Reset() {
 	*x = GetMessagesRequest_GetMessageOptions{}
-	mi := &file_org_signal_chat_messages_proto_msgTypes[18]
+	mi := &file_org_signal_chat_messages_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1623,7 +1722,7 @@ func (x *GetMessagesRequest_GetMessageOptions) String() string {
 func (*GetMessagesRequest_GetMessageOptions) ProtoMessage() {}
 
 func (x *GetMessagesRequest_GetMessageOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_messages_proto_msgTypes[18]
+	mi := &file_org_signal_chat_messages_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1662,7 +1761,7 @@ type IndividualRecipientMessageBundle_Message struct {
 
 func (x *IndividualRecipientMessageBundle_Message) Reset() {
 	*x = IndividualRecipientMessageBundle_Message{}
-	mi := &file_org_signal_chat_messages_proto_msgTypes[19]
+	mi := &file_org_signal_chat_messages_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1674,7 +1773,7 @@ func (x *IndividualRecipientMessageBundle_Message) String() string {
 func (*IndividualRecipientMessageBundle_Message) ProtoMessage() {}
 
 func (x *IndividualRecipientMessageBundle_Message) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_messages_proto_msgTypes[19]
+	mi := &file_org_signal_chat_messages_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1811,17 +1910,23 @@ const file_org_signal_chat_messages_proto_rawDesc = "" +
 	"\vUNSPECIFIED\x10\x00\x12\v\n" +
 	"\aCAPTCHA\x10\x01\x12\x12\n" +
 	"\x0ePUSH_CHALLENGE\x10\x02B\x16\n" +
-	"\x14_retry_after_seconds*z\n" +
+	"\x14_retry_after_seconds\"\xd3\x01\n" +
+	"\x14ReportMessageRequest\x12e\n" +
+	"\x19source_service_identifier\x18\x01 \x01(\v2).org.signal.chat.common.ServiceIdentifierR\x17sourceServiceIdentifier\x12(\n" +
+	"\fmessage_guid\x18\x02 \x01(\fB\x05\xa2\x97\"\x01\x10R\vmessageGuid\x12*\n" +
+	"\x11report_spam_token\x18\x03 \x01(\fR\x0freportSpamToken\"\x17\n" +
+	"\x15ReportMessageResponse*z\n" +
 	"\x0fSendMessageType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eDOUBLE_RATCHET\x10\x01\x12\x12\n" +
 	"\x0ePREKEY_MESSAGE\x10\x02\x12\x15\n" +
 	"\x11PLAINTEXT_CONTENT\x10\x03\x12\x17\n" +
-	"\x13UNIDENTIFIED_SENDER\x10\x042\xa1\x03\n" +
+	"\x13UNIDENTIFIED_SENDER\x10\x042\x95\x04\n" +
 	"\bMessages\x12\x92\x01\n" +
 	"\vSendMessage\x12?.org.signal.chat.messages.SendAuthenticatedSenderMessageRequest\x1a@.org.signal.chat.messages.SendMessageAuthenticatedSenderResponse\"\x00\x12\x87\x01\n" +
 	"\x0fSendSyncMessage\x120.org.signal.chat.messages.SendSyncMessageRequest\x1a@.org.signal.chat.messages.SendMessageAuthenticatedSenderResponse\"\x00\x12p\n" +
-	"\vGetMessages\x12,.org.signal.chat.messages.GetMessagesRequest\x1a-.org.signal.chat.messages.GetMessagesResponse\"\x00(\x010\x01\x1a\x04\xc8\xd5\"\x012\xc2\x04\n" +
+	"\vGetMessages\x12,.org.signal.chat.messages.GetMessagesRequest\x1a-.org.signal.chat.messages.GetMessagesResponse\"\x00(\x010\x01\x12r\n" +
+	"\rReportMessage\x12..org.signal.chat.messages.ReportMessageRequest\x1a/.org.signal.chat.messages.ReportMessageResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xc2\x04\n" +
 	"\x11MessagesAnonymous\x12\x87\x01\n" +
 	"\x1aSendSingleRecipientMessage\x128.org.signal.chat.messages.SendSealedSenderMessageRequest\x1a-.org.signal.chat.messages.SendMessageResponse\"\x00\x12\x96\x01\n" +
 	"\x19SendMultiRecipientMessage\x12:.org.signal.chat.messages.SendMultiRecipientMessageRequest\x1a;.org.signal.chat.messages.SendMultiRecipientMessageResponse\"\x00\x12o\n" +
@@ -1841,7 +1946,7 @@ func file_org_signal_chat_messages_proto_rawDescGZIP() []byte {
 }
 
 var file_org_signal_chat_messages_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_org_signal_chat_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_org_signal_chat_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_org_signal_chat_messages_proto_goTypes = []any{
 	(SendMessageType)(0),                             // 0: org.signal.chat.messages.SendMessageType
 	(ChallengeRequired_ChallengeType)(0),             // 1: org.signal.chat.messages.ChallengeRequired.ChallengeType
@@ -1863,67 +1968,72 @@ var file_org_signal_chat_messages_proto_goTypes = []any{
 	(*MismatchedDevices)(nil),                        // 17: org.signal.chat.messages.MismatchedDevices
 	(*MultiRecipientMismatchedDevices)(nil),          // 18: org.signal.chat.messages.MultiRecipientMismatchedDevices
 	(*ChallengeRequired)(nil),                        // 19: org.signal.chat.messages.ChallengeRequired
-	(*GetMessagesRequest_GetMessageOptions)(nil),     // 20: org.signal.chat.messages.GetMessagesRequest.GetMessageOptions
-	(*IndividualRecipientMessageBundle_Message)(nil), // 21: org.signal.chat.messages.IndividualRecipientMessageBundle.Message
-	nil,                              // 22: org.signal.chat.messages.IndividualRecipientMessageBundle.MessagesEntry
-	(*emptypb.Empty)(nil),            // 23: google.protobuf.Empty
-	(*signalpb.Envelope)(nil),        // 24: signalservice.Envelope
-	(*common.ServiceIdentifier)(nil), // 25: org.signal.chat.common.ServiceIdentifier
-	(*errors.NotFound)(nil),          // 26: org.signal.chat.errors.NotFound
-	(*errors.FailedUnidentifiedAuthorization)(nil), // 27: org.signal.chat.errors.FailedUnidentifiedAuthorization
+	(*ReportMessageRequest)(nil),                     // 20: org.signal.chat.messages.ReportMessageRequest
+	(*ReportMessageResponse)(nil),                    // 21: org.signal.chat.messages.ReportMessageResponse
+	(*GetMessagesRequest_GetMessageOptions)(nil),     // 22: org.signal.chat.messages.GetMessagesRequest.GetMessageOptions
+	(*IndividualRecipientMessageBundle_Message)(nil), // 23: org.signal.chat.messages.IndividualRecipientMessageBundle.Message
+	nil,                              // 24: org.signal.chat.messages.IndividualRecipientMessageBundle.MessagesEntry
+	(*emptypb.Empty)(nil),            // 25: google.protobuf.Empty
+	(*signalpb.Envelope)(nil),        // 26: signalservice.Envelope
+	(*common.ServiceIdentifier)(nil), // 27: org.signal.chat.common.ServiceIdentifier
+	(*errors.NotFound)(nil),          // 28: org.signal.chat.errors.NotFound
+	(*errors.FailedUnidentifiedAuthorization)(nil), // 29: org.signal.chat.errors.FailedUnidentifiedAuthorization
 }
 var file_org_signal_chat_messages_proto_depIdxs = []int32{
-	20, // 0: org.signal.chat.messages.GetMessagesRequest.options:type_name -> org.signal.chat.messages.GetMessagesRequest.GetMessageOptions
-	23, // 1: org.signal.chat.messages.GetMessagesStreamClosed.conflicting_stream:type_name -> google.protobuf.Empty
-	24, // 2: org.signal.chat.messages.GetMessagesResponse.envelope:type_name -> signalservice.Envelope
-	23, // 3: org.signal.chat.messages.GetMessagesResponse.queue_empty:type_name -> google.protobuf.Empty
-	22, // 4: org.signal.chat.messages.IndividualRecipientMessageBundle.messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle.MessagesEntry
-	25, // 5: org.signal.chat.messages.SendAuthenticatedSenderMessageRequest.destination:type_name -> org.signal.chat.common.ServiceIdentifier
+	22, // 0: org.signal.chat.messages.GetMessagesRequest.options:type_name -> org.signal.chat.messages.GetMessagesRequest.GetMessageOptions
+	25, // 1: org.signal.chat.messages.GetMessagesStreamClosed.conflicting_stream:type_name -> google.protobuf.Empty
+	26, // 2: org.signal.chat.messages.GetMessagesResponse.envelope:type_name -> signalservice.Envelope
+	25, // 3: org.signal.chat.messages.GetMessagesResponse.queue_empty:type_name -> google.protobuf.Empty
+	24, // 4: org.signal.chat.messages.IndividualRecipientMessageBundle.messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle.MessagesEntry
+	27, // 5: org.signal.chat.messages.SendAuthenticatedSenderMessageRequest.destination:type_name -> org.signal.chat.common.ServiceIdentifier
 	5,  // 6: org.signal.chat.messages.SendAuthenticatedSenderMessageRequest.messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle
-	23, // 7: org.signal.chat.messages.SendMessageAuthenticatedSenderResponse.success:type_name -> google.protobuf.Empty
+	25, // 7: org.signal.chat.messages.SendMessageAuthenticatedSenderResponse.success:type_name -> google.protobuf.Empty
 	17, // 8: org.signal.chat.messages.SendMessageAuthenticatedSenderResponse.mismatched_devices:type_name -> org.signal.chat.messages.MismatchedDevices
 	19, // 9: org.signal.chat.messages.SendMessageAuthenticatedSenderResponse.challenge_required:type_name -> org.signal.chat.messages.ChallengeRequired
-	26, // 10: org.signal.chat.messages.SendMessageAuthenticatedSenderResponse.destination_not_found:type_name -> org.signal.chat.errors.NotFound
+	28, // 10: org.signal.chat.messages.SendMessageAuthenticatedSenderResponse.destination_not_found:type_name -> org.signal.chat.errors.NotFound
 	5,  // 11: org.signal.chat.messages.SendSyncMessageRequest.messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle
-	25, // 12: org.signal.chat.messages.SendSealedSenderMessageRequest.destination:type_name -> org.signal.chat.common.ServiceIdentifier
+	27, // 12: org.signal.chat.messages.SendSealedSenderMessageRequest.destination:type_name -> org.signal.chat.common.ServiceIdentifier
 	5,  // 13: org.signal.chat.messages.SendSealedSenderMessageRequest.messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle
-	23, // 14: org.signal.chat.messages.SendSealedSenderMessageRequest.unrestricted_access:type_name -> google.protobuf.Empty
-	25, // 15: org.signal.chat.messages.SendStoryMessageRequest.destination:type_name -> org.signal.chat.common.ServiceIdentifier
+	25, // 14: org.signal.chat.messages.SendSealedSenderMessageRequest.unrestricted_access:type_name -> google.protobuf.Empty
+	27, // 15: org.signal.chat.messages.SendStoryMessageRequest.destination:type_name -> org.signal.chat.common.ServiceIdentifier
 	5,  // 16: org.signal.chat.messages.SendStoryMessageRequest.messages:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle
-	23, // 17: org.signal.chat.messages.SendMessageResponse.success:type_name -> google.protobuf.Empty
+	25, // 17: org.signal.chat.messages.SendMessageResponse.success:type_name -> google.protobuf.Empty
 	17, // 18: org.signal.chat.messages.SendMessageResponse.mismatched_devices:type_name -> org.signal.chat.messages.MismatchedDevices
-	27, // 19: org.signal.chat.messages.SendMessageResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	26, // 20: org.signal.chat.messages.SendMessageResponse.destination_not_found:type_name -> org.signal.chat.errors.NotFound
+	29, // 19: org.signal.chat.messages.SendMessageResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
+	28, // 20: org.signal.chat.messages.SendMessageResponse.destination_not_found:type_name -> org.signal.chat.errors.NotFound
 	12, // 21: org.signal.chat.messages.SendMultiRecipientMessageRequest.message:type_name -> org.signal.chat.messages.MultiRecipientMessage
 	12, // 22: org.signal.chat.messages.SendMultiRecipientStoryRequest.message:type_name -> org.signal.chat.messages.MultiRecipientMessage
-	25, // 23: org.signal.chat.messages.MultiRecipientSuccess.unresolved_recipients:type_name -> org.signal.chat.common.ServiceIdentifier
+	27, // 23: org.signal.chat.messages.MultiRecipientSuccess.unresolved_recipients:type_name -> org.signal.chat.common.ServiceIdentifier
 	15, // 24: org.signal.chat.messages.SendMultiRecipientMessageResponse.success:type_name -> org.signal.chat.messages.MultiRecipientSuccess
 	18, // 25: org.signal.chat.messages.SendMultiRecipientMessageResponse.mismatched_devices:type_name -> org.signal.chat.messages.MultiRecipientMismatchedDevices
-	27, // 26: org.signal.chat.messages.SendMultiRecipientMessageResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	25, // 27: org.signal.chat.messages.MismatchedDevices.service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	29, // 26: org.signal.chat.messages.SendMultiRecipientMessageResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
+	27, // 27: org.signal.chat.messages.MismatchedDevices.service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
 	17, // 28: org.signal.chat.messages.MultiRecipientMismatchedDevices.mismatched_devices:type_name -> org.signal.chat.messages.MismatchedDevices
 	1,  // 29: org.signal.chat.messages.ChallengeRequired.challenge_options:type_name -> org.signal.chat.messages.ChallengeRequired.ChallengeType
-	0,  // 30: org.signal.chat.messages.IndividualRecipientMessageBundle.Message.type:type_name -> org.signal.chat.messages.SendMessageType
-	21, // 31: org.signal.chat.messages.IndividualRecipientMessageBundle.MessagesEntry.value:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle.Message
-	6,  // 32: org.signal.chat.messages.Messages.SendMessage:input_type -> org.signal.chat.messages.SendAuthenticatedSenderMessageRequest
-	8,  // 33: org.signal.chat.messages.Messages.SendSyncMessage:input_type -> org.signal.chat.messages.SendSyncMessageRequest
-	2,  // 34: org.signal.chat.messages.Messages.GetMessages:input_type -> org.signal.chat.messages.GetMessagesRequest
-	9,  // 35: org.signal.chat.messages.MessagesAnonymous.SendSingleRecipientMessage:input_type -> org.signal.chat.messages.SendSealedSenderMessageRequest
-	13, // 36: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientMessage:input_type -> org.signal.chat.messages.SendMultiRecipientMessageRequest
-	10, // 37: org.signal.chat.messages.MessagesAnonymous.SendStory:input_type -> org.signal.chat.messages.SendStoryMessageRequest
-	14, // 38: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientStory:input_type -> org.signal.chat.messages.SendMultiRecipientStoryRequest
-	7,  // 39: org.signal.chat.messages.Messages.SendMessage:output_type -> org.signal.chat.messages.SendMessageAuthenticatedSenderResponse
-	7,  // 40: org.signal.chat.messages.Messages.SendSyncMessage:output_type -> org.signal.chat.messages.SendMessageAuthenticatedSenderResponse
-	4,  // 41: org.signal.chat.messages.Messages.GetMessages:output_type -> org.signal.chat.messages.GetMessagesResponse
-	11, // 42: org.signal.chat.messages.MessagesAnonymous.SendSingleRecipientMessage:output_type -> org.signal.chat.messages.SendMessageResponse
-	16, // 43: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientMessage:output_type -> org.signal.chat.messages.SendMultiRecipientMessageResponse
-	11, // 44: org.signal.chat.messages.MessagesAnonymous.SendStory:output_type -> org.signal.chat.messages.SendMessageResponse
-	16, // 45: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientStory:output_type -> org.signal.chat.messages.SendMultiRecipientMessageResponse
-	39, // [39:46] is the sub-list for method output_type
-	32, // [32:39] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	27, // 30: org.signal.chat.messages.ReportMessageRequest.source_service_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	0,  // 31: org.signal.chat.messages.IndividualRecipientMessageBundle.Message.type:type_name -> org.signal.chat.messages.SendMessageType
+	23, // 32: org.signal.chat.messages.IndividualRecipientMessageBundle.MessagesEntry.value:type_name -> org.signal.chat.messages.IndividualRecipientMessageBundle.Message
+	6,  // 33: org.signal.chat.messages.Messages.SendMessage:input_type -> org.signal.chat.messages.SendAuthenticatedSenderMessageRequest
+	8,  // 34: org.signal.chat.messages.Messages.SendSyncMessage:input_type -> org.signal.chat.messages.SendSyncMessageRequest
+	2,  // 35: org.signal.chat.messages.Messages.GetMessages:input_type -> org.signal.chat.messages.GetMessagesRequest
+	20, // 36: org.signal.chat.messages.Messages.ReportMessage:input_type -> org.signal.chat.messages.ReportMessageRequest
+	9,  // 37: org.signal.chat.messages.MessagesAnonymous.SendSingleRecipientMessage:input_type -> org.signal.chat.messages.SendSealedSenderMessageRequest
+	13, // 38: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientMessage:input_type -> org.signal.chat.messages.SendMultiRecipientMessageRequest
+	10, // 39: org.signal.chat.messages.MessagesAnonymous.SendStory:input_type -> org.signal.chat.messages.SendStoryMessageRequest
+	14, // 40: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientStory:input_type -> org.signal.chat.messages.SendMultiRecipientStoryRequest
+	7,  // 41: org.signal.chat.messages.Messages.SendMessage:output_type -> org.signal.chat.messages.SendMessageAuthenticatedSenderResponse
+	7,  // 42: org.signal.chat.messages.Messages.SendSyncMessage:output_type -> org.signal.chat.messages.SendMessageAuthenticatedSenderResponse
+	4,  // 43: org.signal.chat.messages.Messages.GetMessages:output_type -> org.signal.chat.messages.GetMessagesResponse
+	21, // 44: org.signal.chat.messages.Messages.ReportMessage:output_type -> org.signal.chat.messages.ReportMessageResponse
+	11, // 45: org.signal.chat.messages.MessagesAnonymous.SendSingleRecipientMessage:output_type -> org.signal.chat.messages.SendMessageResponse
+	16, // 46: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientMessage:output_type -> org.signal.chat.messages.SendMultiRecipientMessageResponse
+	11, // 47: org.signal.chat.messages.MessagesAnonymous.SendStory:output_type -> org.signal.chat.messages.SendMessageResponse
+	16, // 48: org.signal.chat.messages.MessagesAnonymous.SendMultiRecipientStory:output_type -> org.signal.chat.messages.SendMultiRecipientMessageResponse
+	41, // [41:49] is the sub-list for method output_type
+	33, // [33:41] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_org_signal_chat_messages_proto_init() }
@@ -1971,7 +2081,7 @@ func file_org_signal_chat_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_org_signal_chat_messages_proto_rawDesc), len(file_org_signal_chat_messages_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   21,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

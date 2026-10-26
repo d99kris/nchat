@@ -15,7 +15,9 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/InlineMessageContent.h"
 #include "td/telegram/InlineQueriesManager.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MessageContent.h"
@@ -876,6 +878,8 @@ void QuickReplyManager::Shortcuts::parse(ParserT &parser) {
 QuickReplyManager::QuickReplyManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
   upload_message_content_callback_ = std::make_shared<UploadMessageContentCallback>(this);
 }
+
+QuickReplyManager::~QuickReplyManager() = default;
 
 void QuickReplyManager::tear_down() {
   parent_.reset();
@@ -2585,6 +2589,7 @@ void QuickReplyManager::on_reload_quick_reply_messages(
       td_->chat_manager_->on_get_chats(std::move(messages->chats_), "on_reload_quick_reply_messages");
 
       vector<unique_ptr<QuickReplyMessage>> quick_reply_messages;
+      FlatHashSet<MessageId, MessageIdHash> added_message_ids;
       for (auto &server_message : messages->messages_) {
         auto message = create_message(std::move(server_message), "on_reload_quick_reply_messages");
         if (message == nullptr) {
@@ -2592,6 +2597,11 @@ void QuickReplyManager::on_reload_quick_reply_messages(
         }
         if (message->shortcut_id != shortcut_id) {
           LOG(ERROR) << "Receive message from " << message->shortcut_id << " instead of " << shortcut_id;
+          continue;
+        }
+        CHECK(message->message_id.is_server());
+        if (!added_message_ids.insert(message->message_id).second) {
+          LOG(ERROR) << "Receive again " << message->message_id << " in " << message->shortcut_id;
           continue;
         }
 
@@ -3097,7 +3107,7 @@ void QuickReplyManager::update_shortcut_from(Shortcut *new_shortcut, Shortcut *o
       }
     }
     if (it == old_shortcut->messages_.end() || (*it)->message_id != new_first_message_id) {
-      register_new_message(new_shortcut->messages_[0].get(), "update_shortcut_from");
+      register_new_message(new_shortcut->messages_[0].get(), "update_shortcut_from 1");
       old_shortcut->messages_.insert(it, std::move(new_shortcut->messages_[0]));
     } else {
       update_quick_reply_message(*it, std::move(new_shortcut->messages_[0]));
@@ -3123,16 +3133,19 @@ void QuickReplyManager::update_shortcut_from(Shortcut *new_shortcut, Shortcut *o
       new_shortcut->messages_ = std::move(old_shortcut->messages_);
     } else {
       *are_messages_changed = true;
+      FlatHashSet<MessageId, MessageIdHash> old_message_ids;
       for (auto &old_message : old_shortcut->messages_) {
         CHECK(old_message != nullptr);
         if (!old_message->message_id.is_server()) {
           new_shortcut->messages_.push_back(std::move(old_message));
+          new_shortcut->local_total_count_++;
         } else {
           bool is_deleted = true;
           for (auto &new_message : new_shortcut->messages_) {
             if (new_message->message_id == old_message->message_id) {
               update_quick_reply_message(old_message, std::move(new_message));
               new_message = std::move(old_message);
+              old_message_ids.insert(new_message->message_id);
               is_deleted = false;
               break;
             }
@@ -3140,6 +3153,11 @@ void QuickReplyManager::update_shortcut_from(Shortcut *new_shortcut, Shortcut *o
           if (is_deleted) {
             delete_message_files(old_message.get());
           }
+        }
+      }
+      for (auto &message : new_shortcut->messages_) {
+        if (message->message_id.is_server() && old_message_ids.count(message->message_id) == 0) {
+          register_new_message(message.get(), "update_shortcut_from 2");
         }
       }
       sort_quick_reply_messages(new_shortcut->messages_);

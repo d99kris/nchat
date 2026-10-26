@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 
+	"go.mau.fi/util/exerrors"
 	"golang.org/x/crypto/hkdf"
 	"google.golang.org/protobuf/proto"
 
@@ -42,11 +43,7 @@ func NewProvisioningCipher() *ProvisioningCipher {
 
 func (c *ProvisioningCipher) GetPublicKey() *libsignalgo.PublicKey {
 	if c.keyPair == nil {
-		keyPair, err := libsignalgo.GenerateIdentityKeyPair()
-		if err != nil {
-			panic(fmt.Errorf("unable to generate key pair: %w", err))
-		}
-		c.keyPair = keyPair
+		c.keyPair = exerrors.Must(libsignalgo.GenerateIdentityKeyPair())
 	}
 	return c.keyPair.GetPublicKey()
 }
@@ -72,6 +69,8 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) (*signalpb
 	body := env.GetBody()
 	if body == nil {
 		return nil, fmt.Errorf("no body: %v", env)
+	} else if len(body) < int(CIPHERTEXT_OFFSET+CIPHER_KEY_SIZE+MAC_SIZE) {
+		return nil, fmt.Errorf("body too short: %d", len(body))
 	}
 	if body[0] != 1 {
 		return nil, fmt.Errorf("invalid ProvisionMessage version: %v", body[0])

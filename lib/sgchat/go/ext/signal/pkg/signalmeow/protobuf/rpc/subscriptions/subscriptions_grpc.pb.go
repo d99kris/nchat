@@ -30,7 +30,7 @@ const (
 	Subscriptions_SetDefaultPaymentMethod_FullMethodName    = "/org.signal.chat.purchase.Subscriptions/SetDefaultPaymentMethod"
 	Subscriptions_SetSubscriptionLevel_FullMethodName       = "/org.signal.chat.purchase.Subscriptions/SetSubscriptionLevel"
 	Subscriptions_GetSubscriptionInformation_FullMethodName = "/org.signal.chat.purchase.Subscriptions/GetSubscriptionInformation"
-	Subscriptions_GetReceiptCredentials_FullMethodName      = "/org.signal.chat.purchase.Subscriptions/GetReceiptCredentials"
+	Subscriptions_GetReceiptCredential_FullMethodName       = "/org.signal.chat.purchase.Subscriptions/GetReceiptCredential"
 	Subscriptions_SetIapSubscription_FullMethodName         = "/org.signal.chat.purchase.Subscriptions/SetIapSubscription"
 	Subscriptions_GetBankMandate_FullMethodName             = "/org.signal.chat.purchase.Subscriptions/GetBankMandate"
 )
@@ -43,6 +43,8 @@ const (
 //
 // Configuration for subscription levels can be found in ProductConfiguration.
 type SubscriptionsClient interface {
+	// Creates a subscriber record if it does not exist, otherwise refreshes its last access time.
+	//
 	//  Subscribers MUST periodically hit this endpoint to update the access time on the subscription record. Subscribers
 	//  SHOULD attempt to make an update call approximately every 3 days. Not accessing this endpoint for an extended
 	//  period of time will result in the subscription being canceled.
@@ -55,6 +57,10 @@ type SubscriptionsClient interface {
 	// Returns a client secret that can be used to set up a new payment method with the payment processor.
 	CreatePaymentMethod(ctx context.Context, in *CreatePaymentMethodRequest, opts ...grpc.CallOption) (*CreatePaymentMethodResponse, error)
 	// Returns a PayPal billing agreement approval URL and token that can be used to set up PayPal as a payment method.
+	//
+	// The presented billing agreement may be localized. Callers should set their
+	// language preferences via an "Accept-Language" header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	CreatePayPalPaymentMethod(ctx context.Context, in *CreatePayPalPaymentMethodRequest, opts ...grpc.CallOption) (*CreatePayPalPaymentMethodResponse, error)
 	// Sets the default payment method for a subscriber.
 	SetDefaultPaymentMethod(ctx context.Context, in *SetDefaultPaymentMethodRequest, opts ...grpc.CallOption) (*SetDefaultPaymentMethodResponse, error)
@@ -75,7 +81,7 @@ type SubscriptionsClient interface {
 	// invoice. Clients SHOULD retry requests at this endpoint with the same ReceiptCredentialRequest value until
 	// receiving a response. After receiving a response, clients should then compute the ReceiptCredentialPresentation
 	// and redeem it at the receipt redemption endpoint. Once the first attempt is made there, the same
-	// ReceiptCredentialRequest MUST NOT be used again to request receipt credentials.
+	// ReceiptCredentialRequest MUST NOT be used again to request a receipt credential.
 	//
 	// Note that you may in fact redeem TWO or more invoices for the same ReceiptCredentialRequest while retrying this
 	// operation if a later invoice gets paid while you are retrying. However, the returned receipt is always for the
@@ -85,7 +91,7 @@ type SubscriptionsClient interface {
 	// cannot be redeemed.
 	//
 	// Clients MUST validate that the generated receipt credential's level and expiration matches their expectations.
-	GetReceiptCredentials(ctx context.Context, in *GetReceiptCredentialsRequest, opts ...grpc.CallOption) (*GetReceiptCredentialsResponse, error)
+	GetReceiptCredential(ctx context.Context, in *GetReceiptCredentialRequest, opts ...grpc.CallOption) (*GetReceiptCredentialResponse, error)
 	// Set a token that represents an IAP subscription made with App Store/Google Play Billing.
 	//
 	// To set up an App Store subscription:
@@ -93,7 +99,7 @@ type SubscriptionsClient interface {
 	// 2. [Create a subscription](https://developer.apple.com/documentation/storekit/in-app_purchase/) with the App Store
 	//    directly via StoreKit and obtain a originalTransactionId.
 	// 3. Call this RPC with the originalTransactionId
-	// 4. Obtain a receipt via GetReceiptCredentials which can then be used to obtain the
+	// 4. Obtain a receipt via GetReceiptCredential which can then be used to obtain the
 	//    entitlement
 	//
 	// Play Billing: Set a purchaseToken that represents an IAP subscription made with Google Play Billing.
@@ -104,7 +110,7 @@ type SubscriptionsClient interface {
 	//    directly and obtain a purchaseToken. Do not [acknowledge](https://developer.android.com/google/play/billing/integrate#subscriptions)
 	//    the purchaseToken.
 	// 3. Call this RPC with the purchaseToken
-	// 4. Obtain a receipt via GetReceiptCredentials which can then be used to obtain the
+	// 4. Obtain a receipt via GetReceiptCredential which can then be used to obtain the
 	//    entitlement
 	//
 	// After calling this method, the payment is confirmed. Callers must durably store their subscriberId before calling
@@ -114,7 +120,11 @@ type SubscriptionsClient interface {
 	// method. A different playbilling purchaseToken can be posted to the same subscriberId, in this case the subscription
 	// associated with the old purchaseToken will be cancelled.
 	SetIapSubscription(ctx context.Context, in *SetIapSubscriptionRequest, opts ...grpc.CallOption) (*SetIapSubscriptionResponse, error)
-	// Returns a localized bank mandate for the specified bank transfer type
+	// Returns a localized bank mandate for the specified bank transfer type.
+	//
+	// Callers should set their language preferences via an "Accept-Language"
+	// header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	GetBankMandate(ctx context.Context, in *GetBankMandateRequest, opts ...grpc.CallOption) (*GetBankMandateResponse, error)
 }
 
@@ -196,10 +206,10 @@ func (c *subscriptionsClient) GetSubscriptionInformation(ctx context.Context, in
 	return out, nil
 }
 
-func (c *subscriptionsClient) GetReceiptCredentials(ctx context.Context, in *GetReceiptCredentialsRequest, opts ...grpc.CallOption) (*GetReceiptCredentialsResponse, error) {
+func (c *subscriptionsClient) GetReceiptCredential(ctx context.Context, in *GetReceiptCredentialRequest, opts ...grpc.CallOption) (*GetReceiptCredentialResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetReceiptCredentialsResponse)
-	err := c.cc.Invoke(ctx, Subscriptions_GetReceiptCredentials_FullMethodName, in, out, cOpts...)
+	out := new(GetReceiptCredentialResponse)
+	err := c.cc.Invoke(ctx, Subscriptions_GetReceiptCredential_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -234,6 +244,8 @@ func (c *subscriptionsClient) GetBankMandate(ctx context.Context, in *GetBankMan
 //
 // Configuration for subscription levels can be found in ProductConfiguration.
 type SubscriptionsServer interface {
+	// Creates a subscriber record if it does not exist, otherwise refreshes its last access time.
+	//
 	//  Subscribers MUST periodically hit this endpoint to update the access time on the subscription record. Subscribers
 	//  SHOULD attempt to make an update call approximately every 3 days. Not accessing this endpoint for an extended
 	//  period of time will result in the subscription being canceled.
@@ -246,6 +258,10 @@ type SubscriptionsServer interface {
 	// Returns a client secret that can be used to set up a new payment method with the payment processor.
 	CreatePaymentMethod(context.Context, *CreatePaymentMethodRequest) (*CreatePaymentMethodResponse, error)
 	// Returns a PayPal billing agreement approval URL and token that can be used to set up PayPal as a payment method.
+	//
+	// The presented billing agreement may be localized. Callers should set their
+	// language preferences via an "Accept-Language" header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	CreatePayPalPaymentMethod(context.Context, *CreatePayPalPaymentMethodRequest) (*CreatePayPalPaymentMethodResponse, error)
 	// Sets the default payment method for a subscriber.
 	SetDefaultPaymentMethod(context.Context, *SetDefaultPaymentMethodRequest) (*SetDefaultPaymentMethodResponse, error)
@@ -266,7 +282,7 @@ type SubscriptionsServer interface {
 	// invoice. Clients SHOULD retry requests at this endpoint with the same ReceiptCredentialRequest value until
 	// receiving a response. After receiving a response, clients should then compute the ReceiptCredentialPresentation
 	// and redeem it at the receipt redemption endpoint. Once the first attempt is made there, the same
-	// ReceiptCredentialRequest MUST NOT be used again to request receipt credentials.
+	// ReceiptCredentialRequest MUST NOT be used again to request a receipt credential.
 	//
 	// Note that you may in fact redeem TWO or more invoices for the same ReceiptCredentialRequest while retrying this
 	// operation if a later invoice gets paid while you are retrying. However, the returned receipt is always for the
@@ -276,7 +292,7 @@ type SubscriptionsServer interface {
 	// cannot be redeemed.
 	//
 	// Clients MUST validate that the generated receipt credential's level and expiration matches their expectations.
-	GetReceiptCredentials(context.Context, *GetReceiptCredentialsRequest) (*GetReceiptCredentialsResponse, error)
+	GetReceiptCredential(context.Context, *GetReceiptCredentialRequest) (*GetReceiptCredentialResponse, error)
 	// Set a token that represents an IAP subscription made with App Store/Google Play Billing.
 	//
 	// To set up an App Store subscription:
@@ -284,7 +300,7 @@ type SubscriptionsServer interface {
 	// 2. [Create a subscription](https://developer.apple.com/documentation/storekit/in-app_purchase/) with the App Store
 	//    directly via StoreKit and obtain a originalTransactionId.
 	// 3. Call this RPC with the originalTransactionId
-	// 4. Obtain a receipt via GetReceiptCredentials which can then be used to obtain the
+	// 4. Obtain a receipt via GetReceiptCredential which can then be used to obtain the
 	//    entitlement
 	//
 	// Play Billing: Set a purchaseToken that represents an IAP subscription made with Google Play Billing.
@@ -295,7 +311,7 @@ type SubscriptionsServer interface {
 	//    directly and obtain a purchaseToken. Do not [acknowledge](https://developer.android.com/google/play/billing/integrate#subscriptions)
 	//    the purchaseToken.
 	// 3. Call this RPC with the purchaseToken
-	// 4. Obtain a receipt via GetReceiptCredentials which can then be used to obtain the
+	// 4. Obtain a receipt via GetReceiptCredential which can then be used to obtain the
 	//    entitlement
 	//
 	// After calling this method, the payment is confirmed. Callers must durably store their subscriberId before calling
@@ -305,7 +321,11 @@ type SubscriptionsServer interface {
 	// method. A different playbilling purchaseToken can be posted to the same subscriberId, in this case the subscription
 	// associated with the old purchaseToken will be cancelled.
 	SetIapSubscription(context.Context, *SetIapSubscriptionRequest) (*SetIapSubscriptionResponse, error)
-	// Returns a localized bank mandate for the specified bank transfer type
+	// Returns a localized bank mandate for the specified bank transfer type.
+	//
+	// Callers should set their language preferences via an "Accept-Language"
+	// header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	GetBankMandate(context.Context, *GetBankMandateRequest) (*GetBankMandateResponse, error)
 	mustEmbedUnimplementedSubscriptionsServer()
 }
@@ -338,8 +358,8 @@ func (UnimplementedSubscriptionsServer) SetSubscriptionLevel(context.Context, *S
 func (UnimplementedSubscriptionsServer) GetSubscriptionInformation(context.Context, *GetSubscriptionInformationRequest) (*GetSubscriptionInformationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSubscriptionInformation not implemented")
 }
-func (UnimplementedSubscriptionsServer) GetReceiptCredentials(context.Context, *GetReceiptCredentialsRequest) (*GetReceiptCredentialsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetReceiptCredentials not implemented")
+func (UnimplementedSubscriptionsServer) GetReceiptCredential(context.Context, *GetReceiptCredentialRequest) (*GetReceiptCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetReceiptCredential not implemented")
 }
 func (UnimplementedSubscriptionsServer) SetIapSubscription(context.Context, *SetIapSubscriptionRequest) (*SetIapSubscriptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetIapSubscription not implemented")
@@ -494,20 +514,20 @@ func _Subscriptions_GetSubscriptionInformation_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Subscriptions_GetReceiptCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetReceiptCredentialsRequest)
+func _Subscriptions_GetReceiptCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetReceiptCredentialRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SubscriptionsServer).GetReceiptCredentials(ctx, in)
+		return srv.(SubscriptionsServer).GetReceiptCredential(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Subscriptions_GetReceiptCredentials_FullMethodName,
+		FullMethod: Subscriptions_GetReceiptCredential_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SubscriptionsServer).GetReceiptCredentials(ctx, req.(*GetReceiptCredentialsRequest))
+		return srv.(SubscriptionsServer).GetReceiptCredential(ctx, req.(*GetReceiptCredentialRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -584,8 +604,8 @@ var Subscriptions_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Subscriptions_GetSubscriptionInformation_Handler,
 		},
 		{
-			MethodName: "GetReceiptCredentials",
-			Handler:    _Subscriptions_GetReceiptCredentials_Handler,
+			MethodName: "GetReceiptCredential",
+			Handler:    _Subscriptions_GetReceiptCredential_Handler,
 		},
 		{
 			MethodName: "SetIapSubscription",

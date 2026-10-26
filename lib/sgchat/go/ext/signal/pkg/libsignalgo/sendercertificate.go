@@ -22,12 +22,51 @@ package libsignalgo
 */
 import "C"
 import (
+	"encoding/base64"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/google/uuid"
+	"go.mau.fi/util/exerrors"
 )
+
+var ProdTrustRoots = NewTrustRoots([]string{
+	"BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF",
+	"BUkY0I+9+oPgDCn4+Ac6Iu813yvqkDr/ga8DzLxFxuk6",
+})
+
+type TrustRoots struct {
+	encoded []string
+	keys    []*PublicKey
+	cKeys   []C.SignalConstPointerPublicKey
+	once    sync.Once
+}
+
+func NewTrustRoots(roots []string) *TrustRoots {
+	return &TrustRoots{
+		encoded: roots,
+	}
+}
+
+func (tr *TrustRoots) decode() {
+	tr.keys = make([]*PublicKey, len(tr.encoded))
+	tr.cKeys = make([]C.SignalConstPointerPublicKey, len(tr.encoded))
+	for i, rootString := range tr.encoded {
+		rootBytes := exerrors.Must(base64.StdEncoding.DecodeString(rootString))
+		tr.keys[i] = exerrors.Must(DeserializePublicKey(rootBytes))
+		tr.cKeys[i] = tr.keys[i].constPtr()
+	}
+}
+
+func (tr *TrustRoots) borrowedSlice() C.SignalBorrowedSliceOfConstPointerPublicKey {
+	tr.once.Do(tr.decode)
+	return C.SignalBorrowedSliceOfConstPointerPublicKey{
+		base:   unsafe.SliceData(tr.cKeys),
+		length: C.size_t(len(tr.cKeys)),
+	}
+}
 
 type SenderCertificate struct {
 	nc  noCopy
@@ -191,25 +230,16 @@ func (sc *SenderCertificate) GetKey() (*PublicKey, error) {
 	return wrapPublicKey(key.raw), nil
 }
 
-func (sc *SenderCertificate) Validate(trustRoots []*PublicKey, ts time.Time) (bool, error) {
+func (sc *SenderCertificate) Validate(trustRoots *TrustRoots, serverTS uint64) (bool, error) {
 	var valid C.bool
-	constRoots := make([]C.SignalConstPointerPublicKey, len(trustRoots))
-	for i, root := range trustRoots {
-		constRoots[i] = root.constPtr()
-	}
 	signalFfiError := C.signal_sender_certificate_validate(
 		&valid,
 		sc.constPtr(),
-		// TODO this might not be correct
-		C.SignalBorrowedSliceOfConstPointerPublicKey{
-			base:   unsafe.SliceData(constRoots),
-			length: C.size_t(len(constRoots)),
-		},
-		C.uint64_t(ts.UnixMilli()),
+		trustRoots.borrowedSlice(),
+		C.uint64_t(serverTS),
 	)
 	runtime.KeepAlive(sc)
 	runtime.KeepAlive(trustRoots)
-	runtime.KeepAlive(constRoots)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}

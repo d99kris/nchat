@@ -11,9 +11,12 @@
 package challenge
 
 import (
+	errors "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/errors"
 	_ "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/require"
+	_ "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/tag"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -163,6 +166,127 @@ func (x *AnswerChallengeResponse) GetSuccess() bool {
 	return false
 }
 
+type RequestPushChallengeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPushChallengeRequest) Reset() {
+	*x = RequestPushChallengeRequest{}
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPushChallengeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPushChallengeRequest) ProtoMessage() {}
+
+func (x *RequestPushChallengeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPushChallengeRequest.ProtoReflect.Descriptor instead.
+func (*RequestPushChallengeRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_challenge_proto_rawDescGZIP(), []int{2}
+}
+
+type RequestPushChallengeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Response:
+	//
+	//	*RequestPushChallengeResponse_SentPushChallenge_
+	//	*RequestPushChallengeResponse_NoPushToken
+	Response      isRequestPushChallengeResponse_Response `protobuf_oneof:"response"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPushChallengeResponse) Reset() {
+	*x = RequestPushChallengeResponse{}
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPushChallengeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPushChallengeResponse) ProtoMessage() {}
+
+func (x *RequestPushChallengeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPushChallengeResponse.ProtoReflect.Descriptor instead.
+func (*RequestPushChallengeResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_challenge_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RequestPushChallengeResponse) GetResponse() isRequestPushChallengeResponse_Response {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+func (x *RequestPushChallengeResponse) GetSentPushChallenge() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Response.(*RequestPushChallengeResponse_SentPushChallenge_); ok {
+			return x.SentPushChallenge
+		}
+	}
+	return nil
+}
+
+func (x *RequestPushChallengeResponse) GetNoPushToken() *errors.FailedPrecondition {
+	if x != nil {
+		if x, ok := x.Response.(*RequestPushChallengeResponse_NoPushToken); ok {
+			return x.NoPushToken
+		}
+	}
+	return nil
+}
+
+type isRequestPushChallengeResponse_Response interface {
+	isRequestPushChallengeResponse_Response()
+}
+
+type RequestPushChallengeResponse_SentPushChallenge_ struct {
+	// The server attempted to send a challenge value to the authenticated
+	// account's primary device via a push notification.
+	SentPushChallenge *emptypb.Empty `protobuf:"bytes,1,opt,name=sent_push_challenge,json=sentPushChallenge,proto3,oneof"`
+}
+
+type RequestPushChallengeResponse_NoPushToken struct {
+	// The authenticated account's primary device does not have a push token.
+	NoPushToken *errors.FailedPrecondition `protobuf:"bytes,2,opt,name=no_push_token,json=noPushToken,proto3,oneof"`
+}
+
+func (*RequestPushChallengeResponse_SentPushChallenge_) isRequestPushChallengeResponse_Response() {}
+
+func (*RequestPushChallengeResponse_NoPushToken) isRequestPushChallengeResponse_Response() {}
+
 type AnswerChallengeRequest_AnswerPushChallengeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The challenge string provided to the client via a push payload
@@ -173,7 +297,7 @@ type AnswerChallengeRequest_AnswerPushChallengeRequest struct {
 
 func (x *AnswerChallengeRequest_AnswerPushChallengeRequest) Reset() {
 	*x = AnswerChallengeRequest_AnswerPushChallengeRequest{}
-	mi := &file_org_signal_chat_challenge_proto_msgTypes[2]
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -185,7 +309,7 @@ func (x *AnswerChallengeRequest_AnswerPushChallengeRequest) String() string {
 func (*AnswerChallengeRequest_AnswerPushChallengeRequest) ProtoMessage() {}
 
 func (x *AnswerChallengeRequest_AnswerPushChallengeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_challenge_proto_msgTypes[2]
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -219,7 +343,7 @@ type AnswerChallengeRequest_AnswerCaptchaChallengeRequest struct {
 
 func (x *AnswerChallengeRequest_AnswerCaptchaChallengeRequest) Reset() {
 	*x = AnswerChallengeRequest_AnswerCaptchaChallengeRequest{}
-	mi := &file_org_signal_chat_challenge_proto_msgTypes[3]
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +355,7 @@ func (x *AnswerChallengeRequest_AnswerCaptchaChallengeRequest) String() string {
 func (*AnswerChallengeRequest_AnswerCaptchaChallengeRequest) ProtoMessage() {}
 
 func (x *AnswerChallengeRequest_AnswerCaptchaChallengeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_challenge_proto_msgTypes[3]
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -254,11 +378,47 @@ func (x *AnswerChallengeRequest_AnswerCaptchaChallengeRequest) GetCaptcha() stri
 	return ""
 }
 
+type RequestPushChallengeResponse_SentPushChallenge struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPushChallengeResponse_SentPushChallenge) Reset() {
+	*x = RequestPushChallengeResponse_SentPushChallenge{}
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPushChallengeResponse_SentPushChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPushChallengeResponse_SentPushChallenge) ProtoMessage() {}
+
+func (x *RequestPushChallengeResponse_SentPushChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_challenge_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPushChallengeResponse_SentPushChallenge.ProtoReflect.Descriptor instead.
+func (*RequestPushChallengeResponse_SentPushChallenge) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_challenge_proto_rawDescGZIP(), []int{3, 0}
+}
+
 var File_org_signal_chat_challenge_proto protoreflect.FileDescriptor
 
 const file_org_signal_chat_challenge_proto_rawDesc = "" +
 	"\n" +
-	"\x1forg/signal/chat/challenge.proto\x12\x19org.signal.chat.challenge\x1a\x1dorg/signal/chat/require.proto\"\x93\x03\n" +
+	"\x1forg/signal/chat/challenge.proto\x12\x19org.signal.chat.challenge\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1corg/signal/chat/errors.proto\x1a\x1dorg/signal/chat/require.proto\x1a\x19org/signal/chat/tag.proto\"\x93\x03\n" +
 	"\x16AnswerChallengeRequest\x12\x1a\n" +
 	"\x05token\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\x05token\x12b\n" +
 	"\x04push\x18\x02 \x01(\v2L.org.signal.chat.challenge.AnswerChallengeRequest.AnswerPushChallengeRequestH\x00R\x04push\x12k\n" +
@@ -269,9 +429,17 @@ const file_org_signal_chat_challenge_proto_rawDesc = "" +
 	"\acaptcha\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\acaptchaB\t\n" +
 	"\arequest\"3\n" +
 	"\x17AnswerChallengeResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\x96\x01\n" +
-	"\tChallenge\x12\x82\x01\n" +
-	"\x17HandleChallengeResponse\x121.org.signal.chat.challenge.AnswerChallengeRequest\x1a2.org.signal.chat.challenge.AnswerChallengeResponse\"\x00\x1a\x04\xc8\xd5\"\x01B\x02P\x01b\x06proto3"
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x1d\n" +
+	"\x1bRequestPushChallengeRequest\"\xee\x01\n" +
+	"\x1cRequestPushChallengeResponse\x12H\n" +
+	"\x13sent_push_challenge\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x11sentPushChallenge\x12c\n" +
+	"\rno_push_token\x18\x02 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x11\xc2\xd5\"\rno_push_tokenH\x00R\vnoPushToken\x1a\x13\n" +
+	"\x11SentPushChallengeB\n" +
+	"\n" +
+	"\bresponse2\x99\x02\n" +
+	"\tChallenge\x12z\n" +
+	"\x0fAnswerChallenge\x121.org.signal.chat.challenge.AnswerChallengeRequest\x1a2.org.signal.chat.challenge.AnswerChallengeResponse\"\x00\x12\x89\x01\n" +
+	"\x14RequestPushChallenge\x126.org.signal.chat.challenge.RequestPushChallengeRequest\x1a7.org.signal.chat.challenge.RequestPushChallengeResponse\"\x00\x1a\x04\xc8\xd5\"\x01B\x02P\x01b\x06proto3"
 
 var (
 	file_org_signal_chat_challenge_proto_rawDescOnce sync.Once
@@ -285,23 +453,32 @@ func file_org_signal_chat_challenge_proto_rawDescGZIP() []byte {
 	return file_org_signal_chat_challenge_proto_rawDescData
 }
 
-var file_org_signal_chat_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_org_signal_chat_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_org_signal_chat_challenge_proto_goTypes = []any{
 	(*AnswerChallengeRequest)(nil),                               // 0: org.signal.chat.challenge.AnswerChallengeRequest
 	(*AnswerChallengeResponse)(nil),                              // 1: org.signal.chat.challenge.AnswerChallengeResponse
-	(*AnswerChallengeRequest_AnswerPushChallengeRequest)(nil),    // 2: org.signal.chat.challenge.AnswerChallengeRequest.AnswerPushChallengeRequest
-	(*AnswerChallengeRequest_AnswerCaptchaChallengeRequest)(nil), // 3: org.signal.chat.challenge.AnswerChallengeRequest.AnswerCaptchaChallengeRequest
+	(*RequestPushChallengeRequest)(nil),                          // 2: org.signal.chat.challenge.RequestPushChallengeRequest
+	(*RequestPushChallengeResponse)(nil),                         // 3: org.signal.chat.challenge.RequestPushChallengeResponse
+	(*AnswerChallengeRequest_AnswerPushChallengeRequest)(nil),    // 4: org.signal.chat.challenge.AnswerChallengeRequest.AnswerPushChallengeRequest
+	(*AnswerChallengeRequest_AnswerCaptchaChallengeRequest)(nil), // 5: org.signal.chat.challenge.AnswerChallengeRequest.AnswerCaptchaChallengeRequest
+	(*RequestPushChallengeResponse_SentPushChallenge)(nil),       // 6: org.signal.chat.challenge.RequestPushChallengeResponse.SentPushChallenge
+	(*emptypb.Empty)(nil),                                        // 7: google.protobuf.Empty
+	(*errors.FailedPrecondition)(nil),                            // 8: org.signal.chat.errors.FailedPrecondition
 }
 var file_org_signal_chat_challenge_proto_depIdxs = []int32{
-	2, // 0: org.signal.chat.challenge.AnswerChallengeRequest.push:type_name -> org.signal.chat.challenge.AnswerChallengeRequest.AnswerPushChallengeRequest
-	3, // 1: org.signal.chat.challenge.AnswerChallengeRequest.captcha:type_name -> org.signal.chat.challenge.AnswerChallengeRequest.AnswerCaptchaChallengeRequest
-	0, // 2: org.signal.chat.challenge.Challenge.HandleChallengeResponse:input_type -> org.signal.chat.challenge.AnswerChallengeRequest
-	1, // 3: org.signal.chat.challenge.Challenge.HandleChallengeResponse:output_type -> org.signal.chat.challenge.AnswerChallengeResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	4, // 0: org.signal.chat.challenge.AnswerChallengeRequest.push:type_name -> org.signal.chat.challenge.AnswerChallengeRequest.AnswerPushChallengeRequest
+	5, // 1: org.signal.chat.challenge.AnswerChallengeRequest.captcha:type_name -> org.signal.chat.challenge.AnswerChallengeRequest.AnswerCaptchaChallengeRequest
+	7, // 2: org.signal.chat.challenge.RequestPushChallengeResponse.sent_push_challenge:type_name -> google.protobuf.Empty
+	8, // 3: org.signal.chat.challenge.RequestPushChallengeResponse.no_push_token:type_name -> org.signal.chat.errors.FailedPrecondition
+	0, // 4: org.signal.chat.challenge.Challenge.AnswerChallenge:input_type -> org.signal.chat.challenge.AnswerChallengeRequest
+	2, // 5: org.signal.chat.challenge.Challenge.RequestPushChallenge:input_type -> org.signal.chat.challenge.RequestPushChallengeRequest
+	1, // 6: org.signal.chat.challenge.Challenge.AnswerChallenge:output_type -> org.signal.chat.challenge.AnswerChallengeResponse
+	3, // 7: org.signal.chat.challenge.Challenge.RequestPushChallenge:output_type -> org.signal.chat.challenge.RequestPushChallengeResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_org_signal_chat_challenge_proto_init() }
@@ -313,13 +490,17 @@ func file_org_signal_chat_challenge_proto_init() {
 		(*AnswerChallengeRequest_Push)(nil),
 		(*AnswerChallengeRequest_Captcha)(nil),
 	}
+	file_org_signal_chat_challenge_proto_msgTypes[3].OneofWrappers = []any{
+		(*RequestPushChallengeResponse_SentPushChallenge_)(nil),
+		(*RequestPushChallengeResponse_NoPushToken)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_org_signal_chat_challenge_proto_rawDesc), len(file_org_signal_chat_challenge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

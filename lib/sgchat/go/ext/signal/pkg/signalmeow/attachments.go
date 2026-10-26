@@ -138,6 +138,9 @@ const MACLength = 32
 const IVLength = 16
 
 func macAndAESDecrypt(body, key []byte) ([]byte, error) {
+	if len(key) != 64 {
+		return nil, fmt.Errorf("invalid key length (%d bytes)", len(key))
+	}
 	l := len(body) - MACLength
 	if !verifyMAC(key[MACLength:], body[:l], body[l:]) {
 		return nil, ErrInvalidMACForAttachment
@@ -474,7 +477,9 @@ func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(ciphertext)%aes.BlockSize != 0 {
+	if len(ciphertext) < IVLength {
+		return nil, fmt.Errorf("ciphertext too short to contain IV (%d bytes)", len(ciphertext))
+	} else if len(ciphertext)%aes.BlockSize != 0 {
 		return nil, fmt.Errorf("ciphertext not multiple of AES blocksize (%d extra bytes)", len(ciphertext)%aes.BlockSize)
 	}
 

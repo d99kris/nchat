@@ -42,7 +42,17 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
-func (cli *Client) SyncStorage(ctx context.Context) {
+// A sync that is already waiting to start will see whatever change triggered this call.
+func (cli *Client) QueueStorageSync(ctx context.Context) {
+	if cli.storageSyncQueued.CompareAndSwap(false, true) {
+		go cli.StorageSync(ctx)
+	}
+}
+
+func (cli *Client) StorageSync(ctx context.Context) {
+	cli.storageSyncLock.Lock()
+	defer cli.storageSyncLock.Unlock()
+	cli.storageSyncQueued.Store(false)
 	log := cli.Log.With().Str("action", "sync storage").Logger()
 	ctx = log.WithContext(ctx)
 	// TODO only fetch changed entries

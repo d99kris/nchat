@@ -23,9 +23,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Profile_SetProfile_FullMethodName           = "/org.signal.chat.profile.Profile/SetProfile"
-	Profile_GetProfile_FullMethodName           = "/org.signal.chat.profile.Profile/GetProfile"
-	Profile_GetAvatarCredentials_FullMethodName = "/org.signal.chat.profile.Profile/GetAvatarCredentials"
+	Profile_SetProfile_FullMethodName          = "/org.signal.chat.profile.Profile/SetProfile"
+	Profile_GetProfile_FullMethodName          = "/org.signal.chat.profile.Profile/GetProfile"
+	Profile_GetAvatarCredential_FullMethodName = "/org.signal.chat.profile.Profile/GetAvatarCredential"
+	Profile_SetV1Avatar_FullMethodName         = "/org.signal.chat.profile.Profile/SetV1Avatar"
 )
 
 // ProfileClient is the client API for Profile service.
@@ -34,15 +35,25 @@ const (
 //
 // Provides methods for working with profiles and profile-related data.
 type ProfileClient interface {
-	// Sets profile data and, if needed, returns credentials used by clients to upload a v1 avatar.
+	// Sets profile data and, if needed, returns a credential used by clients to upload a v1 avatar.
 	SetProfile(ctx context.Context, in *SetProfileRequest, opts ...grpc.CallOption) (*SetProfileResponse, error)
 	// Retrieves profile data. Callers with an unidentified access key for the account
 	// should use the version of this method in `ProfileAnonymous` instead.
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*GetProfileResponse, error)
-	// Returns anonymous credentials that may be presented with avatar operations in ProfilesAnonymous
+	// Returns an anonymous credential that may be presented with avatar operations in ProfilesAnonymous
 	//
 	// Note: `Accounts.SetZkCredentialKey` is a pre-requisite for this RPC
-	GetAvatarCredentials(ctx context.Context, in *GetAvatarCredentialsRequest, opts ...grpc.CallOption) (*GetAvatarCredentialsResponse, error)
+	GetAvatarCredential(ctx context.Context, in *GetAvatarCredentialRequest, opts ...grpc.CallOption) (*GetAvatarCredentialResponse, error)
+	// Returns a credential used by clients to upload a v1 avatar, deleting any current avatar.
+	//
+	// This RPC streamlines avatar changes during the v1 -> v2 transition by minimizing uploads:
+	// 1. SetV1Avatar
+	// 2. Upload to CDN
+	// 3. SetProfile with v1 `AVATAR_CHANGE_UNCHANGED` and the v1 avatar in the v2 profile body
+	//
+	// Clients that do this will be required to upload current avatars using `ProfilesAnonymous.GetAvatarUploadFormRequest`
+	// once v1 Profile APIs are no longer supported.
+	SetV1Avatar(ctx context.Context, in *SetV1AvatarRequest, opts ...grpc.CallOption) (*SetV1AvatarResponse, error)
 }
 
 type profileClient struct {
@@ -73,10 +84,20 @@ func (c *profileClient) GetProfile(ctx context.Context, in *GetProfileRequest, o
 	return out, nil
 }
 
-func (c *profileClient) GetAvatarCredentials(ctx context.Context, in *GetAvatarCredentialsRequest, opts ...grpc.CallOption) (*GetAvatarCredentialsResponse, error) {
+func (c *profileClient) GetAvatarCredential(ctx context.Context, in *GetAvatarCredentialRequest, opts ...grpc.CallOption) (*GetAvatarCredentialResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAvatarCredentialsResponse)
-	err := c.cc.Invoke(ctx, Profile_GetAvatarCredentials_FullMethodName, in, out, cOpts...)
+	out := new(GetAvatarCredentialResponse)
+	err := c.cc.Invoke(ctx, Profile_GetAvatarCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *profileClient) SetV1Avatar(ctx context.Context, in *SetV1AvatarRequest, opts ...grpc.CallOption) (*SetV1AvatarResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetV1AvatarResponse)
+	err := c.cc.Invoke(ctx, Profile_SetV1Avatar_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,15 +110,25 @@ func (c *profileClient) GetAvatarCredentials(ctx context.Context, in *GetAvatarC
 //
 // Provides methods for working with profiles and profile-related data.
 type ProfileServer interface {
-	// Sets profile data and, if needed, returns credentials used by clients to upload a v1 avatar.
+	// Sets profile data and, if needed, returns a credential used by clients to upload a v1 avatar.
 	SetProfile(context.Context, *SetProfileRequest) (*SetProfileResponse, error)
 	// Retrieves profile data. Callers with an unidentified access key for the account
 	// should use the version of this method in `ProfileAnonymous` instead.
 	GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error)
-	// Returns anonymous credentials that may be presented with avatar operations in ProfilesAnonymous
+	// Returns an anonymous credential that may be presented with avatar operations in ProfilesAnonymous
 	//
 	// Note: `Accounts.SetZkCredentialKey` is a pre-requisite for this RPC
-	GetAvatarCredentials(context.Context, *GetAvatarCredentialsRequest) (*GetAvatarCredentialsResponse, error)
+	GetAvatarCredential(context.Context, *GetAvatarCredentialRequest) (*GetAvatarCredentialResponse, error)
+	// Returns a credential used by clients to upload a v1 avatar, deleting any current avatar.
+	//
+	// This RPC streamlines avatar changes during the v1 -> v2 transition by minimizing uploads:
+	// 1. SetV1Avatar
+	// 2. Upload to CDN
+	// 3. SetProfile with v1 `AVATAR_CHANGE_UNCHANGED` and the v1 avatar in the v2 profile body
+	//
+	// Clients that do this will be required to upload current avatars using `ProfilesAnonymous.GetAvatarUploadFormRequest`
+	// once v1 Profile APIs are no longer supported.
+	SetV1Avatar(context.Context, *SetV1AvatarRequest) (*SetV1AvatarResponse, error)
 	mustEmbedUnimplementedProfileServer()
 }
 
@@ -114,8 +145,11 @@ func (UnimplementedProfileServer) SetProfile(context.Context, *SetProfileRequest
 func (UnimplementedProfileServer) GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProfile not implemented")
 }
-func (UnimplementedProfileServer) GetAvatarCredentials(context.Context, *GetAvatarCredentialsRequest) (*GetAvatarCredentialsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAvatarCredentials not implemented")
+func (UnimplementedProfileServer) GetAvatarCredential(context.Context, *GetAvatarCredentialRequest) (*GetAvatarCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAvatarCredential not implemented")
+}
+func (UnimplementedProfileServer) SetV1Avatar(context.Context, *SetV1AvatarRequest) (*SetV1AvatarResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetV1Avatar not implemented")
 }
 func (UnimplementedProfileServer) mustEmbedUnimplementedProfileServer() {}
 func (UnimplementedProfileServer) testEmbeddedByValue()                 {}
@@ -174,20 +208,38 @@ func _Profile_GetProfile_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Profile_GetAvatarCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAvatarCredentialsRequest)
+func _Profile_GetAvatarCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAvatarCredentialRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProfileServer).GetAvatarCredentials(ctx, in)
+		return srv.(ProfileServer).GetAvatarCredential(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Profile_GetAvatarCredentials_FullMethodName,
+		FullMethod: Profile_GetAvatarCredential_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProfileServer).GetAvatarCredentials(ctx, req.(*GetAvatarCredentialsRequest))
+		return srv.(ProfileServer).GetAvatarCredential(ctx, req.(*GetAvatarCredentialRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Profile_SetV1Avatar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetV1AvatarRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProfileServer).SetV1Avatar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Profile_SetV1Avatar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProfileServer).SetV1Avatar(ctx, req.(*SetV1AvatarRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -208,8 +260,12 @@ var Profile_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Profile_GetProfile_Handler,
 		},
 		{
-			MethodName: "GetAvatarCredentials",
-			Handler:    _Profile_GetAvatarCredentials_Handler,
+			MethodName: "GetAvatarCredential",
+			Handler:    _Profile_GetAvatarCredential_Handler,
+		},
+		{
+			MethodName: "SetV1Avatar",
+			Handler:    _Profile_SetV1Avatar_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -217,11 +273,11 @@ var Profile_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	ProfileAnonymous_GetProfile_FullMethodName                      = "/org.signal.chat.profile.ProfileAnonymous/GetProfile"
-	ProfileAnonymous_GetExpiringProfileKeyCredential_FullMethodName = "/org.signal.chat.profile.ProfileAnonymous/GetExpiringProfileKeyCredential"
-	ProfileAnonymous_GetAvatarUploadForm_FullMethodName             = "/org.signal.chat.profile.ProfileAnonymous/GetAvatarUploadForm"
-	ProfileAnonymous_ExtendAvatarTTL_FullMethodName                 = "/org.signal.chat.profile.ProfileAnonymous/ExtendAvatarTTL"
-	ProfileAnonymous_DeleteAvatar_FullMethodName                    = "/org.signal.chat.profile.ProfileAnonymous/DeleteAvatar"
+	ProfileAnonymous_GetProfile_FullMethodName              = "/org.signal.chat.profile.ProfileAnonymous/GetProfile"
+	ProfileAnonymous_GetProfileKeyCredential_FullMethodName = "/org.signal.chat.profile.ProfileAnonymous/GetProfileKeyCredential"
+	ProfileAnonymous_GetAvatarUploadForm_FullMethodName     = "/org.signal.chat.profile.ProfileAnonymous/GetAvatarUploadForm"
+	ProfileAnonymous_ExtendAvatarTTL_FullMethodName         = "/org.signal.chat.profile.ProfileAnonymous/ExtendAvatarTTL"
+	ProfileAnonymous_DeleteAvatar_FullMethodName            = "/org.signal.chat.profile.ProfileAnonymous/DeleteAvatar"
 )
 
 // ProfileAnonymousClient is the client API for ProfileAnonymous service.
@@ -238,15 +294,15 @@ type ProfileAnonymousClient interface {
 	// Retrieves profile data.
 	GetProfile(ctx context.Context, in *GetProfileAnonymousRequest, opts ...grpc.CallOption) (*GetProfileAnonymousResponse, error)
 	// Retrieves a profile key credential.
-	GetExpiringProfileKeyCredential(ctx context.Context, in *GetExpiringProfileKeyCredentialAnonymousRequest, opts ...grpc.CallOption) (*GetExpiringProfileKeyCredentialAnonymousResponse, error)
-	// Returns credentials to upload a v2 avatar. After uploading the avatar, the client
+	GetProfileKeyCredential(ctx context.Context, in *GetProfileKeyCredentialRequest, opts ...grpc.CallOption) (*GetProfileKeyCredentialResponse, error)
+	// Returns a credential to upload a v2 avatar. After uploading the avatar, the client
 	// must call SetProfile with the new avatar URL in the encrypted `data`.
 	//
 	// Because avatars are uploaded anonymously, they have an expiration equal to the
 	// idle account expiration. Clients must periodically (recommended: every 90 days)
 	// call ExtendAvatarTTL to extend the TTl.
 	//
-	// Note: any existing avatar associated with these credentials will be deleted immediately
+	// Note: any existing avatar associated with this credential will be deleted immediately
 	GetAvatarUploadForm(ctx context.Context, in *GetAvatarUploadFormRequest, opts ...grpc.CallOption) (*GetAvatarUploadFormResponse, error)
 	// Extends the TTL of the avatar currently associated with the request’s avatar auth credential
 	ExtendAvatarTTL(ctx context.Context, in *ExtendAvatarTTLRequest, opts ...grpc.CallOption) (*ExtendAvatarTTLResponse, error)
@@ -274,10 +330,10 @@ func (c *profileAnonymousClient) GetProfile(ctx context.Context, in *GetProfileA
 	return out, nil
 }
 
-func (c *profileAnonymousClient) GetExpiringProfileKeyCredential(ctx context.Context, in *GetExpiringProfileKeyCredentialAnonymousRequest, opts ...grpc.CallOption) (*GetExpiringProfileKeyCredentialAnonymousResponse, error) {
+func (c *profileAnonymousClient) GetProfileKeyCredential(ctx context.Context, in *GetProfileKeyCredentialRequest, opts ...grpc.CallOption) (*GetProfileKeyCredentialResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetExpiringProfileKeyCredentialAnonymousResponse)
-	err := c.cc.Invoke(ctx, ProfileAnonymous_GetExpiringProfileKeyCredential_FullMethodName, in, out, cOpts...)
+	out := new(GetProfileKeyCredentialResponse)
+	err := c.cc.Invoke(ctx, ProfileAnonymous_GetProfileKeyCredential_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -328,15 +384,15 @@ type ProfileAnonymousServer interface {
 	// Retrieves profile data.
 	GetProfile(context.Context, *GetProfileAnonymousRequest) (*GetProfileAnonymousResponse, error)
 	// Retrieves a profile key credential.
-	GetExpiringProfileKeyCredential(context.Context, *GetExpiringProfileKeyCredentialAnonymousRequest) (*GetExpiringProfileKeyCredentialAnonymousResponse, error)
-	// Returns credentials to upload a v2 avatar. After uploading the avatar, the client
+	GetProfileKeyCredential(context.Context, *GetProfileKeyCredentialRequest) (*GetProfileKeyCredentialResponse, error)
+	// Returns a credential to upload a v2 avatar. After uploading the avatar, the client
 	// must call SetProfile with the new avatar URL in the encrypted `data`.
 	//
 	// Because avatars are uploaded anonymously, they have an expiration equal to the
 	// idle account expiration. Clients must periodically (recommended: every 90 days)
 	// call ExtendAvatarTTL to extend the TTl.
 	//
-	// Note: any existing avatar associated with these credentials will be deleted immediately
+	// Note: any existing avatar associated with this credential will be deleted immediately
 	GetAvatarUploadForm(context.Context, *GetAvatarUploadFormRequest) (*GetAvatarUploadFormResponse, error)
 	// Extends the TTL of the avatar currently associated with the request’s avatar auth credential
 	ExtendAvatarTTL(context.Context, *ExtendAvatarTTLRequest) (*ExtendAvatarTTLResponse, error)
@@ -357,8 +413,8 @@ type UnimplementedProfileAnonymousServer struct{}
 func (UnimplementedProfileAnonymousServer) GetProfile(context.Context, *GetProfileAnonymousRequest) (*GetProfileAnonymousResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProfile not implemented")
 }
-func (UnimplementedProfileAnonymousServer) GetExpiringProfileKeyCredential(context.Context, *GetExpiringProfileKeyCredentialAnonymousRequest) (*GetExpiringProfileKeyCredentialAnonymousResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetExpiringProfileKeyCredential not implemented")
+func (UnimplementedProfileAnonymousServer) GetProfileKeyCredential(context.Context, *GetProfileKeyCredentialRequest) (*GetProfileKeyCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProfileKeyCredential not implemented")
 }
 func (UnimplementedProfileAnonymousServer) GetAvatarUploadForm(context.Context, *GetAvatarUploadFormRequest) (*GetAvatarUploadFormResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAvatarUploadForm not implemented")
@@ -408,20 +464,20 @@ func _ProfileAnonymous_GetProfile_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProfileAnonymous_GetExpiringProfileKeyCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetExpiringProfileKeyCredentialAnonymousRequest)
+func _ProfileAnonymous_GetProfileKeyCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProfileKeyCredentialRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProfileAnonymousServer).GetExpiringProfileKeyCredential(ctx, in)
+		return srv.(ProfileAnonymousServer).GetProfileKeyCredential(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProfileAnonymous_GetExpiringProfileKeyCredential_FullMethodName,
+		FullMethod: ProfileAnonymous_GetProfileKeyCredential_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProfileAnonymousServer).GetExpiringProfileKeyCredential(ctx, req.(*GetExpiringProfileKeyCredentialAnonymousRequest))
+		return srv.(ProfileAnonymousServer).GetProfileKeyCredential(ctx, req.(*GetProfileKeyCredentialRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -492,8 +548,8 @@ var ProfileAnonymous_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProfileAnonymous_GetProfile_Handler,
 		},
 		{
-			MethodName: "GetExpiringProfileKeyCredential",
-			Handler:    _ProfileAnonymous_GetExpiringProfileKeyCredential_Handler,
+			MethodName: "GetProfileKeyCredential",
+			Handler:    _ProfileAnonymous_GetProfileKeyCredential_Handler,
 		},
 		{
 			MethodName: "GetAvatarUploadForm",

@@ -656,6 +656,15 @@ type NewsletterMuteChange struct {
 	Mute types.NewsletterMuteState `json:"mute"`
 }
 
+type NewsletterMilestone struct {
+	Mex             MexNotificationData   `json:"-"`
+	ID              types.JID             `json:"newsletter_id"`
+	MessageServerID types.MessageServerID `json:"message_server_id,string"`
+	Type            string                `json:"type"`
+	Value           int                   `json:"value"`
+	ReactionCode    string                `json:"reaction_code"`
+}
+
 type NewsletterLiveUpdate struct {
 	JID      types.JID
 	Time     time.Time
@@ -665,6 +674,6 @@ type NewsletterLiveUpdate struct {
 type NotifyAccountReachoutTimelock struct {
 	Mex                 MexNotificationData `json:"-"`
 	EnforcementType     string              `json:"enforcement_type,omitempty"`
-	IsActive            bool                `json:"is_active,omitempty"`
+	IsActive            bool                `json:"is_active,omitzero"`
 	TimeEnforcementEnds jsontime.UnixString `json:"time_enforcement_ends,omitzero"`
 }

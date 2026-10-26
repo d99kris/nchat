@@ -17,6 +17,7 @@ import (
 	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 
+	"go.mau.fi/whatsmeow/proto/waAICommon"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -42,6 +43,65 @@ const (
 
 func applyBotMessageHKDF(messageSecret []byte) []byte {
 	return hkdfutil.SHA256(messageSecret, nil, []byte(EncSecretBotMsg), 32)
+}
+
+func (cli *Client) encryptWASAMessage(ctx context.Context, bot types.JID, id types.MessageID, msg *waE2E.Message) ([]byte, error) {
+	if msg.GetProtocolMessage().GetType() == waE2E.ProtocolMessage_REQUEST_WELCOME_MESSAGE {
+		return proto.Marshal(msg)
+	}
+	if cli.Store.ChatSettings == nil {
+		return nil, fmt.Errorf("chat settings store is required for WASA messages")
+	}
+	rootID, err := cli.Store.ChatSettings.GetWASARootSecretID(ctx, bot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get WASA root secret ID: %w", err)
+	}
+	if rootID == "" {
+		return nil, fmt.Errorf("no active WASA root secret for %s", bot)
+	}
+	ownLID := cli.getOwnLID().ToNonAD()
+	if ownLID.IsEmpty() {
+		return nil, fmt.Errorf("own LID not available for WASA message")
+	}
+	secret, _, err := cli.Store.MsgSecrets.GetMessageSecret(ctx, bot, ownLID, rootID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get WASA root secret: %w", err)
+	}
+	if len(secret) != 32 {
+		return nil, fmt.Errorf("invalid WASA root secret for %s", bot)
+	}
+	msg = proto.Clone(msg).(*waE2E.Message)
+	if document := msg.GetDocumentWithCaptionMessage().GetMessage().GetDocumentMessage(); document != nil {
+		msg.DocumentMessage = document
+		msg.DocumentWithCaptionMessage = nil
+	}
+	if msg.MessageContextInfo == nil {
+		msg.MessageContextInfo = &waE2E.MessageContextInfo{}
+	}
+	if msg.MessageContextInfo.BotMetadata == nil {
+		msg.MessageContextInfo.BotMetadata = &waAICommon.BotMetadata{}
+	}
+	msg.MessageContextInfo.BotMetadata.CapabilityMetadata = &waAICommon.BotCapabilityMetadata{}
+	plaintext, err := proto.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+	key := hkdfutil.SHA256(applyBotMessageHKDF(secret), nil, []byte(string(id)+ownLID.String()+bot.String()), 32)
+	iv := random.Bytes(12)
+	additionalData := append(append([]byte(id), 0), []byte(ownLID.String())...)
+	ciphertext, err := gcmutil.Encrypt(key, iv, plaintext, additionalData)
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(&waE2E.Message{SecretEncryptedMessage: &waE2E.SecretEncryptedMessage{
+		TargetMessageKey: &waCommon.MessageKey{
+			RemoteJID: new(bot.String()),
+			FromMe:    new(true),
+			ID:        new(rootID),
+		},
+		EncPayload: ciphertext,
+		EncIV:      iv,
+	}})
 }
 
 func generateMsgSecretKey(
@@ -294,12 +354,12 @@ func (cli *Client) DecryptSecretEncryptedMessage(ctx context.Context, evt *event
 
 func getKeyFromInfo(msgInfo *types.MessageInfo) *waCommon.MessageKey {
 	creationKey := &waCommon.MessageKey{
-		RemoteJID: proto.String(msgInfo.Chat.String()),
-		FromMe:    proto.Bool(msgInfo.IsFromMe),
-		ID:        proto.String(msgInfo.ID),
+		RemoteJID: new(msgInfo.Chat.String()),
+		FromMe:    new(msgInfo.IsFromMe),
+		ID:        new(msgInfo.ID),
 	}
 	if msgInfo.IsGroup {
-		creationKey.Participant = proto.String(msgInfo.Sender.String())
+		creationKey.Participant = new(msgInfo.Sender.String())
 	}
 	return creationKey
 }
@@ -346,13 +406,13 @@ func (cli *Client) BuildPollCreation(name string, optionNames []string, selectab
 	}
 	options := make([]*waE2E.PollCreationMessage_Option, len(optionNames))
 	for i, option := range optionNames {
-		options[i] = &waE2E.PollCreationMessage_Option{OptionName: proto.String(option)}
+		options[i] = &waE2E.PollCreationMessage_Option{OptionName: new(option)}
 	}
 	return &waE2E.Message{
 		PollCreationMessage: &waE2E.PollCreationMessage{
-			Name:                   proto.String(name),
+			Name:                   new(name),
 			Options:                options,
-			SelectableOptionsCount: proto.Uint32(uint32(selectableOptionCount)),
+			SelectableOptionsCount: new(uint32(selectableOptionCount)),
 		},
 		MessageContextInfo: &waE2E.MessageContextInfo{
 			MessageSecret: msgSecret,
@@ -380,7 +440,7 @@ func (cli *Client) EncryptPollVote(ctx context.Context, pollInfo *types.MessageI
 			EncPayload: ciphertext,
 			EncIV:      iv,
 		},
-		SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+		SenderTimestampMS: new(time.Now().UnixMilli()),
 	}, nil
 }
 
@@ -396,10 +456,10 @@ func (cli *Client) EncryptComment(ctx context.Context, rootMsgInfo *types.Messag
 	return &waE2E.Message{
 		EncCommentMessage: &waE2E.EncCommentMessage{
 			TargetMessageKey: &waCommon.MessageKey{
-				RemoteJID:   proto.String(rootMsgInfo.Chat.String()),
-				Participant: proto.String(rootMsgInfo.Sender.ToNonAD().String()),
-				FromMe:      proto.Bool(rootMsgInfo.IsFromMe),
-				ID:          proto.String(rootMsgInfo.ID),
+				RemoteJID:   new(rootMsgInfo.Chat.String()),
+				Participant: new(rootMsgInfo.Sender.ToNonAD().String()),
+				FromMe:      new(rootMsgInfo.IsFromMe),
+				ID:          new(rootMsgInfo.ID),
 			},
 			EncPayload: ciphertext,
 			EncIV:      iv,

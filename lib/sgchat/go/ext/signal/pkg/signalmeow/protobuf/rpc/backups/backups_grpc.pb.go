@@ -15,6 +15,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -26,6 +27,7 @@ const (
 	Backups_SetBackupId_FullMethodName              = "/org.signal.chat.backup.Backups/SetBackupId"
 	Backups_RedeemReceipt_FullMethodName            = "/org.signal.chat.backup.Backups/RedeemReceipt"
 	Backups_GetBackupAuthCredentials_FullMethodName = "/org.signal.chat.backup.Backups/GetBackupAuthCredentials"
+	Backups_GetBackupIdLimits_FullMethodName        = "/org.signal.chat.backup.Backups/GetBackupIdLimits"
 )
 
 // BackupsClient is the client API for Backups service.
@@ -72,6 +74,8 @@ type BackupsClient interface {
 	// Clients must validate the receipt level on the credential matches a known
 	// receipt level before using it.
 	GetBackupAuthCredentials(ctx context.Context, in *GetBackupAuthCredentialsRequest, opts ...grpc.CallOption) (*GetBackupAuthCredentialsResponse, error)
+	// Retrieve backup ID rotation limits
+	GetBackupIdLimits(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetBackupIdLimitsResponse, error)
 }
 
 type backupsClient struct {
@@ -106,6 +110,16 @@ func (c *backupsClient) GetBackupAuthCredentials(ctx context.Context, in *GetBac
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetBackupAuthCredentialsResponse)
 	err := c.cc.Invoke(ctx, Backups_GetBackupAuthCredentials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupsClient) GetBackupIdLimits(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetBackupIdLimitsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBackupIdLimitsResponse)
+	err := c.cc.Invoke(ctx, Backups_GetBackupIdLimits_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +170,8 @@ type BackupsServer interface {
 	// Clients must validate the receipt level on the credential matches a known
 	// receipt level before using it.
 	GetBackupAuthCredentials(context.Context, *GetBackupAuthCredentialsRequest) (*GetBackupAuthCredentialsResponse, error)
+	// Retrieve backup ID rotation limits
+	GetBackupIdLimits(context.Context, *emptypb.Empty) (*GetBackupIdLimitsResponse, error)
 	mustEmbedUnimplementedBackupsServer()
 }
 
@@ -174,6 +190,9 @@ func (UnimplementedBackupsServer) RedeemReceipt(context.Context, *RedeemReceiptR
 }
 func (UnimplementedBackupsServer) GetBackupAuthCredentials(context.Context, *GetBackupAuthCredentialsRequest) (*GetBackupAuthCredentialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBackupAuthCredentials not implemented")
+}
+func (UnimplementedBackupsServer) GetBackupIdLimits(context.Context, *emptypb.Empty) (*GetBackupIdLimitsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBackupIdLimits not implemented")
 }
 func (UnimplementedBackupsServer) mustEmbedUnimplementedBackupsServer() {}
 func (UnimplementedBackupsServer) testEmbeddedByValue()                 {}
@@ -250,6 +269,24 @@ func _Backups_GetBackupAuthCredentials_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Backups_GetBackupIdLimits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupsServer).GetBackupIdLimits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Backups_GetBackupIdLimits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupsServer).GetBackupIdLimits(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Backups_ServiceDesc is the grpc.ServiceDesc for Backups service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -268,6 +305,10 @@ var Backups_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBackupAuthCredentials",
 			Handler:    _Backups_GetBackupAuthCredentials_Handler,
+		},
+		{
+			MethodName: "GetBackupIdLimits",
+			Handler:    _Backups_GetBackupIdLimits_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

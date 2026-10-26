@@ -38,7 +38,7 @@ SELECT
 	aci_uuid, aci_identity_key_pair, registration_id,
 	pni_uuid, pni_identity_key_pair, pni_registration_id,
 	device_id, number, password, master_key, account_record,
-	account_entropy_pool, ephemeral_backup_key, media_root_backup_key
+	account_entropy_pool, ephemeral_backup_key, media_root_backup_key, auth_credential_salt
 FROM signalmeow_device
 `
 
@@ -58,7 +58,7 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 		&device.ACI, &aciIdentityKeyPair, &device.ACIRegistrationID,
 		&device.PNI, &pniIdentityKeyPair, &device.PNIRegistrationID,
 		&device.DeviceID, &device.Number, &device.Password, &device.MasterKey, &accountRecordBytes,
-		&accountEntropyPool, &ephemeralBackupKey, &mediaRootBackupKey,
+		&accountEntropyPool, &ephemeralBackupKey, &mediaRootBackupKey, &device.AuthCredentialSalt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
@@ -67,13 +67,12 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to deserialize ACI identity key pair: %w", err)
 	}
-	device.PNIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
-	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize PNI identity key pair: %w", err)
-	}
 
 	if len(device.MasterKey) == 0 {
 		device.MasterKey = nil
+	}
+	if len(device.AuthCredentialSalt) == 0 {
+		device.AuthCredentialSalt = nil
 	}
 	if len(accountRecordBytes) > 0 {
 		device.AccountRecord = &signalpb.AccountRecord{}
@@ -85,22 +84,41 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.AccountEntropyPool = libsignalgo.AccountEntropyPool(accountEntropyPool.String)
 	device.EphemeralBackupKey = libsignalgo.BytesToBackupKey(ephemeralBackupKey)
 	device.MediaRootBackupKey = libsignalgo.BytesToBackupKey(mediaRootBackupKey)
-	baseStore := &sqlStore{Container: c, AccountID: device.ACI, blockCache: make(map[uuid.UUID]bool)}
+	baseStore := &sqlStore{
+		Container:   c,
+		AccountID:   device.ACI,
+		aciIdentity: libsignalgo.NewIdentityKeyFromPublicKey(device.ACIIdentityKeyPair.GetPublicKey()),
+		blockCache:  make(map[uuid.UUID]bool),
+	}
 	aciStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.ACIServiceID()}
-	pniStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.PNIServiceID()}
+	baseStore.aciStore = aciStore
 	device.ACIPreKeyStore = aciStore
-	device.PNIPreKeyStore = pniStore
 	device.ACISessionStore = aciStore
-	device.PNISessionStore = pniStore
 	device.ACIIdentityStore = &sqlIdentityStore{
 		sqlStore:            baseStore,
 		OwnKeyPair:          device.ACIIdentityKeyPair,
 		LocalRegistrationID: uint32(device.ACIRegistrationID),
 	}
-	device.PNIIdentityStore = &sqlIdentityStore{
-		sqlStore:            baseStore,
-		OwnKeyPair:          device.PNIIdentityKeyPair,
-		LocalRegistrationID: uint32(device.PNIRegistrationID),
+	if device.PNI != uuid.Nil {
+		pniStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.PNIServiceID()}
+		device.PNIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize PNI identity key pair: %w", err)
+		}
+		device.PNIPreKeyStore = pniStore
+		device.PNISessionStore = pniStore
+		device.PNIIdentityStore = &sqlIdentityStore{
+			sqlStore:            baseStore,
+			OwnKeyPair:          device.PNIIdentityKeyPair,
+			LocalRegistrationID: uint32(device.PNIRegistrationID),
+		}
+		baseStore.pniStore = pniStore
+		baseStore.pniIdentity = libsignalgo.NewIdentityKeyFromPublicKey(device.PNIIdentityKeyPair.GetPublicKey())
+	} else {
+		var errPNIlessAccount = fmt.Errorf("account %s has no PNI identity set", device.ACI)
+		device.PNIPreKeyStore = &noopStore{Error: errPNIlessAccount}
+		device.PNISessionStore = &noopStore{Error: errPNIlessAccount}
+		device.PNIIdentityStore = &noopStore{Error: errPNIlessAccount}
 	}
 	device.IdentityKeyStore = baseStore
 	device.SenderKeyStore = baseStore
@@ -156,9 +174,9 @@ const (
 			aci_uuid, aci_identity_key_pair, registration_id,
 			pni_uuid, pni_identity_key_pair, pni_registration_id,
 			device_id, number, password, master_key, account_record,
-			account_entropy_pool, ephemeral_backup_key, media_root_backup_key
+			account_entropy_pool, ephemeral_backup_key, media_root_backup_key, auth_credential_salt
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		ON CONFLICT (aci_uuid) DO UPDATE SET
 			aci_identity_key_pair=excluded.aci_identity_key_pair,
 			registration_id=excluded.registration_id,
@@ -172,7 +190,8 @@ const (
 			account_record=excluded.account_record,
 			account_entropy_pool=excluded.account_entropy_pool,
 			ephemeral_backup_key=excluded.ephemeral_backup_key,
-			media_root_backup_key=excluded.media_root_backup_key
+			media_root_backup_key=excluded.media_root_backup_key,
+			auth_credential_salt=excluded.auth_credential_salt
 	`
 	deleteDeviceQuery = `DELETE FROM signalmeow_device WHERE aci_uuid=$1`
 )
@@ -190,10 +209,13 @@ func (c *Container) PutDevice(ctx context.Context, device *DeviceData) error {
 		zerolog.Ctx(ctx).Err(err).Msg("failed to serialize aci identity key pair")
 		return err
 	}
-	pniIdentityKeyPair, err := device.PNIIdentityKeyPair.Serialize()
-	if err != nil {
-		zerolog.Ctx(ctx).Err(err).Msg("failed to serialize pni identity key pair")
-		return err
+	pniIdentityKeyPair := []byte{}
+	if device.PNIIdentityKeyPair != nil {
+		pniIdentityKeyPair, err = device.PNIIdentityKeyPair.Serialize()
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("failed to serialize pni identity key pair")
+			return err
+		}
 	}
 	var accountRecordBytes []byte
 	if device.AccountRecord != nil {
@@ -208,6 +230,7 @@ func (c *Container) PutDevice(ctx context.Context, device *DeviceData) error {
 		device.DeviceID, device.Number, device.Password, device.MasterKey,
 		accountRecordBytes, device.AccountEntropyPool,
 		device.EphemeralBackupKey.Slice(), device.MediaRootBackupKey.Slice(),
+		device.AuthCredentialSalt,
 	)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("failed to insert device")

@@ -50,7 +50,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260824;
+static const int s_TdlibDate = 20261009;
 
 namespace detail
 {
@@ -2619,10 +2619,14 @@ void TgChat::Impl::OnAuthStateUpdate()
 
     set_parameters->system_language_code_ = "en";
     set_parameters->device_model_ = "Desktop";
-#ifdef __linux__
+#if defined(__linux__)
     set_parameters->system_version_ = "Linux";
-#elif __APPLE__
+#elif defined(__APPLE__)
     set_parameters->system_version_ = "Darwin";
+#elif defined(__FreeBSD__)
+    set_parameters->system_version_ = "FreeBSD";
+#elif defined(__OpenBSD__)
+    set_parameters->system_version_ = "OpenBSD";
 #else
     set_parameters->system_version_ = "Unknown";
 #endif

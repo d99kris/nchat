@@ -3859,6 +3859,27 @@ class CliClient final : public Actor {
       string name;
       get_args(args, community_id, name);
       send_request(td_api::make_object<td_api::setCommunityName>(community_id, name));
+    } else if (op == "scop") {
+      CommunityId community_id;
+      InputChatPhoto input_chat_photo;
+      get_args(args, community_id, input_chat_photo);
+      send_request(td_api::make_object<td_api::setCommunityPhoto>(community_id, input_chat_photo));
+    } else if (op == "scoperm") {
+      CommunityId community_id;
+      string permissions;
+      get_args(args, community_id, permissions);
+      constexpr size_t EXPECTED_SIZE = 1;
+      if (permissions.size() == EXPECTED_SIZE) {
+        auto &s = permissions;
+        send_request(td_api::make_object<td_api::setCommunityPermissions>(
+            community_id, td_api::make_object<td_api::communityPermissions>(s[0] == '1')));
+      } else {
+        LOG(ERROR) << "Wrong permissions size, expected " << EXPECTED_SIZE;
+      }
+    } else if (op == "DeleteCommunity") {
+      CommunityId community_id;
+      get_args(args, community_id);
+      send_request(td_api::make_object<td_api::deleteCommunity>(community_id));
     } else if (op == "gcc") {
       UserId user_id;
       ChatId offset_chat_id;
@@ -4739,6 +4760,8 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::acceptTermsOfService>(args));
     } else if (op == "gdli") {
       send_request(td_api::make_object<td_api::getDeepLinkInfo>(args));
+    } else if (op == "dwt") {
+      send_request(td_api::make_object<td_api::dismissWebToken>(args));
     } else if (op == "tme") {
       send_request(td_api::make_object<td_api::getRecentlyVisitedTMeUrls>(args));
     } else if (op == "gbms") {
@@ -5098,10 +5121,10 @@ class CliClient final : public Actor {
       ChatId chat_id;
       get_args(args, chat_id);
       send_request(td_api::make_object<td_api::getChat>(chat_id));
-    } else if (op == "lcfi") {
+    } else if (op == "gcfi") {
       CommunityId community_id;
       get_args(args, community_id);
-      send_request(td_api::make_object<td_api::loadCommunityFullInfo>(community_id));
+      send_request(td_api::make_object<td_api::getCommunityFullInfo>(community_id));
     } else if (op == "open") {
       ChatId chat_id;
       get_args(args, chat_id);
@@ -8409,10 +8432,10 @@ class CliClient final : public Actor {
       get_args(args, bot_user_id, language_code, file_ids);
       send_request(
           td_api::make_object<td_api::deleteBotMediaPreviews>(bot_user_id, language_code, as_file_ids(file_ids)));
-    } else if (op == "cbun") {
+    } else if (op == "cbun" || op == "cbun2") {
       string username;
       get_args(args, username);
-      send_request(td_api::make_object<td_api::checkBotUsername>(username));
+      send_request(td_api::make_object<td_api::checkBotUsername>(username, op == "cbun2"));
     } else if (op == "cb" || op == "cbl") {
       UserId manager_bot_user_id;
       string name;
@@ -8453,6 +8476,15 @@ class CliClient final : public Actor {
       InputChatPhoto input_chat_photo;
       get_args(args, bot_user_id, input_chat_photo);
       send_request(td_api::make_object<td_api::setBotProfilePhoto>(bot_user_id, input_chat_photo));
+    } else if (op == "absun") {
+      UserId bot_user_id;
+      string username;
+      get_args(args, bot_user_id, username);
+      send_request(td_api::make_object<td_api::addBotSecondaryUsername>(bot_user_id, username));
+    } else if (op == "dbsun") {
+      UserId bot_user_id;
+      get_args(args, bot_user_id);
+      send_request(td_api::make_object<td_api::deleteBotSecondaryUsername>(bot_user_id));
     } else if (op == "tbunia") {
       UserId bot_user_id;
       string username;
@@ -8493,7 +8525,7 @@ class CliClient final : public Actor {
       string custom_description;
       get_args(args, bot_user_id, sender_id, custom_description);
       send_request(td_api::make_object<td_api::setMessageSenderBotVerification>(
-          bot_user_id, as_message_sender(sender_id), custom_description));
+          bot_user_id, as_message_sender(sender_id), as_formatted_text(custom_description)));
     } else if (op == "rmsbv") {
       UserId bot_user_id;
       string sender_id;
@@ -8767,6 +8799,154 @@ class CliClient final : public Actor {
         direction = td_api::make_object<td_api::transactionDirectionOutgoing>();
       }
       send_request(td_api::make_object<td_api::getTonTransactions>(std::move(direction), offset, as_limit(limit)));
+    } else if (op == "gtwta" || op == "gtwti" || op == "gtwto") {
+      string limit;
+      string offset;
+      get_args(args, limit, offset);
+      td_api::object_ptr<td_api::TransactionDirection> direction;
+      if (op == "gtwti") {
+        direction = td_api::make_object<td_api::transactionDirectionIncoming>();
+      } else if (op == "gtwto") {
+        direction = td_api::make_object<td_api::transactionDirectionOutgoing>();
+      }
+      send_request(
+          td_api::make_object<td_api::getTonWalletTransactions>(std::move(direction), offset, as_limit(limit)));
+    } else if (op == "gtwt") {
+      string transaction_id;
+      get_args(args, transaction_id);
+      send_request(td_api::make_object<td_api::getTonWalletTransaction>(transaction_id));
+    } else if (op == "gtwtbmh") {
+      string msg_hash;
+      get_args(args, msg_hash);
+      send_request(td_api::make_object<td_api::getTonWalletTransactionByMsgHash>(msg_hash));
+    } else if (op == "ltws") {
+      send_request(td_api::make_object<td_api::loadTonWalletState>());
+    } else if (op == "ltwgti") {
+      send_request(td_api::make_object<td_api::loadTonWalletGaslessTransfersInfo>());
+    } else if (op == "cwbb") {
+      send_request(td_api::make_object<td_api::checkWalletBotBalance>());
+    } else if (op == "gutwa") {
+      send_request(td_api::make_object<td_api::getUserTonWalletAddresses>(as_user_ids(args)));
+    } else if (op == "cutw") {
+      UserId user_id;
+      get_args(args, user_id);
+      send_request(td_api::make_object<td_api::createUserTonWallet>(user_id));
+    } else if (op == "gatw") {
+      string address;
+      get_args(args, address);
+      send_request(td_api::make_object<td_api::getAddressTonWallet>(address));
+    } else if (op == "gtwsp") {
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::getTonWalletSecretPhrase>(password));
+    } else if (op == "gtwopc") {
+      send_request(td_api::make_object<td_api::getTonWalletOwnershipProofChallenge>());
+    } else if (op == "dtwb") {
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::disableTonWalletBackup>(password));
+    } else if (op == "stwt") {
+      UserId peer_user_id;
+      string peer_address;
+      int64 amount;
+      string comment;
+      bool is_comment_encrypted;
+      int32 sending_id;
+      string regular_transfer_data;
+      string gasless_transfer_data;
+      get_args(args, peer_user_id, peer_address, amount, comment, is_comment_encrypted, sending_id,
+               regular_transfer_data, gasless_transfer_data);
+      send_request(td_api::make_object<td_api::sendTonWalletTransfer>(
+          peer_user_id, peer_address, amount, comment, is_comment_encrypted, sending_id,
+          hex_decode(regular_transfer_data).move_as_ok(), hex_decode(gasless_transfer_data).move_as_ok()));
+    } else if (op == "deleteTonWallet") {
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::deleteTonWallet>(password));
+    } else if (op == "gcer") {
+      send_request(td_api::make_object<td_api::getCurrencyExchangeRates>());
+    } else if (op == "gtwn") {
+      string limit;
+      string offset;
+      get_args(args, limit, offset);
+      send_request(td_api::make_object<td_api::getTonWalletNfts>(offset, as_limit(limit)));
+    } else if (op == "gtcs") {
+      send_request(td_api::make_object<td_api::getTonConnectSessions>());
+    } else if (op == "ctwcs") {
+      string dapp_client_id;
+      string manifest_url;
+      get_args(args, dapp_client_id, manifest_url);
+      send_request(td_api::make_object<td_api::createTonConnectSession>(dapp_client_id, manifest_url));
+    } else if (op == "stcswci") {
+      int64 session_id;
+      string wallet_client_id;
+      get_args(args, session_id, wallet_client_id);
+      send_request(td_api::make_object<td_api::setTonConnectSessionWalletClientId>(session_id, wallet_client_id));
+    } else if (op == "gorp") {
+      string cryptocurrency;
+      get_args(args, cryptocurrency);
+      send_request(td_api::make_object<td_api::getOnRampProviders>(cryptocurrency));
+    } else if (op == "gorpbc") {
+      string provider_id;
+      string cryptocurrency;
+      get_args(args, provider_id, cryptocurrency);
+      send_request(td_api::make_object<td_api::getOnRampProviderBaseCurrencies>(provider_id, cryptocurrency));
+    } else if (op == "gorpa") {
+      string provider_id;
+      string cryptocurrency;
+      string base_currency;
+      get_args(args, provider_id, cryptocurrency, base_currency);
+      send_request(
+          td_api::make_object<td_api::getOnRampPaymentAvailability>(provider_id, cryptocurrency, base_currency));
+    } else if (op == "gorpl") {
+      string provider_id;
+      string cryptocurrency;
+      string base_currency;
+      string payment_method;
+      get_args(args, provider_id, cryptocurrency, base_currency, payment_method);
+      send_request(td_api::make_object<td_api::getOnRampPaymentLimits>(provider_id, cryptocurrency, base_currency,
+                                                                       payment_method));
+    } else if (op == "gorpq") {
+      string provider_id;
+      string cryptocurrency;
+      string base_currency;
+      string cryptocurrency_amount;
+      string base_currency_amount;
+      string payment_method;
+      get_args(args, provider_id, cryptocurrency, base_currency, cryptocurrency_amount, base_currency_amount,
+               payment_method);
+      send_request(td_api::make_object<td_api::getOnRampPaymentQuote>(
+          provider_id, cryptocurrency, base_currency, cryptocurrency_amount, base_currency_amount, payment_method));
+    } else if (op == "corps") {
+      string provider_id;
+      string cryptocurrency;
+      string address;
+      string payment_method;
+      string base_currency;
+      string cryptocurrency_amount;
+      string base_currency_amount;
+      string memo;
+      string success_return_url;
+      string fail_return_url;
+      get_args(args, provider_id, cryptocurrency, address, payment_method, base_currency, cryptocurrency_amount,
+               base_currency_amount, memo, success_return_url, fail_return_url);
+      send_request(td_api::make_object<td_api::createOnRampPaymentSession>(
+          provider_id, cryptocurrency, address, payment_method, base_currency, cryptocurrency_amount,
+          base_currency_amount, memo, "light", success_return_url, fail_return_url));
+    } else if (op == "gtcsau") {
+      send_request(td_api::make_object<td_api::getTonCenterStreamingApiUrl>());
+    } else if (op == "stcarg") {
+      string endpoint;
+      string query;
+      get_args(args, endpoint, query);
+      send_request(td_api::make_object<td_api::sendTonCenterApiRequest>(
+          endpoint, td_api::make_object<td_api::tonCenterApiRequestTypeGet>(query)));
+    } else if (op == "stcarp") {
+      string endpoint;
+      string payload;
+      get_args(args, endpoint, payload);
+      send_request(td_api::make_object<td_api::sendTonCenterApiRequest>(
+          endpoint, td_api::make_object<td_api::tonCenterApiRequestTypePost>(payload)));
     } else if (op == "gsrs") {
       string owner_id;
       bool is_dark;

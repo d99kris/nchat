@@ -223,6 +223,8 @@ if [[ "${DEPS}" == "1" ]]; then
     fi
   elif [[ "${OS}" == "OpenBSD" ]]; then
     doas pkg_add git cmake ccache gperf sqlite3 libmagic || exiterr "deps failed (${OS}), exiting."
+  elif [[ "${OS}" == "FreeBSD" ]]; then
+    sudo pkg install ${YES} git cmake ccache gperf sqlite3 go || exiterr "deps failed (${OS}), exiting."
   else
     exiterr "deps failed (unsupported os ${OS}), exiting."
   fi
@@ -299,7 +301,7 @@ if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
   elif [[ "${OS}" == "Darwin" ]]; then
     MEM_BYTES=$(sysctl -n hw.memsize)
     MEM_DIVISOR=$(( 1024 * 1024 ))
-  elif [[ "${OS}" == "OpenBSD" ]]; then
+  elif [[ "${OS}" == "OpenBSD" ]] || [[ "${OS}" == "FreeBSD" ]]; then
     MEM_BYTES=$(sysctl -n hw.physmem)
     MEM_DIVISOR=$(( 1024 * 1024 ))
   fi
@@ -317,7 +319,7 @@ if [[ "${BUILD}" == "1" ]] || [[ "${DEBUG}" == "1" ]]; then
     MEM_MAX_THREADS="1" # minimum 1 core
   fi
 
-  if [[ "${OS}" == "Darwin" ]] || [[ "${OS}" == "OpenBSD" ]]; then
+  if [[ "${OS}" == "Darwin" ]] || [[ "${OS}" == "OpenBSD" ]] || [[ "${OS}" == "FreeBSD" ]]; then
     CPU_MAX_THREADS="$(sysctl -n hw.ncpu)"
   else
     CPU_MAX_THREADS="$(nproc)"
@@ -387,7 +389,7 @@ fi
 # install
 if [[ "${INSTALL}" == "1" ]]; then
   if [[ -z ${INSTALL_CMD+x} ]]; then
-    if [[ "${OS}" == "Linux" ]]; then
+    if [[ "${OS}" == "Linux" ]] || [[ "${OS}" == "FreeBSD" ]]; then
       if [[ "${DISTRO}" != "Termux" ]]; then
         # only elevate when the install prefix is not writable by the current
         # user -- a user-writable prefix (e.g. NCHAT_PREFIX=~/.local) needs no

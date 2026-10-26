@@ -41,7 +41,6 @@ type SignalConfig struct {
 	DeviceName            string              `yaml:"device_name"`
 	NoteToSelfAvatar      id.ContentURIString `yaml:"note_to_self_avatar"`
 	LocationFormat        string              `yaml:"location_format"`
-	DisappearViewOnce     bool                `yaml:"disappear_view_once"`
 	ExtEvPolls            bool                `yaml:"extev_polls"`
 
 	displaynameTemplate *template.Template `yaml:"-"`
@@ -75,13 +74,16 @@ type DisplaynameParams struct {
 	AboutEmoji  string
 }
 
-func (c *SignalConfig) FormatDisplayname(contact *types.Recipient) string {
+func (c *SignalConfig) FormatDisplayname(contact *types.Recipient, username string) string {
+	if username != "" && !strings.HasPrefix(username, "@") {
+		username = "@" + username
+	}
 	var nameBuf strings.Builder
 	err := c.displaynameTemplate.Execute(&nameBuf, &DisplaynameParams{
 		ProfileName: contact.Profile.Name,
 		ContactName: contact.ContactName,
 		Nickname:    contact.Nickname,
-		Username:    "",
+		Username:    username,
 		PhoneNumber: contact.E164,
 		UUID:        contact.ACI.String(),
 		ACI:         contact.ACI.String(),
@@ -103,7 +105,6 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Str, "device_name")
 	helper.Copy(up.Str, "note_to_self_avatar")
 	helper.Copy(up.Str, "location_format")
-	helper.Copy(up.Bool, "disappear_view_once")
 	helper.Copy(up.Bool, "extev_polls")
 }
 

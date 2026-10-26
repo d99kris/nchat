@@ -121,6 +121,7 @@ class DialogActionBar;
 class DialogFilter;
 class DraftMessage;
 class FactCheck;
+struct InputMedia;
 struct InputMessageContent;
 class MessageContent;
 class MessageForwardInfo;
@@ -490,6 +491,9 @@ class MessagesManager final : public Actor {
 
   Result<td_api::object_ptr<td_api::messages>> send_quick_reply_shortcut_messages(
       DialogId dialog_id, QuickReplyShortcutId shortcut_id, int32 sending_id) TD_WARN_UNUSED_RESULT;
+
+  int64 send_ton_wallet_transfer(UserId peer_user_id, const string &peer_address, int64 amount, const string &comment,
+                                 bool is_comment_encrypted, int32 sending_id);
 
   Result<vector<MessageId>> resend_messages(DialogId dialog_id, vector<MessageId> message_ids,
                                             td_api::object_ptr<td_api::inputTextQuote> &&quote,
@@ -2205,7 +2209,7 @@ class MessagesManager final : public Actor {
 
   void preload_older_messages(const Dialog *d, MessageId min_message_id);
 
-  void load_last_dialog_message_later(DialogId dialog_id);
+  void load_last_dialog_message_later(DialogId dialog_id, bool only_if_last_message_is_unknown);
 
   void load_last_dialog_message(const Dialog *d, const char *source);
 
@@ -3585,6 +3589,7 @@ class MessagesManager final : public Actor {
   DialogId being_added_dialog_id_;
   DialogId being_added_by_new_message_dialog_id_;
   DialogId being_added_new_dialog_id_;
+  FlatHashSet<DialogId, DialogIdHash> being_added_dialog_ids_;
 
   DialogId debug_channel_difference_dialog_;
   DialogId debug_last_get_channel_difference_dialog_id_;

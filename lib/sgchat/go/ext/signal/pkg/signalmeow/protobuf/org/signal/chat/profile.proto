@@ -20,17 +20,28 @@ import "org/signal/chat/tag.proto";
 service Profile {
   option (require.auth) = AUTH_ONLY_AUTHENTICATED;
 
-  // Sets profile data and, if needed, returns credentials used by clients to upload a v1 avatar.
+  // Sets profile data and, if needed, returns a credential used by clients to upload a v1 avatar.
   rpc SetProfile(SetProfileRequest) returns (SetProfileResponse) {}
 
   // Retrieves profile data. Callers with an unidentified access key for the account
   // should use the version of this method in `ProfileAnonymous` instead.
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse) {}
 
-  // Returns anonymous credentials that may be presented with avatar operations in ProfilesAnonymous
+  // Returns an anonymous credential that may be presented with avatar operations in ProfilesAnonymous
   //
   // Note: `Accounts.SetZkCredentialKey` is a pre-requisite for this RPC
-  rpc GetAvatarCredentials(GetAvatarCredentialsRequest) returns (GetAvatarCredentialsResponse) {}
+  rpc GetAvatarCredential(GetAvatarCredentialRequest) returns (GetAvatarCredentialResponse) {}
+
+  // Returns a credential used by clients to upload a v1 avatar, deleting any current avatar.
+  //
+  // This RPC streamlines avatar changes during the v1 -> v2 transition by minimizing uploads:
+  // 1. SetV1Avatar
+  // 2. Upload to CDN
+  // 3. SetProfile with v1 `AVATAR_CHANGE_UNCHANGED` and the v1 avatar in the v2 profile body
+  //
+  // Clients that do this will be required to upload current avatars using `ProfilesAnonymous.GetAvatarUploadFormRequest`
+  // once v1 Profile APIs are no longer supported.
+  rpc SetV1Avatar(SetV1AvatarRequest) returns (SetV1AvatarResponse) {}
 }
 
 // Provides methods for working with profiles and profile-related data using "unidentified access"
@@ -46,16 +57,16 @@ service ProfileAnonymous {
   rpc GetProfile(GetProfileAnonymousRequest) returns (GetProfileAnonymousResponse) {}
 
   // Retrieves a profile key credential.
-  rpc GetExpiringProfileKeyCredential(GetExpiringProfileKeyCredentialAnonymousRequest) returns (GetExpiringProfileKeyCredentialAnonymousResponse) {}
+  rpc GetProfileKeyCredential(GetProfileKeyCredentialRequest) returns (GetProfileKeyCredentialResponse) {}
 
-  // Returns credentials to upload a v2 avatar. After uploading the avatar, the client
+  // Returns a credential to upload a v2 avatar. After uploading the avatar, the client
   // must call SetProfile with the new avatar URL in the encrypted `data`.
   //
   // Because avatars are uploaded anonymously, they have an expiration equal to the
   // idle account expiration. Clients must periodically (recommended: every 90 days)
   // call ExtendAvatarTTL to extend the TTl.
   //
-  // Note: any existing avatar associated with these credentials will be deleted immediately
+  // Note: any existing avatar associated with this credential will be deleted immediately
   rpc GetAvatarUploadForm(GetAvatarUploadFormRequest) returns (GetAvatarUploadFormResponse) {}
 
   // Extends the TTL of the avatar currently associated with the request’s avatar auth credential
@@ -88,6 +99,19 @@ message SetProfileV1Request {
 
   // The ciphertext of the phone-number sharing setting on the profile. 29-byte encrypted boolean.
   bytes phone_number_sharing = 6 [(require.exactlySize) = 29];
+}
+
+message SetV1AvatarRequest {
+  // The profile version. Required.
+  string version = 1 [(require.exactlySize) = 64];
+
+  // The profile key commitment. Required if this is a new profile version.
+  bytes commitment = 2 [(require.exactlySize) = 0, (require.exactlySize) = 97];
+}
+
+message SetV1AvatarResponse {
+  // the policy and credential used by clients to upload an avatar to the CDN
+  common.S3UploadForm form = 1;
 }
 
 message SetProfileRequest {
@@ -165,11 +189,7 @@ message SetProfileResponse {
     // another device on the account may have created a new version the caller does not know about.
     errors.FailedPrecondition expected_version_write_conflict = 4 [(tag.reason) = "expected_version_write_conflict"];
 
-    // Because this is a temporary field during the migration, it has the highest
-    // field number without serialization overhead. This is purely aesthetic.
-    ProfilesV2CapabilityRequired profiles_v2_capability_required = 15 [(tag.reason) = "profiles_v2_capability_required"];
-
-    // next: 4
+    // next: 5
   }
 }
 
@@ -312,34 +332,31 @@ message GetProfileAnonymousResponse {
   // next: 5
 }
 
-message GetExpiringProfileKeyCredentialRequest {
+message GetProfileKeyCredentialRequest {
   // The ACI of the account for which to get a profile key credential.
   common.ServiceIdentifier account_identifier = 1 [(require.present) = true, (require.identityType) = IDENTITY_TYPE_ACI];
-  // A zkgroup request for a profile key credential.
+  // A zkgroup request for a profile key credential for the target’s current profile.
   bytes credential_request = 2 [(require.nonEmpty) = true];
   // The type of credential being requested.
   CredentialType credential_type = 3 [(require.specified) = true];
-  // The profile version for which to generate a profile key credential.
-  bytes version = 4 [(require.exactlySize) = 32];
-}
-
-message GetExpiringProfileKeyCredentialAnonymousRequest {
-  // Contains the data necessary to request an expiring profile key credential.
-  GetExpiringProfileKeyCredentialRequest request = 1 [(require.present) = true];
   // The unidentified access key for the targeted account.
-  bytes unidentified_access_key = 2 [(require.exactlySize) = 16];
+  bytes unidentified_access_key = 4 [(require.exactlySize) = 16];
 }
 
-message GetExpiringProfileKeyCredentialResult {
+message GetProfileKeyCredentialResult {
   // A zkgroup credential used by a client to prove that it has the profile key
   // of a targeted account.
   bytes profile_key_credential = 1;
 }
 
-message GetExpiringProfileKeyCredentialAnonymousResponse {
+message GetProfileKeyCredentialResponse {
   oneof response {
-    GetExpiringProfileKeyCredentialResult result = 1;
+    GetProfileKeyCredentialResult result = 1;
+    // Indicates the account was not found or the account's current profile was
+    // not found. Use `AccountsAnonymous.CheckAccountExistence` for a canonical
+    // account existence check.
     errors.NotFound not_found = 2 [(tag.reason) = "not_found"];
+    // The provided unidentified access key was incorrect
     errors.FailedUnidentifiedAuthorization failed_unidentified_authorization = 3 [(tag.reason) = "failed_unidentified_authorization"];
   }
 }
@@ -351,13 +368,13 @@ enum CredentialType {
 
 // avatar auth
 
-message GetAvatarCredentialsRequest {
-  bytes avatar_credentials_request = 1;
+message GetAvatarCredentialRequest {
+  bytes avatar_credential_request = 1;
 }
 
-message GetAvatarCredentialsResponse {
+message GetAvatarCredentialResponse {
   oneof response {
-    bytes avatar_credentials = 1;
+    bytes avatar_credential = 1;
 
     // the client must call Accounts.SetZkCredentialKey to call this method
     errors.FailedPrecondition missing_zk_credential_key = 2 [(tag.reason) = "missing_zk_credential_key"];
@@ -365,7 +382,7 @@ message GetAvatarCredentialsResponse {
 }
 
 message GetAvatarUploadFormRequest {
-  bytes avatar_credentials_presentation = 1;
+  bytes avatar_credential_presentation = 1;
 
   // The length of the attachment for the requested upload form. Uploads
   // performed with this form will be limited to the provided length.
@@ -374,33 +391,34 @@ message GetAvatarUploadFormRequest {
 
 message GetAvatarUploadFormResponse {
   oneof response {
+    // the policy and credential used by clients to upload an avatar to the CDN
     common.S3UploadForm avatar_upload_form = 1;
 
-    errors.FailedZkAuthentication invalid_credentials_presentation = 2 [(tag.reason) = "invalid_credentials_presentation"];
+    errors.FailedZkAuthentication invalid_credential_presentation = 2 [(tag.reason) = "invalid_credential_presentation"];
   }
 }
 
 message ExtendAvatarTTLRequest {
-  bytes avatar_credentials_presentation = 1;
+  bytes avatar_credential_presentation = 1;
 }
 
 message ExtendAvatarTTLResponse {
   oneof response {
     // The avatar that was extended. May be used as a check against state de-synchronization.
     string path = 1;
-    errors.FailedZkAuthentication invalid_credentials_presentation = 2 [(tag.reason) = "invalid_credentials_presentation"];
+    errors.FailedZkAuthentication invalid_credential_presentation = 2 [(tag.reason) = "invalid_credential_presentation"];
     // the identity does not have an active avatar
     errors.NotFound not_found = 3 [(tag.reason) = "no_active_avatar"];
   }
 }
 
 message DeleteAvatarRequest {
-  bytes avatar_credentials_presentation = 1;
+  bytes avatar_credential_presentation = 1;
 }
 
 message DeleteAvatarResponse {
   oneof response {
     google.protobuf.Empty success = 1;
-    errors.FailedZkAuthentication invalid_credentials_presentation = 2 [(tag.reason) = "invalid_credentials_presentation"];
+    errors.FailedZkAuthentication invalid_credential_presentation = 2 [(tag.reason) = "invalid_credential_presentation"];
   }
 }

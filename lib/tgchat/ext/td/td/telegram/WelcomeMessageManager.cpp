@@ -15,6 +15,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageEntity.h"
@@ -348,6 +349,8 @@ WelcomeMessageManager::WelcomeMessageManager(Td *td, ActorShared<> parent) : td_
   upload_welcome_message_content_callback_ = std::make_shared<UploadWelcomeMessageContentCallback>(this);
 }
 
+WelcomeMessageManager::~WelcomeMessageManager() = default;
+
 void WelcomeMessageManager::tear_down() {
   parent_.reset();
 }
@@ -553,6 +556,7 @@ void WelcomeMessageManager::do_delete_welcome_messages(DialogId dialog_id,
   if (ephemeral_message_ids.empty()) {
     return;
   }
+  CHECK(dialog_id.is_valid());
   auto &messages = welcome_messages_[dialog_id].messages_;
   auto old_file_ids = get_dialog_welcome_message_file_ids(messages);
   td::remove_if(messages, [&](const auto &welcome_message) {
@@ -738,6 +742,7 @@ void WelcomeMessageManager::on_get_welcome_messages(
       need_update = true;
     }
   } else {
+    CHECK(dialog_id.is_valid());
     auto &messages = welcome_messages_[dialog_id].messages_;
     if (messages.size() != welcome_messages.size()) {
       need_update = true;

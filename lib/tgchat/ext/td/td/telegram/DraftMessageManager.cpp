@@ -14,6 +14,7 @@
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageInputReplyTo.h"
 #include "td/telegram/MessageQueryManager.h"
@@ -261,6 +262,7 @@ void DraftMessageManager::tear_down() {
 
 void DraftMessageManager::save_draft_message(DialogId dialog_id, const MessageTopic &message_topic,
                                              const unique_ptr<DraftMessage> &draft_message, Promise<Unit> &&promise) {
+  CHECK(dialog_id.is_valid());
   if (dialog_id.get_type() == DialogType::SecretChat || is_local_draft_message(draft_message)) {
     return promise.set_value(Unit());
   }
@@ -289,10 +291,8 @@ void DraftMessageManager::save_draft_message(DialogId dialog_id, const MessageTo
       dialog_id, draft_message->get_rich_message_content(), MessageSelfDestructType(), string(), false, false,
       upload_draft_message_callback_);
   if (message_topic.is_empty()) {
-    LOG(ERROR) << dialog_draft_message_upload_ids_.size();
     dialog_draft_message_upload_ids_[dialog_id] = upload_id;
   } else {
-    LOG(ERROR) << topic_draft_message_upload_ids_.size();
     topic_draft_message_upload_ids_[message_topic] = upload_id;
   }
   auto &query = save_draft_message_queries_[upload_id];

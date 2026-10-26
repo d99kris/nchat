@@ -464,6 +464,8 @@ InlineQueriesManager::InlineQueriesManager(Td *td, ActorShared<> parent) : td_(t
   next_inline_query_time_ = Time::now();
 }
 
+InlineQueriesManager::~InlineQueriesManager() = default;
+
 void InlineQueriesManager::tear_down() {
   parent_.reset();
 }
@@ -733,7 +735,7 @@ void InlineQueriesManager::answer_inline_query(
         if (r_url.is_error()) {
           return promise.set_error(400, PSLICE() << "Inline query button Web App " << r_url.error().message());
         }
-        web_view = telegram_api::make_object<telegram_api::inlineBotWebView>(button->text_, type->url_);
+        web_view = telegram_api::make_object<telegram_api::inlineBotWebView>(button->text_, r_url.ok());
         break;
       }
       default:
@@ -2157,18 +2159,7 @@ td_api::object_ptr<td_api::InlineQueryResult> InlineQueriesManager::get_inline_q
         break;
       }
 
-      auto attributes = [content = result->content_.get()] {
-        switch (content->get_id()) {
-          case telegram_api::webDocument::ID:
-            return std::move(static_cast<telegram_api::webDocument *>(content)->attributes_);
-          case telegram_api::webDocumentNoProxy::ID:
-            return std::move(static_cast<telegram_api::webDocumentNoProxy *>(content)->attributes_);
-          default:
-            UNREACHABLE();
-            return vector<telegram_api::object_ptr<telegram_api::DocumentAttribute>>();
-        }
-      }();
-
+      auto attributes = DocumentsManager::extract_web_document_attributes(result->content_.get());
       bool is_animation = result->type_ == "gif" && (content_type == "image/gif" || content_type == "video/mp4");
       if (is_animation) {
         attributes.push_back(telegram_api::make_object<telegram_api::documentAttributeAnimated>());
