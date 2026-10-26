@@ -734,6 +734,64 @@ func ExtensionByType(mimeType string, defaultExt string) string {
 	return ext
 }
 
+// GenerateJPEGThumbnail builds the small JPEG WhatsApp mobile shows before the
+// full image/video downloads. Empty thumb is non-fatal — send still proceeds.
+func GenerateJPEGThumbnail(filePath string) (thumb []byte, width uint32, height uint32) {
+	width, height = ProbeMediaSize(filePath)
+	thumb = EncodeJPEGThumbnail(filePath)
+	return thumb, width, height
+}
+
+func ProbeMediaSize(filePath string) (uint32, uint32) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", filePath).Output()
+	if err != nil {
+		return 0, 0
+	}
+	parts := strings.Split(strings.TrimSpace(string(out)), "x")
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	w, errW := strconv.ParseUint(parts[0], 10, 32)
+	h, errH := strconv.ParseUint(parts[1], 10, 32)
+	if errW != nil || errH != nil {
+		return 0, 0
+	}
+	return uint32(w), uint32(h)
+}
+
+func EncodeJPEGThumbnail(filePath string) []byte {
+	tmp, err := os.CreateTemp("", "nchat-thumb-*.jpg")
+	if err != nil {
+		return nil
+	}
+	outPath := tmp.Name()
+	_ = tmp.Close()
+	defer os.Remove(outPath)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// ~72px JPEG — WhatsApp mobile preview (JPEGThumbnail). ffmpeg first, ImageMagick fallback.
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+		"-i", filePath, "-an", "-sn", "-frames:v", "1",
+		"-vf", "scale=72:72:force_original_aspect_ratio=decrease:force_divisible_by=2",
+		"-q:v", "6", outPath)
+	if runErr := cmd.Run(); runErr != nil {
+		cmd = exec.CommandContext(ctx, "convert", filePath, "-resize", "72x72", "-quality", "50", outPath)
+		if runErr = cmd.Run(); runErr != nil {
+			return nil
+		}
+	}
+	data, readErr := os.ReadFile(outPath)
+	if readErr != nil || len(data) < 24 || data[0] != 0xff || data[1] != 0xd8 {
+		return nil
+	}
+	return data
+}
+
 // logger
 type ncLogger struct{}
 
@@ -3104,6 +3162,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				return -1
 			}
 
+			thumb, width, height := GenerateJPEGThumbnail(filePath)
 			videoMessage := waE2E.VideoMessage{
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
@@ -3113,7 +3172,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 				GifPlayback:   proto.Bool(true),
+				JPEGThumbnail: thumb,
 				ContextInfo:   &contextInfo,
+			}
+			if width > 0 && height > 0 {
+				videoMessage.Width = proto.Uint32(width)
+				videoMessage.Height = proto.Uint32(height)
 			}
 
 			message.VideoMessage = &videoMessage
@@ -3180,6 +3244,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					return -1
 				}
 
+				thumb, width, height := GenerateJPEGThumbnail(filePath)
 				videoMessage = waE2E.VideoMessage{
 					Caption:       proto.String(text),
 					URL:           proto.String(uploaded.URL),
@@ -3189,7 +3254,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					FileEncSHA256: uploaded.FileEncSHA256,
 					FileSHA256:    uploaded.FileSHA256,
 					FileLength:    proto.Uint64(uint64(len(data))),
+					JPEGThumbnail: thumb,
 					ContextInfo:   &contextInfo,
+				}
+				if width > 0 && height > 0 {
+					videoMessage.Width = proto.Uint32(width)
+					videoMessage.Height = proto.Uint32(height)
 				}
 			}
 
@@ -3223,6 +3293,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					return -1
 				}
 
+				thumb, width, height := GenerateJPEGThumbnail(filePath)
 				imageMessage = waE2E.ImageMessage{
 					Caption:       proto.String(text),
 					URL:           proto.String(uploaded.URL),
@@ -3232,7 +3303,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					FileEncSHA256: uploaded.FileEncSHA256,
 					FileSHA256:    uploaded.FileSHA256,
 					FileLength:    proto.Uint64(uint64(len(data))),
+					JPEGThumbnail: thumb,
 					ContextInfo:   &contextInfo,
+				}
+				if width > 0 && height > 0 {
+					imageMessage.Width = proto.Uint32(width)
+					imageMessage.Height = proto.Uint32(height)
 				}
 			}
 
