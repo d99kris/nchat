@@ -1094,6 +1094,7 @@ Available themes:
     espresso
     gruvbox-dark
     gruvbox-dark-hard
+    pastel-blue
     purple-light
     solarized-dark-higher-contrast
     tokyo-night
