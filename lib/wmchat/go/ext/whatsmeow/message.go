@@ -325,11 +325,15 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 	if ok && len(node.GetChildrenByTag("enc")) == 0 {
 		uType := events.UnavailableType(unavailableNode.AttrGetter().String("type"))
 		cli.Log.Warnf("Unavailable message %s from %s (type: %q)", info.ID, info.SourceString(), uType)
+		handlerFailed := cli.dispatchEvent(&events.UndecryptableMessage{Info: *info, IsUnavailable: true, UnavailableType: uType})
+		if handlerFailed {
+			cli.Log.Warnf("Handler for unavailable message %s failed", info.ID)
+			return
+		}
 		cli.backgroundIfAsyncAck(func() {
 			cli.immediateRequestMessageFromPhone(ctx, info)
 			cli.sendAck(ctx, node, 0)
 		})
-		cli.dispatchEvent(&events.UndecryptableMessage{Info: *info, IsUnavailable: true, UnavailableType: uType})
 		return
 	}
 
@@ -413,10 +417,25 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			continue
 		} else if err != nil {
 			cli.Log.Warnf("Error decrypting message %s from %s: %v", info.ID, info.SourceString(), err)
-			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+			if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrEventBufferDB) {
 				return
 			}
 			isUnavailable := encType == "skmsg" && !containsDirectMsg && errors.Is(err, signalerror.ErrNoSenderKeyForUser)
+			decryptFail := ag.OptionalString("decrypt-fail")
+			if decryptFail == "" {
+				metaNode := node.GetChildByTag("meta")
+				decryptFail = metaNode.AttrGetter().OptionalString("decrypt-fail")
+			}
+			evt := &events.UndecryptableMessage{
+				Info:            *info,
+				IsUnavailable:   isUnavailable,
+				DecryptFailMode: events.DecryptFailMode(decryptFail),
+			}
+			handlerFailed := cli.dispatchEvent(evt)
+			if handlerFailed {
+				cli.Log.Warnf("Handler for undecryptable message %s failed", info.ID)
+				return
+			}
 			if encType == "msmsg" {
 				cli.backgroundIfAsyncAck(func() {
 					cli.sendAck(ctx, node, NackMissingMessageSecret)
@@ -429,11 +448,6 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
 				go cli.sendAck(ctx, node, 0)
 			}
-			cli.dispatchEvent(&events.UndecryptableMessage{
-				Info:            *info,
-				IsUnavailable:   isUnavailable,
-				DecryptFailMode: events.DecryptFailMode(ag.OptionalString("decrypt-fail")),
-			})
 			return
 		}
 		retryCount := ag.OptionalInt("count")
@@ -511,9 +525,7 @@ func (cli *Client) clearUntrustedIdentity(ctx context.Context, target types.JID)
 }
 
 var ErrEventAlreadyProcessed = errors.New("event was already processed")
-
-// Deprecated: use ErrEventAlreadyProcessed
-var EventAlreadyProcessed = ErrEventAlreadyProcessed
+var ErrEventBufferDB = errors.New("event buffer database error")
 
 func (cli *Client) bufferedDecrypt(
 	ctx context.Context,
@@ -537,7 +549,7 @@ func (cli *Client) bufferedDecrypt(
 	var buf *store.BufferedEvent
 	buf, err = cli.Store.EventBuffer.GetBufferedEvent(ctx, ciphertextHash)
 	if err != nil {
-		err = fmt.Errorf("failed to get buffered event: %w", err)
+		err = fmt.Errorf("%w: failed to get buffered event: %w", ErrEventBufferDB, err)
 		return
 	} else if buf != nil {
 		if buf.Plaintext == nil {
@@ -563,7 +575,7 @@ func (cli *Client) bufferedDecrypt(
 		}
 		innerErr = cli.Store.EventBuffer.PutBufferedEvent(ctx, ciphertextHash, plaintext, serverTimestamp)
 		if innerErr != nil {
-			innerErr = fmt.Errorf("failed to save decrypted event to buffer: %w", innerErr)
+			innerErr = fmt.Errorf("%w: failed to save decrypted event to buffer: %w", ErrEventBufferDB, innerErr)
 		}
 		return
 	})
@@ -839,6 +851,15 @@ func (cli *Client) handleAppStateSyncKeyShare(ctx context.Context, keys *waE2E.A
 		if isReRequest {
 			onlyResyncIfNotSynced = false
 		}
+		existing, err := cli.Store.AppStateKeys.GetAppStateSyncKey(ctx, key.GetKeyID().GetKeyID())
+		if err != nil {
+			cli.Log.Warnf("Failed to check for existing app state sync key %X: %v", key.GetKeyID().GetKeyID(), err)
+		} else if existing != nil && !bytes.Equal(existing.Data, key.GetKeyData().GetKeyData()) {
+			cli.Log.Warnf(
+				"Received app state sync key %X with different data than the stored key (stored ts: %d, new ts: %d, requested: %t)",
+				key.GetKeyID().GetKeyID(), existing.Timestamp, key.GetKeyData().GetTimestamp(), isReRequest,
+			)
+		}
 		err = cli.Store.AppStateKeys.PutAppStateSyncKey(ctx, key.GetKeyID().GetKeyID(), store.AppStateSyncKey{
 			Data:        key.GetKeyData().GetKeyData(),
 			Fingerprint: marshaledFingerprint,
@@ -848,7 +869,7 @@ func (cli *Client) handleAppStateSyncKeyShare(ctx context.Context, keys *waE2E.A
 			cli.Log.Errorf("Failed to store app state sync key %X: %v", key.GetKeyID().GetKeyID(), err)
 			continue
 		}
-		cli.Log.Debugf("Received app state sync key %X (ts: %d)", key.GetKeyID().GetKeyID(), key.GetKeyData().GetTimestamp())
+		cli.Log.Debugf("Received app state sync key %X (ts: %d, requested: %t)", key.GetKeyID().GetKeyID(), key.GetKeyData().GetTimestamp(), isReRequest)
 	}
 	cli.appStateKeyRequestsLock.RUnlock()
 
@@ -942,15 +963,15 @@ func (cli *Client) processProtocolParts(ctx context.Context, info *types.Message
 	if msg.GetDeviceSentMessage().GetMessage() != nil {
 		msg = msg.GetDeviceSentMessage().GetMessage()
 	}
-	if msg.GetSenderKeyDistributionMessage() != nil {
+	if skdm := msg.GetSenderKeyDistributionMessage(); skdm != nil {
 		if !info.IsGroup {
-			cli.Log.Warnf("Got sender key distribution message in non-group chat from %s", info.Sender)
+			cli.Log.Warnf("Got sender key distribution message in non-group chat %s from %s (skdm group ID %s)", info.Chat, info.Sender, skdm.GetGroupID())
 		} else {
 			encryptionIdentity := info.Sender
 			if encryptionIdentity.Server == types.DefaultUserServer && info.SenderAlt.Server == types.HiddenUserServer {
 				encryptionIdentity = info.SenderAlt
 			}
-			cli.handleSenderKeyDistributionMessage(ctx, info.Chat, encryptionIdentity, msg.SenderKeyDistributionMessage.AxolotlSenderKeyDistributionMessage)
+			cli.handleSenderKeyDistributionMessage(ctx, info.Chat, encryptionIdentity, skdm.AxolotlSenderKeyDistributionMessage)
 		}
 	}
 	// N.B. Edits are protocol messages, but they're also wrapped inside EditedMessage,
@@ -1172,7 +1193,7 @@ func (cli *Client) storeHistoricalPNLIDMappings(ctx context.Context, mappings []
 func (cli *Client) handleDecryptedMessage(ctx context.Context, info *types.MessageInfo, msg *waE2E.Message, retryCount int) (handlerFailed bool) {
 	ok := cli.processProtocolParts(ctx, info, msg)
 	if !ok {
-		return false
+		return true
 	}
 	evt := &events.Message{Info: *info, RawMessage: msg, RetryCount: retryCount}
 	return cli.dispatchEvent(evt.UnwrapRaw())
