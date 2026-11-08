@@ -2,11 +2,20 @@ name: macOS
 
 on:
   pull_request:
+    paths-ignore:
+      - 'doc/**'
+      - '**/*.md'
   push:
     branches:
       - master
       - main
-      - dev/*
+    paths-ignore:
+      - 'doc/**'
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   mac-build:
