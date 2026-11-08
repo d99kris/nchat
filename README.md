@@ -29,6 +29,16 @@ Features
 - Customizable [themes](https://github.com/d99kris/nchat/wiki/Themes) and key bindings
 
 
+Quick Install
+=============
+Pre-built binary for Linux (glibc >= 2.28 or musl) x86_64 / arm64 and macOS
+arm64:
+
+    curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/install.sh | bash
+
+For other installation options, see the sections below.
+
+
 Usage
 =====
 Usage:
