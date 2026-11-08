@@ -58,13 +58,8 @@ class SendReactionQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
-    int32 flags = 0;
-    if (!reaction_types.empty()) {
-      flags |= telegram_api::messages_sendReaction::REACTION_MASK;
-    }
-
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_sendReaction(flags, is_big, add_to_recent, std::move(input_peer),
+        telegram_api::messages_sendReaction(0, is_big, add_to_recent, std::move(input_peer),
                                             message_full_id.get_message_id().get_server_message_id().get(),
                                             ReactionType::get_input_reactions(reaction_types)),
         {{dialog_id_}, {message_full_id}}));
@@ -109,15 +104,13 @@ class SendPaidReactionQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
-    int32 flags = 0;
     telegram_api::object_ptr<telegram_api::PaidReactionPrivacy> privacy;
     if (!use_default_paid_reaction_type) {
-      flags |= telegram_api::messages_sendPaidReaction::PRIVATE_MASK;
       privacy = paid_reaction_type.get_input_paid_reaction_privacy(td_);
       CHECK(privacy != nullptr);
     }
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_sendPaidReaction(flags, std::move(input_peer),
+        telegram_api::messages_sendPaidReaction(0, std::move(input_peer),
                                                 message_full_id.get_message_id().get_server_message_id().get(),
                                                 star_count, random_id, std::move(privacy)),
         {{dialog_id_}, {message_full_id}}));
@@ -232,17 +225,14 @@ class GetMessageReactionsListQuery final : public Td::ResultHandler {
     }
 
     int32 flags = 0;
-    if (!reaction_type_.is_empty()) {
-      flags |= telegram_api::messages_getMessageReactionsList::REACTION_MASK;
-    }
     if (!offset_.empty()) {
       flags |= telegram_api::messages_getMessageReactionsList::OFFSET_MASK;
     }
 
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_getMessageReactionsList(flags, std::move(input_peer),
-                                                       message_id_.get_server_message_id().get(),
-                                                       reaction_type_.get_input_reaction(), offset_, limit),
+        telegram_api::messages_getMessageReactionsList(
+            flags, std::move(input_peer), message_id_.get_server_message_id().get(),
+            reaction_type_.is_empty() ? nullptr : reaction_type_.get_input_reaction(), offset_, limit),
         {{message_full_id}}));
   }
 
@@ -370,6 +360,15 @@ bool MessageReaction::remove_my_recent_chooser_dialog_id() {
     return true;
   }
   return false;
+}
+
+bool MessageReaction::remove_recent_chooser_dialog_id(DialogId dialog_id) {
+  if (dialog_id == my_recent_chooser_dialog_id_ || !td::remove(recent_chooser_dialog_ids_, dialog_id)) {
+    return false;
+  }
+  choose_count_--;
+  fix_choose_count();
+  return true;
 }
 
 void MessageReaction::update_from(const MessageReaction &old_reaction) {
@@ -773,6 +772,33 @@ bool MessageReactions::remove_my_reaction(const ReactionType &reaction_type, Dia
     return true;
   }
   return false;
+}
+
+bool MessageReactions::remove_reactions_by_sender(DialogId sender_dialog_id, DialogId my_dialog_id) {
+  bool is_changed = false;
+  if (sender_dialog_id == my_dialog_id) {
+    for (const auto &reaction_type : get_chosen_reaction_types()) {
+      if (remove_my_reaction(reaction_type, my_dialog_id)) {
+        is_changed = true;
+      }
+    }
+  }
+  for (auto it = reactions_.begin(); it != reactions_.end();) {
+    if (!it->get_reaction_type().is_paid_reaction() && it->remove_recent_chooser_dialog_id(sender_dialog_id)) {
+      is_changed = true;
+      if (it->is_empty()) {
+        it = reactions_.erase(it);
+        continue;
+      }
+    }
+    ++it;
+  }
+  if (td::remove_if(unread_reactions_, [sender_dialog_id](const UnreadMessageReaction &unread_reaction) {
+        return unread_reaction.sender_dialog_id_ == sender_dialog_id;
+      })) {
+    is_changed = true;
+  }
+  return is_changed;
 }
 
 bool MessageReactions::do_remove_my_reaction(const ReactionType &reaction_type) {

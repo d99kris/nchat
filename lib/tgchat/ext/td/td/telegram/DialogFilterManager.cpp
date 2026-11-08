@@ -76,12 +76,8 @@ class UpdateDialogFilterQuery final : public Td::ResultHandler {
   }
 
   void send(DialogFilterId dialog_filter_id, telegram_api::object_ptr<telegram_api::DialogFilter> filter) {
-    int32 flags = 0;
-    if (filter != nullptr) {
-      flags |= telegram_api::messages_updateDialogFilter::FILTER_MASK;
-    }
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_updateDialogFilter(flags, dialog_filter_id.get(), std::move(filter))));
+        telegram_api::messages_updateDialogFilter(0, dialog_filter_id.get(), std::move(filter))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -237,8 +233,7 @@ class EditExportedChatlistInviteQuery final : public Td::ResultHandler {
 
   void send(DialogFilterId dialog_filter_id, const string &slug, const string &title,
             vector<tl_object_ptr<telegram_api::InputPeer>> &&input_peers) {
-    int32 flags =
-        telegram_api::chatlists_editExportedInvite::TITLE_MASK | telegram_api::chatlists_editExportedInvite::PEERS_MASK;
+    int32 flags = telegram_api::chatlists_editExportedInvite::TITLE_MASK;
     send_query(G()->net_query_creator().create(telegram_api::chatlists_editExportedInvite(
         flags, dialog_filter_id.get_input_chatlist(), slug, title, std::move(input_peers))));
   }

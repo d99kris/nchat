@@ -50,7 +50,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20261009;
+static const int s_TdlibDate = 20261021;
 
 namespace detail
 {

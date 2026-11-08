@@ -136,9 +136,6 @@ telegram_api::object_ptr<telegram_api::InputReplyTo> MessageInputReplyTo::get_in
     flags |= telegram_api::inputReplyToMessage::TOP_MSG_ID_MASK;
   }
   auto saved_input_peer = message_topic.get_saved_input_peer(td);
-  if (saved_input_peer != nullptr) {
-    flags |= telegram_api::inputReplyToMessage::MONOFORUM_PEER_ID_MASK;
-  }
   telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
   if (dialog_id_ != DialogId()) {
     input_peer = td->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
@@ -146,13 +143,9 @@ telegram_api::object_ptr<telegram_api::InputReplyTo> MessageInputReplyTo::get_in
       LOG(INFO) << "Failed to get input peer for " << dialog_id_;
       return nullptr;
     }
-    flags |= telegram_api::inputReplyToMessage::REPLY_TO_PEER_ID_MASK;
   }
   if (todo_item_id_ != 0) {
     flags |= telegram_api::inputReplyToMessage::TODO_ITEM_ID_MASK;
-  }
-  if (!poll_option_id_.empty()) {
-    flags |= telegram_api::inputReplyToMessage::POLL_OPTION_MASK;
   }
   if (reply_to_message_id != MessageId() && !reply_to_message_id.is_server()) {
     LOG(FATAL) << *this << " in " << message_topic << " in " << for_dialog_id << " for "
@@ -161,7 +154,8 @@ telegram_api::object_ptr<telegram_api::InputReplyTo> MessageInputReplyTo::get_in
   }
   auto result = telegram_api::make_object<telegram_api::inputReplyToMessage>(
       flags, reply_to_message_id.get_server_message_id().get(), top_msg_id, std::move(input_peer), string(), Auto(), 0,
-      std::move(saved_input_peer), todo_item_id_, BufferSlice(poll_option_id_));
+      std::move(saved_input_peer), todo_item_id_, BufferSlice(poll_option_id_),
+      vector<telegram_api::object_ptr<telegram_api::RichText>>());
   quote_.update_input_reply_to_message(td, result.get());
   return std::move(result);
 }
@@ -179,10 +173,10 @@ td_api::object_ptr<td_api::InputMessageReplyTo> MessageInputReplyTo::get_input_m
   if (dialog_id_ != DialogId()) {
     return td_api::make_object<td_api::inputMessageReplyToExternalMessage>(
         td->dialog_manager_->get_chat_id_object(dialog_id_, "inputMessageReplyToExternalMessage"), message_id_.get(),
-        quote_.get_input_text_quote_object(td->user_manager_.get()), todo_item_id_, poll_option_id_);
+        quote_.get_input_text_quote_object(td), todo_item_id_, poll_option_id_);
   }
   return td_api::make_object<td_api::inputMessageReplyToMessage>(
-      message_id_.get(), quote_.get_input_text_quote_object(td->user_manager_.get()), todo_item_id_, poll_option_id_);
+      message_id_.get(), quote_.get_input_text_quote_object(td), todo_item_id_, poll_option_id_);
 }
 
 MessageId MessageInputReplyTo::get_same_chat_reply_to_message_id() const {

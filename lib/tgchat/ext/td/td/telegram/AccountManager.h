@@ -14,6 +14,7 @@
 
 #include "td/utils/common.h"
 #include "td/utils/Promise.h"
+#include "td/utils/Status.h"
 
 namespace td {
 
@@ -64,9 +65,12 @@ class AccountManager final : public Actor {
 
   void cancel_web_token(const string &token, Promise<Unit> &&promise);
 
-  void get_user_link(Promise<td_api::object_ptr<td_api::userLink>> &&promise);
+  void get_user_link(bool remove_messages_fee, bool is_permanent, bool revoke_previous_links,
+                     Promise<td_api::object_ptr<td_api::userLink>> &&promise);
 
   void import_contact_token(const string &token, Promise<td_api::object_ptr<td_api::user>> &&promise);
+
+  void apply_unpaid_messages_token(UserId user_id, const string &token, Promise<Unit> &&promise);
 
   void invalidate_authentication_codes(vector<string> &&authentication_codes);
 
@@ -101,7 +105,15 @@ class AccountManager final : public Actor {
 
   void tear_down() final;
 
-  void get_user_link_impl(Promise<td_api::object_ptr<td_api::userLink>> &&promise);
+  void get_user_link_impl(bool remove_messages_fee, bool is_permanent, bool revoke_previous_links,
+                          Promise<td_api::object_ptr<td_api::userLink>> &&promise);
+
+  void create_user_link(string unpaid_messages_token, int32 unpaid_messages_token_expire_date,
+                        Promise<td_api::object_ptr<td_api::userLink>> &&promise);
+
+  void on_get_find_by_phone_number_privacy(Result<td_api::object_ptr<td_api::userPrivacySettingRules>> r_rules,
+                                           string unpaid_messages_token, int32 unpaid_messages_token_expire_date,
+                                           Promise<td_api::object_ptr<td_api::userLink>> &&promise);
 
   static string get_age_verification_parameters_key();
 

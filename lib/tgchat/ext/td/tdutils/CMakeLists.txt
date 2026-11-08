@@ -212,6 +212,8 @@ set(TDUTILS_SOURCE
   td/utils/Enumerator.h
   td/utils/EpochBasedMemoryReclamation.h
   td/utils/ExitGuard.h
+  td/utils/ExpiringFlatHashMap.h
+  td/utils/ExpiringWaitFreeHashMap.h
   td/utils/FileLog.h
   td/utils/filesystem.h
   td/utils/find_boundary.h
@@ -324,6 +326,8 @@ set(TDUTILS_TEST_SOURCE
   ${CMAKE_CURRENT_SOURCE_DIR}/test/emoji.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/Enumerator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/EpochBasedMemoryReclamation.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/ExpiringFlatHashMap.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/ExpiringWaitFreeHashMap.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/filesystem.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/gzip.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/HazardPointers.cpp

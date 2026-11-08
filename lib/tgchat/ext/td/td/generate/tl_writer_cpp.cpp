@@ -420,7 +420,18 @@ std::string TD_TL_writer_cpp::gen_type_store(const std::string &field_name, cons
   auto pretty_field_name = get_pretty_field_name(field_name);
   if (pretty_field_name == "private_key" || pretty_field_name == "secret_phrase" ||
       pretty_field_name == "new_encryption_key" || pretty_field_name == "database_encryption_key" ||
-      pretty_field_name == "encryption_key") {
+      pretty_field_name == "encryption_key" || pretty_field_name == "secret" ||
+      (pretty_field_name.size() >= 7u && pretty_field_name.substr(pretty_field_name.size() - 7u) == "_secret" &&
+       pretty_field_name != "is_secret") ||
+      pretty_field_name == "token" ||
+      (pretty_field_name.size() >= 6u && pretty_field_name.substr(pretty_field_name.size() - 6u) == "_token") ||
+      (pretty_field_name.size() >= 7u && pretty_field_name.substr(pretty_field_name.size() - 7u) == "_tokens") ||
+      pretty_field_name == "password" || pretty_field_name == "old_password" || pretty_field_name == "new_password" ||
+      pretty_field_name == "tmp_password" || pretty_field_name == "encryption_iv" ||
+      pretty_field_name == "stream_key" || pretty_field_name == "new_nonce" || pretty_field_name == "iv" ||
+      pretty_field_name == "auth_base64url" || pretty_field_name == "payment_data" ||
+      pretty_field_name == "phone_code" || pretty_field_name == "recovery_code" || pretty_field_name == "codes" ||
+      pretty_field_name == "api_hash") {
     return "s.store_field(\"" + pretty_field_name + "\", \"[REDACTED]\");";
   } else if (name == "#" || name == "Int" || name == "Long" || name == "Int32" || name == "Int53" || name == "Int64" ||
              name == "Double" || name == "Bool" || name == "String" || name == "SecureString" || name == "Int128" ||
@@ -512,8 +523,15 @@ std::string TD_TL_writer_cpp::gen_field_store(const tl::arg &a, const std::vecto
           continue;
         }
         const tl::tl_tree_type *tree_type = static_cast<tl::tl_tree_type *>(other_arg.type);
-        if (tree_type->type->name == "True") {
-          field_name += " | (" + gen_field_name(other_arg.name) + " << " + int_to_string(other_arg.exist_var_bit) + ")";
+        const std::string &type_name = tree_type->type->name;
+        if (type_name == "True") {
+          field_name += " | (" + gen_field_name(other_arg.name) + " << " + int_to_string(other_arg.exist_var_bit) + ')';
+        } else if (type_name == "Vector" || type_name == "Bytes") {
+          field_name += " | ((!" + gen_field_name(other_arg.name) + ".empty()) << " +
+                        int_to_string(other_arg.exist_var_bit) + ')';
+        } else if (!is_built_in_simple_type(type_name) && !is_built_in_complex_type(type_name)) {
+          field_name += " | ((" + gen_field_name(other_arg.name) + " != nullptr) << " +
+                        int_to_string(other_arg.exist_var_bit) + ')';
         }
       }
       field_name += ")";

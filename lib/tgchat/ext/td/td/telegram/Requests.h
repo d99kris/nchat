@@ -230,6 +230,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::searchUserByToken &request);
 
+  void on_request(uint64 id, td_api::applyUnpaidMessagesToken &request);
+
   void on_request(uint64 id, const td_api::getActiveSessions &request);
 
   void on_request(uint64 id, const td_api::terminateSession &request);
@@ -1742,6 +1744,10 @@ class Requests {
 
   void on_request(uint64 id, td_api::getTonWalletNfts &request);
 
+  void on_request(uint64 id, const td_api::getTonWalletCardBackgroundGiftCollectionNames &request);
+
+  void on_request(uint64 id, td_api::setTonWalletCardStickers &request);
+
   void on_request(uint64 id, const td_api::getTonConnectSessions &request);
 
   void on_request(uint64 id, td_api::createTonConnectSession &request);
@@ -1820,7 +1826,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::addPollOption &request);
 
-  void on_request(uint64 id, const td_api::deletePollOption &request);
+  void on_request(uint64 id, td_api::deletePollOption &request);
 
   void on_request(uint64 id, td_api::setPollAnswer &request);
 
@@ -1934,6 +1940,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::sellGift &request);
 
+  void on_request(uint64 id, td_api::deleteGift &request);
+
   void on_request(uint64 id, const td_api::toggleGiftIsSaved &request);
 
   void on_request(uint64 id, const td_api::setPinnedGifts &request);
@@ -1970,7 +1978,13 @@ class Requests {
 
   void on_request(uint64 id, td_api::getUpgradedGiftValueInfo &request);
 
-  void on_request(uint64 id, td_api::getUpgradedGiftWithdrawalUrl &request);
+  void on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request);
+
+  void on_request(uint64 id, const td_api::withdrawUpgradedGift &request);
+
+  void on_request(uint64 id, td_api::getUpgradedGiftDepositInfo &request);
+
+  void on_request(uint64 id, td_api::displayUpgradedGift &request);
 
   void on_request(uint64 id, const td_api::getUpgradedGiftsPromotionalAnimation &request);
 
@@ -2037,6 +2051,10 @@ class Requests {
   void on_request(uint64 id, const td_api::removeInstalledBackground &request);
 
   void on_request(uint64 id, const td_api::resetInstalledBackgrounds &request);
+
+  void on_request(uint64 id, const td_api::getProfileShareThemeBackdrops &request);
+
+  void on_request(uint64 id, td_api::setProfileShareTheme &request);
 
   void on_request(uint64 id, td_api::getRecentlyVisitedTMeUrls &request);
 
@@ -2151,6 +2169,10 @@ class Requests {
   void on_request(uint64 id, const td_api::getProxies &request);
 
   void on_request(uint64 id, td_api::pingProxy &request);
+
+  void on_request(uint64 id, td_api::processWebProxyCarrierMessage &request);
+
+  void on_request(uint64 id, td_api::reportWebProxyCarrierError &request);
 
   void on_request(uint64 id, const td_api::getUserSupportInfo &request);
 

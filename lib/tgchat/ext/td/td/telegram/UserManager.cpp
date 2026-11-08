@@ -64,6 +64,8 @@
 #include "td/telegram/PhotoSize.h"
 #include "td/telegram/PremiumGiftOption.h"
 #include "td/telegram/PremiumGiftOption.hpp"
+#include "td/telegram/ProfileShareTheme.h"
+#include "td/telegram/ProfileShareTheme.hpp"
 #include "td/telegram/ReactionListType.h"
 #include "td/telegram/ReactionManager.h"
 #include "td/telegram/ReferralProgramInfo.hpp"
@@ -81,6 +83,8 @@
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/ThemeManager.h"
+#include "td/telegram/TonWalletCard.h"
+#include "td/telegram/TonWalletCard.hpp"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/VerificationStatus.h"
 #include "td/telegram/Version.h"
@@ -217,14 +221,12 @@ class AddContactQuery final : public Td::ResultHandler {
   void send(UserId user_id, telegram_api::object_ptr<telegram_api::InputUser> &&input_user, const Contact &contact,
             bool share_phone_number) {
     user_id_ = user_id;
-    int32 flags = 0;
     telegram_api::object_ptr<telegram_api::textWithEntities> input_note;
     if (contact.get_edit_note()) {
-      flags |= telegram_api::contacts_addContact::NOTE_MASK;
       input_note = get_input_text_with_entities(td_->user_manager_.get(), contact.get_note(), "AddContactQuery");
     }
     send_query(G()->net_query_creator().create(
-        telegram_api::contacts_addContact(flags, share_phone_number, std::move(input_user), contact.get_first_name(),
+        telegram_api::contacts_addContact(0, share_phone_number, std::move(input_user), contact.get_first_name(),
                                           contact.get_last_name(), contact.get_phone_number(), std::move(input_note)),
         {{DialogId(user_id)}}));
   }
@@ -549,25 +551,19 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
     is_fallback_ = is_fallback;
     only_suggest_ = only_suggest;
 
-    static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::VIDEO_MASK) ==
-                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_MASK));
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::VIDEO_START_TS_MASK) ==
                   static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_START_TS_MASK));
-    static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::FILE_MASK) ==
-                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::FILE_MASK));
 
     int32 flags = 0;
     telegram_api::object_ptr<telegram_api::InputFile> photo_input_file;
     telegram_api::object_ptr<telegram_api::InputFile> video_input_file;
     if (is_animation) {
-      flags |= telegram_api::photos_uploadProfilePhoto::VIDEO_MASK;
       video_input_file = std::move(input_file);
 
       if (main_frame_timestamp != 0.0) {
         flags |= telegram_api::photos_uploadProfilePhoto::VIDEO_START_TS_MASK;
       }
     } else {
-      flags |= telegram_api::photos_uploadProfilePhoto::FILE_MASK;
       photo_input_file = std::move(input_file);
     }
     bool is_me = user_id == td_->user_manager_->get_my_id();
@@ -580,9 +576,6 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
       input_user = r_input_user.move_as_ok();
     }
     if (td_->user_manager_->is_user_bot(user_id) != td_->auth_manager_->is_bot() || is_me) {
-      if (input_user != nullptr) {
-        flags |= telegram_api::photos_uploadProfilePhoto::BOT_MASK;
-      }
       send_query(G()->net_query_creator().create(
           telegram_api::photos_uploadProfilePhoto(flags, is_fallback, std::move(input_user),
                                                   std::move(photo_input_file), std::move(video_input_file),
@@ -614,19 +607,14 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
       input_user = r_input_user.move_as_ok();
     }
     if (td_->user_manager_->is_user_bot(user_id) != td_->auth_manager_->is_bot() || is_me) {
-      int32 flags = telegram_api::photos_uploadProfilePhoto::VIDEO_EMOJI_MARKUP_MASK;
-      if (input_user != nullptr) {
-        flags |= telegram_api::photos_uploadProfilePhoto::BOT_MASK;
-      }
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, std::move(input_user), nullptr, nullptr, 0.0,
+          telegram_api::photos_uploadProfilePhoto(0, is_fallback, std::move(input_user), nullptr, nullptr, 0.0,
                                                   sticker_photo_size->get_input_video_size_object(td_)),
           {{user_id}}));
     } else {
-      int32 flags = telegram_api::photos_uploadContactProfilePhoto::VIDEO_EMOJI_MARKUP_MASK;
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadContactProfilePhoto(flags, only_suggest, !only_suggest, std::move(input_user),
-                                                         nullptr, nullptr, 0.0,
+          telegram_api::photos_uploadContactProfilePhoto(0, only_suggest, !only_suggest, std::move(input_user), nullptr,
+                                                         nullptr, 0.0,
                                                          sticker_photo_size->get_input_video_size_object(td_)),
           {{user_id}}));
     }
@@ -685,8 +673,7 @@ class UpdateProfilePhotoQuery final : public Td::ResultHandler {
         return on_error(r_input_user.move_as_error());
       }
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_updateProfilePhoto(telegram_api::photos_updateProfilePhoto::BOT_MASK, is_fallback,
-                                                  r_input_user.move_as_ok(), std::move(input_photo)),
+          telegram_api::photos_updateProfilePhoto(0, is_fallback, r_input_user.move_as_ok(), std::move(input_photo)),
           {{user_id}}));
     } else {
       send_query(G()->net_query_creator().create(
@@ -901,11 +888,8 @@ class UpdateColorQuery final : public Td::ResultHandler {
     for_profile_ = for_profile;
     accent_color_id_ = accent_color_id;
     background_custom_emoji_id_ = background_custom_emoji_id;
-    int32 flags = 0;
     telegram_api::object_ptr<telegram_api::PeerColor> color;
     if (accent_color_id.is_valid()) {
-      flags |= telegram_api::account_updateColor::COLOR_MASK;
-
       int32 color_flags = telegram_api::peerColor::COLOR_MASK;
       if (background_custom_emoji_id.is_valid()) {
         color_flags |= telegram_api::peerColor::BACKGROUND_EMOJI_ID_MASK;
@@ -913,8 +897,8 @@ class UpdateColorQuery final : public Td::ResultHandler {
       color = telegram_api::make_object<telegram_api::peerColor>(color_flags, accent_color_id.get(),
                                                                  background_custom_emoji_id.get());
     }
-    send_query(G()->net_query_creator().create(telegram_api::account_updateColor(flags, for_profile, std::move(color)),
-                                               {{"me"}}));
+    send_query(
+        G()->net_query_creator().create(telegram_api::account_updateColor(0, for_profile, std::move(color)), {{"me"}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -941,10 +925,9 @@ class UpdateColorCollectibleQuery final : public Td::ResultHandler {
   }
 
   void send(int64 collectible_id) {
-    int32 flags = telegram_api::account_updateColor::COLOR_MASK;
     send_query(G()->net_query_creator().create(
         telegram_api::account_updateColor(
-            flags, false, telegram_api::make_object<telegram_api::inputPeerColorCollectible>(collectible_id)),
+            0, false, telegram_api::make_object<telegram_api::inputPeerColorCollectible>(collectible_id)),
         {{"me"}}));
   }
 
@@ -1345,12 +1328,9 @@ class UpdateBirthdayQuery final : public Td::ResultHandler {
   }
 
   void send(const Birthdate &birthdate) {
-    int32 flags = 0;
-    if (!birthdate.is_empty()) {
-      flags |= telegram_api::account_updateBirthday::BIRTHDAY_MASK;
-    }
     send_query(G()->net_query_creator().create(
-        telegram_api::account_updateBirthday(flags, birthdate.get_input_birthday()), {{"me"}}));
+        telegram_api::account_updateBirthday(0, birthdate.is_empty() ? nullptr : birthdate.get_input_birthday()),
+        {{"me"}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1630,12 +1610,8 @@ class SaveMusicQuery final : public Td::ResultHandler {
     file_id_ = file_id;
     after_file_id_ = after_file_id;
     file_reference_ = FileManager::extract_file_reference(input_document);
-    int32 flags = 0;
-    if (after_input_document != nullptr) {
-      flags |= telegram_api::account_saveMusic::AFTER_ID_MASK;
-    }
     send_query(G()->net_query_creator().create(
-        telegram_api::account_saveMusic(flags, false, std::move(input_document), std::move(after_input_document)),
+        telegram_api::account_saveMusic(0, false, std::move(input_document), std::move(after_input_document)),
         {{"me"}}));
   }
 
@@ -2296,9 +2272,11 @@ void UserManager::UserFull::store(StorerT &storer) const {
   bool has_pending_star_rating = pending_star_rating != nullptr;
   bool has_main_profile_tab = main_profile_tab != ProfileTab::Default;
   bool has_first_saved_music_file_id = first_saved_music_file_id != FileId();
-  bool has_note = !note.text.empty();
+  bool has_note = !note.is_empty();
   bool has_manager_bot_user_id = bot_info != nullptr && bot_info->manager_bot_user_id != UserId();
   bool has_linked_community_id = linked_community_id.is_valid();
+  bool has_ton_wallet_card = ton_wallet_card != nullptr;
+  bool has_share_theme = share_theme != nullptr;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(has_about);
   STORE_FLAG(is_blocked);
@@ -2358,7 +2336,9 @@ void UserManager::UserFull::store(StorerT &storer) const {
     STORE_FLAG(noforwards_peer_enabled);
     STORE_FLAG(has_manager_bot_user_id);
     STORE_FLAG(unofficial_security_risk);
-    STORE_FLAG(has_linked_community_id);
+    STORE_FLAG(has_linked_community_id);  // 25
+    STORE_FLAG(has_ton_wallet_card);
+    STORE_FLAG(has_share_theme);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -2470,6 +2450,12 @@ void UserManager::UserFull::store(StorerT &storer) const {
   if (has_linked_community_id) {
     store(linked_community_id, storer);
   }
+  if (has_ton_wallet_card) {
+    store(ton_wallet_card, storer);
+  }
+  if (has_share_theme) {
+    store(share_theme, storer);
+  }
 }
 
 template <class ParserT>
@@ -2514,6 +2500,8 @@ void UserManager::UserFull::parse(ParserT &parser) {
   bool has_note = false;
   bool has_manager_bot_user_id = false;
   bool has_linked_community_id = false;
+  bool has_ton_wallet_card = false;
+  bool has_share_theme = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(has_about);
   PARSE_FLAG(is_blocked);
@@ -2574,6 +2562,8 @@ void UserManager::UserFull::parse(ParserT &parser) {
     PARSE_FLAG(has_manager_bot_user_id);
     PARSE_FLAG(unofficial_security_risk);
     PARSE_FLAG(has_linked_community_id);
+    PARSE_FLAG(has_ton_wallet_card);
+    PARSE_FLAG(has_share_theme);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -2688,6 +2678,12 @@ void UserManager::UserFull::parse(ParserT &parser) {
   }
   if (has_linked_community_id) {
     parse(linked_community_id, parser);
+  }
+  if (has_ton_wallet_card) {
+    parse(ton_wallet_card, parser);
+  }
+  if (has_share_theme) {
+    parse(share_theme, parser);
   }
 }
 
@@ -4770,6 +4766,33 @@ void UserManager::on_update_user_full_note(UserFull *user_full, FormattedText &&
   }
 }
 
+void UserManager::on_update_user_full_ton_wallet_card(UserFull *user_full,
+                                                      unique_ptr<TonWalletCard> &&ton_wallet_card) {
+  CHECK(user_full != nullptr);
+  if (user_full->ton_wallet_card != ton_wallet_card) {
+    user_full->ton_wallet_card = std::move(ton_wallet_card);
+    user_full->is_changed = true;
+  }
+}
+
+void UserManager::on_update_user_full_share_theme(UserFull *user_full, unique_ptr<ProfileShareTheme> &&share_theme) {
+  CHECK(user_full != nullptr);
+  if (user_full->share_theme != share_theme) {
+    user_full->share_theme = std::move(share_theme);
+    user_full->is_changed = true;
+  }
+}
+
+void UserManager::on_update_my_ton_wallet_card(unique_ptr<TonWalletCard> &&ton_wallet_card) {
+  auto my_id = get_my_id();
+  UserFull *user_full = get_user_full_force(my_id, "on_update_my_ton_wallet_card");
+  if (user_full == nullptr) {
+    return;
+  }
+  on_update_user_full_ton_wallet_card(user_full, std::move(ton_wallet_card));
+  update_user_full(user_full, my_id, "on_update_my_ton_wallet_card");
+}
+
 std::pair<int64, int64> UserManager::get_saved_music_document_id(FileId saved_music_file_id, bool from_server) const {
   auto file_view = td_->file_manager_->get_file_view(saved_music_file_id);
   if (file_view.empty() || file_view.get_type() != FileType::Audio) {
@@ -5505,14 +5528,14 @@ Result<UserManager::BotData> UserManager::get_bot_data(UserId user_id) const {
   if (u == nullptr) {
     return Status::Error(400, "Bot not found");
   }
-  if (!u->is_bot) {
-    return Status::Error(400, "User is not a bot");
+  if (!u->is_received) {
+    return Status::Error(400, "User is inaccessible");
   }
   if (u->is_deleted) {
-    return Status::Error(400, "Bot is deleted");
+    return Status::Error(400, "User is deleted");
   }
-  if (!u->is_received) {
-    return Status::Error(400, "Bot is inaccessible");
+  if (!u->is_bot) {
+    return Status::Error(400, "User is not a bot");
   }
 
   BotData bot_data;
@@ -6343,7 +6366,7 @@ void UserManager::add_set_profile_photo_to_cache(UserId user_id, Photo &&photo, 
   bool is_me = user_id == get_my_id();
 
   // update photo list
-  auto user_photos = user_photos_.get_pointer(user_id);
+  auto user_photos = user_photos_.get(user_id);
   if (is_me && !is_fallback && user_photos != nullptr && user_photos->count != -1 && !photo.is_empty()) {
     if (user_photos->offset == 0) {
       if (user_photos->photos.empty() || user_photos->photos[0].id.get() != photo.id.get()) {
@@ -6426,7 +6449,7 @@ bool UserManager::delete_my_profile_photo_from_cache(int64 profile_photo_id) {
   bool is_main_photo_deleted = u != nullptr && u->photo.id == profile_photo_id;
 
   // update photo list
-  auto user_photos = user_photos_.get_pointer(user_id);
+  auto user_photos = user_photos_.get(user_id);
   if (user_photos != nullptr && user_photos->count > 0) {
     auto old_size = user_photos->photos.size();
     if (td::remove_if(user_photos->photos,
@@ -7170,11 +7193,7 @@ FileSourceId UserManager::get_user_profile_photo_file_source_id(UserId user_id, 
 
 UserManager::UserPhotos *UserManager::add_user_photos(UserId user_id) {
   CHECK(user_id.is_valid());
-  auto &user_photos_ptr = user_photos_[user_id];
-  if (user_photos_ptr == nullptr) {
-    user_photos_ptr = make_unique<UserPhotos>();
-  }
-  return user_photos_ptr.get();
+  return &user_photos_[user_id];
 }
 
 void UserManager::on_get_user_photos(UserId user_id, int32 offset, int32 limit, int32 total_count,
@@ -7487,7 +7506,7 @@ void UserManager::on_add_saved_music(FileId file_id, FileId after_file_id, Promi
   }
 
   auto user_id = get_my_id();
-  auto user_saved_music = user_saved_music_.get_pointer(user_id);
+  auto user_saved_music = user_saved_music_.get(user_id);
   if (user_saved_music != nullptr && user_saved_music->count != -1 && user_saved_music->offset != -1) {
     auto is_deleted = td::remove(user_saved_music->saved_music_file_ids, file_id);
     if (!is_deleted) {
@@ -7534,7 +7553,7 @@ void UserManager::on_remove_saved_music(FileId file_id, Promise<Unit> &&promise)
   }
 
   auto user_id = get_my_id();
-  auto user_saved_music = user_saved_music_.get_pointer(user_id);
+  auto user_saved_music = user_saved_music_.get(user_id);
   if (user_saved_music != nullptr && user_saved_music->count != -1 && user_saved_music->offset != -1) {
     auto is_deleted = td::remove(user_saved_music->saved_music_file_ids, file_id);
     if (is_deleted || user_saved_music->offset == 0) {
@@ -7724,11 +7743,7 @@ void UserManager::finish_get_user_saved_music(UserId user_id, Result<Unit> &&res
 
 UserManager::UserSavedMusic *UserManager::add_user_saved_music(UserId user_id) {
   CHECK(user_id.is_valid());
-  auto &user_saved_music_ptr = user_saved_music_[user_id];
-  if (user_saved_music_ptr == nullptr) {
-    user_saved_music_ptr = make_unique<UserSavedMusic>();
-  }
-  return user_saved_music_ptr.get();
+  return &user_saved_music_[user_id];
 }
 
 void UserManager::on_get_user_saved_music(UserId user_id, int32 offset, int32 limit, int32 total_count,
@@ -7974,12 +7989,13 @@ void UserManager::can_send_message_to_user(UserId user_id, bool force,
     return promise.set_value(td_api::make_object<td_api::canSendMessageToUserResultOk>());
   }
 
-  auto it = user_full_contact_price_.find(user_id);
-  if (it != user_full_contact_price_.end()) {
-    if (it->second > 0) {
-      return promise.set_value(td_api::make_object<td_api::canSendMessageToUserResultUserHasPaidMessages>(it->second));
+  auto *contact_price = user_full_contact_price_.get(user_id);
+  if (contact_price != nullptr) {
+    if (*contact_price > 0) {
+      return promise.set_value(
+          td_api::make_object<td_api::canSendMessageToUserResultUserHasPaidMessages>(*contact_price));
     }
-    if (it->second == -1) {
+    if (*contact_price == -1) {
       return promise.set_value(td_api::make_object<td_api::canSendMessageToUserResultUserRestrictsNewChats>());
     }
     return promise.set_value(td_api::make_object<td_api::canSendMessageToUserResultOk>());
@@ -8035,9 +8051,9 @@ void UserManager::allow_send_message_to_user(UserId user_id) {
   CHECK(!td_->auth_manager_->is_bot());
   if (get_user_full(user_id) == nullptr) {
     CHECK(user_id.is_valid());
-    auto it = user_full_contact_price_.find(user_id);
-    if (it != user_full_contact_price_.end() && it->second == -1) {
-      it->second = 0;
+    auto *contact_price = user_full_contact_price_.get(user_id);
+    if (contact_price != nullptr && *contact_price == -1) {
+      *contact_price = 0;
     }
   }
 }
@@ -9187,6 +9203,10 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
                                  user->noforwards_peer_enabled_);
   on_update_user_full_note(user_full,
                            get_formatted_text(this, std::move(user->note_), true, false, "on_get_user_full note"));
+  on_update_user_full_ton_wallet_card(user_full,
+                                      TonWalletCard::get_ton_wallet_card(td_, std::move(user->wallet_card_)));
+  on_update_user_full_share_theme(user_full,
+                                  ProfileShareTheme::get_profile_share_theme(td_, std::move(user->share_theme_)));
 
   bool can_pin_messages = user->can_pin_message_;
   bool can_be_called = user->phone_calls_available_ && !user->phone_calls_private_;
@@ -9458,7 +9478,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   if (!first_saved_music_file_id.is_valid()) {
     drop_user_saved_music(user_id, true, "on_get_user_full");
   } else {
-    auto user_saved_music = user_saved_music_.get_pointer(user_id);
+    auto user_saved_music = user_saved_music_.get(user_id);
     if (user_saved_music != nullptr && user_saved_music->offset == 0 &&
         (user_saved_music->saved_music_file_ids.empty() ||
          user_saved_music->saved_music_file_ids[0] != first_saved_music_file_id)) {
@@ -9545,6 +9565,12 @@ void UserManager::on_load_user_full_from_database(UserId user_id, string value) 
   }
   if (user_full->bot_verification != nullptr) {
     user_full->bot_verification->add_dependencies(dependencies);
+  }
+  if (user_full->ton_wallet_card != nullptr) {
+    user_full->ton_wallet_card->add_dependencies(dependencies);
+  }
+  if (user_full->share_theme != nullptr) {
+    user_full->share_theme->add_dependencies(dependencies);
   }
   if (user_full->bot_info != nullptr) {
     dependencies.add(user_full->bot_info->manager_bot_user_id);
@@ -9680,7 +9706,7 @@ void UserManager::drop_user_full_photos(UserFull *user_full, UserId user_id, int
 }
 
 void UserManager::drop_user_photos(UserId user_id, bool is_empty, const char *source) {
-  auto user_photos = user_photos_.get_pointer(user_id);
+  auto user_photos = user_photos_.get(user_id);
   if (user_photos != nullptr) {
     int32 new_count = is_empty ? 0 : -1;
     if (user_photos->count == new_count) {
@@ -9696,7 +9722,7 @@ void UserManager::drop_user_photos(UserId user_id, bool is_empty, const char *so
 }
 
 void UserManager::drop_user_saved_music(UserId user_id, bool is_empty, const char *source) {
-  auto user_saved_music = user_saved_music_.get_pointer(user_id);
+  auto user_saved_music = user_saved_music_.get(user_id);
   if (user_saved_music != nullptr) {
     int32 new_count = is_empty ? 0 : -1;
     if (user_saved_music->count == new_count) {
@@ -9745,6 +9771,8 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->linked_community_id = CommunityId();
   user_full->business_info = nullptr;
   user_full->bot_verification = nullptr;
+  user_full->ton_wallet_card = nullptr;
+  user_full->share_theme = nullptr;
   user_full->star_rating = nullptr;
   user_full->pending_star_rating = nullptr;
   user_full->pending_star_rating_date = 0;
@@ -10064,7 +10092,7 @@ void UserManager::update_user(User *u, UserId user_id, bool from_binlog, bool fr
 
     auto user_full = get_user_full(user_id);
     if (user_full != nullptr) {
-      if (!user_full->note.text.empty()) {
+      if (!user_full->note.is_empty()) {
         user_full->is_changed = true;
       }
       if (user_full->need_phone_number_privacy_exception && is_user_contact(u, user_id, false)) {
@@ -10600,7 +10628,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   auto pending_user_rating =
       user_full->pending_star_rating == nullptr ? nullptr : user_full->pending_star_rating->get_user_rating_object();
   td_api::object_ptr<td_api::formattedText> note;
-  if (is_contact && !user_full->note.text.empty()) {
+  if (is_contact && !user_full->note.is_empty()) {
     auto user_note = user_full->note;
     if (fix_formatted_text(user_note.text, user_note.entities, false, false, false, true, true, false).is_ok()) {
       note = get_formatted_text_object(this, user_note, true, -1);
@@ -10621,8 +10649,10 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
       user_full->gift_settings.get_gift_settings_object(), std::move(bot_verification),
       get_profile_tab_object(user_full->main_profile_tab),
       td_->audios_manager_->get_audio_object(user_full->first_saved_music_file_id), std::move(user_rating),
-      std::move(pending_user_rating), user_full->pending_star_rating_date, std::move(note), std::move(business_info),
-      std::move(bot_info));
+      std::move(pending_user_rating), user_full->pending_star_rating_date, std::move(note),
+      user_full->ton_wallet_card == nullptr ? nullptr : user_full->ton_wallet_card->get_ton_wallet_card_object(td_),
+      user_full->share_theme == nullptr ? nullptr : user_full->share_theme->get_profile_share_theme_object(td_),
+      std::move(business_info), std::move(bot_info));
 }
 
 td_api::object_ptr<td_api::updateContactCloseBirthdays> UserManager::get_update_contact_close_birthdays() const {

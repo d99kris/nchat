@@ -6,7 +6,10 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
+#include "td/telegram/MessageContentDupType.h"
 #include "td/telegram/MessageEntity.h"
+#include "td/telegram/RichText.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -16,13 +19,16 @@
 namespace td {
 
 class Dependencies;
-
+class RichMessage;
 class Td;
 
 class MessageQuote {
   FormattedText text_;
+  vector<RichText> rich_texts_;
   int32 position_ = 0;
   bool is_manual_ = true;
+
+  vector<td_api::object_ptr<td_api::RichText>> get_rich_texts_object(Td *td) const;
 
   friend bool operator==(const MessageQuote &lhs, const MessageQuote &rhs);
 
@@ -36,8 +42,8 @@ class MessageQuote {
   MessageQuote &operator=(MessageQuote &&) = default;
   ~MessageQuote();
 
-  MessageQuote(FormattedText &&text, int32 position, bool is_manual = true)
-      : text_(std::move(text)), position_(max(0, position)), is_manual_(is_manual) {
+  MessageQuote(FormattedText &&text, vector<RichText> &&rich_texts, int32 position, bool is_manual = true)
+      : text_(std::move(text)), rich_texts_(std::move(rich_texts)), position_(max(0, position)), is_manual_(is_manual) {
     remove_unallowed_quote_entities(text_);
   }
 
@@ -49,23 +55,25 @@ class MessageQuote {
 
   static MessageQuote create_automatic_quote(Td *td, FormattedText &&text);
 
+  static MessageQuote create_automatic_quote(Td *td, const RichMessage &rich_message);
+
   static int need_quote_changed_warning(const MessageQuote &old_quote, const MessageQuote &new_quote);
 
   static int32 search_quote(FormattedText &&text, FormattedText &&quote, int32 quote_position);
 
   bool is_empty() const {
-    return text_.text.empty();
+    return text_.is_empty() && rich_texts_.empty();
   }
 
-  MessageQuote clone(bool ignore_is_manual = false) const;
+  MessageQuote clone(Td *td, DialogId dialog_id, MessageContentDupType dup_type, bool ignore_is_manual = false) const;
 
   void add_dependencies(Dependencies &dependencies) const;
 
   void update_input_reply_to_message(Td *td, telegram_api::inputReplyToMessage *input_reply_to_message) const;
 
-  td_api::object_ptr<td_api::inputTextQuote> get_input_text_quote_object(const UserManager *user_manager) const;
+  td_api::object_ptr<td_api::inputTextQuote> get_input_text_quote_object(Td *td) const;
 
-  td_api::object_ptr<td_api::textQuote> get_text_quote_object(const UserManager *user_manager) const;
+  td_api::object_ptr<td_api::textQuote> get_text_quote_object(Td *td) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;

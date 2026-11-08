@@ -470,9 +470,15 @@ static auto proxy_socks(const td::string &server, td::int32 port, const td::stri
       server, port, td::td_api::make_object<td::td_api::proxyTypeSocks5>(username, password)));
 }
 
+static auto proxy_web(const td::string &server, const td::string &path, const td::string &secret) {
+  return td::td_api::make_object<td::td_api::internalLinkTypeProxy>(td::td_api::make_object<td::td_api::proxy>(
+      server, 443, td::td_api::make_object<td::td_api::proxyTypeWeb>(path, secret)));
+}
+
 static auto public_chat(const td::string &chat_username, const td::string &draft_text = td::string(),
-                        bool open_profile = false) {
-  return td::td_api::make_object<td::td_api::internalLinkTypePublicChat>(chat_username, draft_text, open_profile);
+                        bool open_profile = false, const td::string &unpaid_messages_token = td::string()) {
+  return td::td_api::make_object<td::td_api::internalLinkTypePublicChat>(chat_username, draft_text, open_profile,
+                                                                         unpaid_messages_token);
 }
 
 static auto qr_code_authentication() {
@@ -546,13 +552,13 @@ static auto upgraded_gift(const td::string &name) {
 }
 
 static auto user_phone_number(const td::string &phone_number, const td::string &draft_text = td::string(),
-                              bool open_profile = false) {
+                              bool open_profile = false, const td::string &unpaid_messages_token = td::string()) {
   return td::td_api::make_object<td::td_api::internalLinkTypeUserPhoneNumber>('+' + phone_number, draft_text,
-                                                                              open_profile);
+                                                                              open_profile, unpaid_messages_token);
 }
 
-static auto user_token(const td::string &token) {
-  return td::td_api::make_object<td::td_api::internalLinkTypeUserToken>(token);
+static auto user_token(const td::string &token, const td::string &unpaid_messages_token = td::string()) {
+  return td::td_api::make_object<td::td_api::internalLinkTypeUserToken>(token, unpaid_messages_token);
 }
 
 static auto video_chat(const td::string &chat_username, const td::string &invite_hash, bool is_live_stream) {
@@ -656,6 +662,15 @@ TEST(Link, parse_internal_link_part1) {
                       attachment_menu_bot(nullptr, public_chat("telegram"), "test", "1"));
   parse_internal_link("tg:resolve?domain=username&profile=12&asd", public_chat("username", "", true));
   parse_internal_link("tg:resolve?domain=username&profile&text=@asd", public_chat("username", " @asd", true));
+  parse_internal_link("tg:resolve?domain=username&free=AbCd-_0123456789",
+                      public_chat("username", "", false, "AbCd-_0123456789"));
+  parse_internal_link("tg:resolve?domain=username&free=abc&profile&text=@asd",
+                      public_chat("username", " @asd", true, "abc"));
+  parse_internal_link("tg:resolve?domain=username&free=", public_chat("username"));
+  parse_internal_link("tg:resolve?domain=username&free=a%20b", public_chat("username"));
+  parse_internal_link("tg:resolve?domain=username&free=a+b", public_chat("username"));
+  parse_internal_link("tg:resolve?domain=username&free=abc&attach=test",
+                      attachment_menu_bot(nullptr, public_chat("username"), "test", ""));
   parse_internal_link("tg:resolve?domain=telegram&attach=test%30&startattach=1",
                       attachment_menu_bot(nullptr, public_chat("telegram"), "test0", "1"));
   parse_internal_link("tg:resolve?domain=telegram&attach=%30test&startattach=1", public_chat("telegram"));
@@ -697,6 +712,13 @@ TEST(Link, parse_internal_link_part1) {
   parse_internal_link("tg:resolve?phone=12345678901&text=1%A02", user_phone_number("12345678901"));
   parse_internal_link("tg:resolve?phone=123456&profile", user_phone_number("123456", "", true));
   parse_internal_link("tg:resolve?phone=123456&profile&text=@asd", user_phone_number("123456", " @asd", true));
+  parse_internal_link("tg:resolve?phone=123456&free=AbCd-_0123456789",
+                      user_phone_number("123456", "", false, "AbCd-_0123456789"));
+  parse_internal_link("tg:resolve?phone=123456&free=abc&profile&text=@asd",
+                      user_phone_number("123456", " @asd", true, "abc"));
+  parse_internal_link("tg:resolve?phone=123456&free=a%20b", user_phone_number("123456"));
+  parse_internal_link("tg:resolve?phone=123456&free=abc&attach=test",
+                      attachment_menu_bot(nullptr, user_phone_number("123456"), "test", ""));
   parse_internal_link("tg:resolve?phone=123456&attach=test%30&startattach=1",
                       attachment_menu_bot(nullptr, user_phone_number("123456"), "test0", "1"));
   parse_internal_link("tg:resolve?phone=123456&attach=%30test&startattach=1", user_phone_number("123456"));
@@ -731,6 +753,11 @@ TEST(Link, parse_internal_link_part1) {
   parse_internal_link("tg:contact?token=%29123", user_token(")123"));
   parse_internal_link("tg:contact?token=%2F123", user_token("/123"));
   parse_internal_link("tg:contact?token=%FF123", unknown_deep_link("tg://contact?token=%FF123"));
+  parse_internal_link("tg:contact?token=123456&free=AbCd-_0123456789", user_token("123456", "AbCd-_0123456789"));
+  parse_internal_link("tg:contact?free=abc&token=123456", user_token("123456", "abc"));
+  parse_internal_link("tg:contact?token=123456&free=", user_token("123456"));
+  parse_internal_link("tg:contact?token=123456&free=a%20b", user_token("123456"));
+  parse_internal_link("tg:contact?token=123456&free=a+b", user_token("123456"));
 
   parse_internal_link("tg:nft?slug=1", upgraded_gift("1"));
   parse_internal_link("tg:nft?slug=123456", upgraded_gift("123456"));
@@ -790,6 +817,14 @@ TEST(Link, parse_internal_link_part1) {
                       attachment_menu_bot(nullptr, public_chat("username"), "bot", "1"));
   parse_internal_link("t.me/username?asd&profile=12", public_chat("username", "", true));
   parse_internal_link("t.me/username?profile&text=@asd", public_chat("username", " @asd", true));
+  parse_internal_link("t.me/username?free=AbCd-_0123456789", public_chat("username", "", false, "AbCd-_0123456789"));
+  parse_internal_link("t.me/username?text=@asd&free=abc&profile", public_chat("username", " @asd", true, "abc"));
+  parse_internal_link("t.me/username?free=a%20b", public_chat("username"));
+  parse_internal_link(
+      "t.me/username?free=0123456789012345678901234567890123456789012345678901234567890123",
+      public_chat("username", "", false, "0123456789012345678901234567890123456789012345678901234567890123"));
+  parse_internal_link("t.me/username?free=01234567890123456789012345678901234567890123456789012345678901234",
+                      public_chat("username"));
   parse_internal_link("t.me/username?attach=bot%30", attachment_menu_bot(nullptr, public_chat("username"), "bot0", ""));
   parse_internal_link("t.me/username?attach=%30bot&startattach=1", public_chat("username"));
   parse_internal_link("t.me/username?attach=bot%30&startattach=%31",
@@ -1119,6 +1154,9 @@ TEST(Link, parse_internal_link_part2) {
                       attachment_menu_bot(nullptr, user_phone_number("123456"), "bot", "1"));
   parse_internal_link("t.me/+123456?profile", user_phone_number("123456", "", true));
   parse_internal_link("t.me/+123456?profile&text=@asd", user_phone_number("123456", " @asd", true));
+  parse_internal_link("t.me/+123456?free=AbCd-_0123456789", user_phone_number("123456", "", false, "AbCd-_0123456789"));
+  parse_internal_link("t.me/+123456?free=abc&profile&text=@asd", user_phone_number("123456", " @asd", true, "abc"));
+  parse_internal_link("t.me/+123456?free=a%20b", user_phone_number("123456"));
   parse_internal_link("t.me/+123456?attach=bot%30",
                       attachment_menu_bot(nullptr, user_phone_number("123456"), "bot0", ""));
   parse_internal_link("t.me/+123456?attach=%30bot&startattach=1", user_phone_number("123456"));
@@ -1195,6 +1233,13 @@ TEST(Link, parse_internal_link_part2) {
   parse_internal_link("t.me/contact/?attach=&startattach", nullptr);
   parse_internal_link("t.me/contact/%30123", user_token("0123"));
   parse_internal_link("t.me/contact/%29123", user_token(")123"));
+  parse_internal_link("t.me/contact/123456?free=AbCd-_0123456789", user_token("123456", "AbCd-_0123456789"));
+  parse_internal_link("t.me/contact/123456/?free=abc", user_token("123456", "abc"));
+  parse_internal_link("t.me/contact/123456?free=a%20b", user_token("123456"));
+  parse_internal_link("t.me/contact/123456?free=0123456789012345678901234567890123456789012345678901234567890123",
+                      user_token("123456", "0123456789012345678901234567890123456789012345678901234567890123"));
+  parse_internal_link("t.me/contact/123456?free=01234567890123456789012345678901234567890123456789012345678901234",
+                      user_token("123456"));
   parse_internal_link("t.me/contact/%2F123", user_token("/123"));
   parse_internal_link("t.me/contact/%FF123", nullptr);
 
@@ -1430,6 +1475,52 @@ TEST(Link, parse_internal_link_part3) {
   parse_internal_link("tg:proxy?server=&port=80&secret=1234567890abcdef1234567890ABCDEF", unsupported_proxy());
   parse_internal_link("tg:proxy?server=%FF&port=80&secret=1234567890abcdef1234567890ABCDEF", unsupported_proxy());
 
+  parse_internal_link("t.me/webproxy?server=proxy.example.com&secret=8561944064fc730cbfa4473562d8ec59",
+                      proxy_web("proxy.example.com", "", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("https://t.me/webproxy?server=proxy.example.com&port=80&secret=8561944064FC730CBFA4473562D8EC59",
+                      proxy_web("proxy.example.com", "", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("t.me/webproxy?server=HTTPS%3A%2F%2FProxy.Example.COM.&secret=dd8561944064fc730cbfa4473562d8ec59",
+                      proxy_web("proxy.example.com", "", "dd8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link(
+      "t.me/webproxy?server=%D0%BF%D1%80%D0%B8%D0%BC%D0%B5%D1%80.%D1%80%D1%84&secret="
+      "8561944064fc730cbfa4473562d8ec59",
+      proxy_web("xn--e1afmkfd.xn--p1ai", "", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link(
+      "t.me/webproxy?server=%D0%9F%D1%80%D0%B8%D0%BC%D0%B5%D1%80.%D0%A0%D0%A4&secret="
+      "8561944064fc730cbfa4473562d8ec59",
+      proxy_web("xn--e1afmkfd.xn--p1ai", "", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("t.me/webproxy?server=proxy.example.com%2Fdobry-cola-super-app&secret=cIVhlEBk_HMMv6RHNWLY7Fk",
+                      proxy_web("proxy.example.com", "dobry-cola-super-app", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("t.me/webproxy?server=proxy.example.com%2Fa%2Fb_c&secret=cN2FYZRAZPxzDL-kRzVi2OxZ",
+                      proxy_web("proxy.example.com", "a/b_c", "dd8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("t.me/webproxy?server=proxy.example.com&secret=cIVhlEBk_HMMv6RHNWLY7Fk",
+                      proxy_web("proxy.example.com", "", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("t.me/webproxy?server=proxy.example.com%2Fapp&secret=8561944064fc730cbfa4473562d8ec59",
+                      unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.example.com&secret=7tAAAAAAAAAAAAAAAAAAAAAAAAcuZ29vZ2xlLmNvbQ",
+                      unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.example.com&secret=de8561944064fc730cbfa4473562d8ec59",
+                      unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=1.2.3.4&secret=8561944064fc730cbfa4473562d8ec59", unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.0x7f&secret=8561944064fc730cbfa4473562d8ec59", unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=localhost&secret=8561944064fc730cbfa4473562d8ec59", unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.example.com%2F-app&secret=cIVhlEBk_HMMv6RHNWLY7Fk",
+                      unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.example.com%2Fa%2F%2Fb&secret=cIVhlEBk_HMMv6RHNWLY7Fk",
+                      unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.example.com%2Fa.b&secret=cIVhlEBk_HMMv6RHNWLY7Fk",
+                      unsupported_proxy());
+  parse_internal_link("t.me/webproxy?server=proxy.example.com", unsupported_proxy());
+  parse_internal_link("t.me/webproxy", unsupported_proxy());
+
+  parse_internal_link("tg:webproxy?server=proxy.example.com&secret=8561944064fc730cbfa4473562d8ec59",
+                      proxy_web("proxy.example.com", "", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("tg://webproxy?server=proxy.example.com%2Fdobry-cola-super-app&secret=cIVhlEBk_HMMv6RHNWLY7Fk",
+                      proxy_web("proxy.example.com", "dobry-cola-super-app", "8561944064fc730cbfa4473562d8ec59"));
+  parse_internal_link("tg:webproxy?server=proxy.example.com%2Fapp&secret=8561944064fc730cbfa4473562d8ec59",
+                      unsupported_proxy());
+  parse_internal_link("tg:webproxy", unsupported_proxy());
+
   parse_internal_link(
       "t.me/"
       "sendgrams?startapp=tonconnect-v__2-id__c745acd825f83bf7ef88d671ea69c90fd1c7e71f78b1079ec8ad3c231fed7a65-trace--"
@@ -1453,6 +1544,16 @@ TEST(Link, parse_internal_link_part3) {
                                               "-239", "abacaba"),
                   "none", "{\"request\":\"none\"}", "01a0b488-27a9-7419-89bc-169fc31ba6fd"));
 
+  parse_internal_link(
+      "tg:resolve/"
+      "?domain=sendgrams&startapp=tonconnect-v__2-id__c745acd825f83bf7ef88d671ea69c90fd1c7e71f78b1079ec8ad3c231fed7a65-"
+      "trace--5Fid__01a0b488--2D27a9--2D7419--2D89bc--2D169fc31ba6fd-r__--7B--22manifestUrl--22--3A--22https--3A--2F--"
+      "2Ftonconnect--2Dsdk--2Ddemo--2Ddapp--2Evercel--2Eapp--2Ftonconnect--2Dmanifest--2Ejson--22--2C--22items--22--3A-"
+      "-5B--7B--22name--22--3A--22ton--5Faddr--22--7D--5D--7D-ret__none",
+      ton_connect(
+          2, "c745acd825f83bf7ef88d671ea69c90fd1c7e71f78b1079ec8ad3c231fed7a65",
+          ton_connect_connect_request("https://tonconnect-sdk-demo-dapp.vercel.app/tonconnect-manifest.json", "", ""),
+          "none", "", "01a0b488-27a9-7419-89bc-169fc31ba6fd"));
   parse_internal_link(
       "tg:sendgrams?v=2&id=c745acd825f83bf7ef88d671ea69c90fd1c7e71f78b1079ec8ad3c231fed7a65&trace%5Fid=01a0b488%2D27a9%"
       "2D7419%2D89bc%2D169fc31ba6fd&r=%7B%22manifestUrl%22%3A%22https%3A%2F%2Ftonconnect%2Dsdk%2Ddemo%2Ddapp%2Evercel%"

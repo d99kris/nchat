@@ -1360,6 +1360,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   string gift_craft_probabilities;
   int32 wallet_gasless_daily_transfers = 0;
   vector<string> bot_allowed_suffixes;
+  vector<string> wallet_card_background_gifts;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1510,9 +1511,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"channel_color_level_min", "default_emoji_statuses_stickerset_id", "dialog_filters_enabled",
        "dialog_filters_tooltip", "forum_upgrade_participants_min", "getfile_experimental_params",
        "giveaway_gifts_purchase_available", "groupcall_video_participants_max", "ios_display_passkeys",
-       "message_animated_emoji_max", "qr_login_camera", "qr_login_code", "stargifts_blocked", "starref_connect_allowed",
-       "starref_program_allowed", "stars_purchase_blocked", "stars_rating_learnmore_url", "stickers_emoji_cache_time",
-       "stories_export_nopublic_link", "stories_posting", "story_expire_period", "test", "upload_max_fileparts_default",
+       "message_animated_emoji_max", "qr_login_camera", "qr_login_code", "round_video_recorder_2_allowed",
+       "stargifts_blocked", "starref_connect_allowed", "starref_program_allowed", "stars_purchase_blocked",
+       "stars_rating_learnmore_url", "stickers_emoji_cache_time", "stories_export_nopublic_link", "stories_posting",
+       "story_expire_period", "test", "upload_max_fileparts_default",
        //
        "upload_max_fileparts_premium"});
   if (config->get_id() == telegram_api::jsonObject::ID) {
@@ -1893,7 +1895,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
           for (auto &prefix : prefixes) {
             auto prefix_text = get_json_value_string(std::move(prefix), key);
             if (!prefix_text.empty() && prefix_text.find(' ') == string::npos) {
-              fragment_prefixes.push_back(prefix_text);
+              starref_start_param_prefixes.push_back(prefix_text);
             } else {
               LOG(ERROR) << "Receive an invalid affiliate program link prefix";
             }
@@ -2064,6 +2066,22 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
+      if (key == "wallet_card_bg_gifts") {
+        if (value->get_id() == telegram_api::jsonArray::ID) {
+          auto gifts = std::move(static_cast<telegram_api::jsonArray *>(value)->value_);
+          for (auto &gift : gifts) {
+            auto gift_name = get_json_value_string(std::move(gift), key);
+            if (!gift_name.empty() && gift_name.find('\xFF') == string::npos) {
+              wallet_card_background_gifts.push_back(gift_name);
+            } else {
+              LOG(ERROR) << "Receive an invalid wallet card background gift name";
+            }
+          }
+        } else {
+          LOG(ERROR) << "Receive unexpected wallet_card_bg_gifts " << to_string(*value);
+        }
+        continue;
+      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2133,6 +2151,12 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   }
 
   options.set_option_string("bot_allowed_suffixes", implode(bot_allowed_suffixes, ' '));
+
+  if (wallet_card_background_gifts.empty()) {
+    options.set_option_empty("ton_wallet_card_background_gifts");
+  } else {
+    options.set_option_string("ton_wallet_card_background_gifts", implode(wallet_card_background_gifts, '\xFF'));
+  }
 
   options.set_option_string("emoji_sounds", implode(emoji_sounds, ','));
 

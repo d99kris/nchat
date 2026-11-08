@@ -2408,7 +2408,7 @@ Status FileManager::merge(FileId x_file_id, FileId y_file_id, bool no_sync) {
     context_->on_merge_files(node->main_file_id_, other_node->main_file_id_);
   }
 
-  bool send_updates_flag = false;
+  bool send_updates_flag = other_node->need_info_flush();
   auto other_pmc_id = other_node->pmc_id_;
   append(node->file_ids_, other_node->file_ids_);
 
@@ -2419,8 +2419,8 @@ Status FileManager::merge(FileId x_file_id, FileId y_file_id, bool no_sync) {
   }
   other_node = {};
 
+  // unsent changes of other_node would be lost with it, so they must be sent with node
   if (send_updates_flag) {
-    // node might not changed, but other_node might changed, so we need to send update anyway
     VLOG(update_file) << "File " << node->main_file_id_ << " has been merged";
     node->on_info_changed();
   }

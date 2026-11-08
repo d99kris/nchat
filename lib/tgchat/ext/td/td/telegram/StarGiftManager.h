@@ -79,6 +79,8 @@ class StarGiftManager final : public Actor {
 
   void convert_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, Promise<Unit> &&promise);
 
+  void delete_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, Promise<Unit> &&promise);
+
   void save_gift(StarGiftId star_gift_id, bool is_saved, Promise<Unit> &&promise);
 
   void set_dialog_pinned_gifts(DialogId dialog_id, const vector<StarGiftId> &star_gift_ids, Promise<Unit> &&promise);
@@ -130,7 +132,14 @@ class StarGiftManager final : public Actor {
   void get_upgraded_gift_value_info(const string &name,
                                     Promise<td_api::object_ptr<td_api::upgradedGiftValueInfo>> &&promise);
 
-  void get_star_gift_withdrawal_url(StarGiftId star_gift_id, const string &password, Promise<string> &&promise);
+  void get_star_gift_withdrawal_url(StarGiftId star_gift_id, Promise<string> &&promise);
+
+  void get_upgraded_gift_deposit_info(DialogId owner_dialog_id, const string &name, bool hide_sender,
+                                      Promise<td_api::object_ptr<td_api::upgradedGiftDepositInfo>> &&promise);
+
+  void display_upgraded_gift(DialogId owner_dialog_id, const string &name, Promise<Unit> &&promise);
+
+  void withdraw_star_gift(StarGiftId star_gift_id, bool keep_on_profile, Promise<Unit> &&promise);
 
   void set_star_gift_price(StarGiftId star_gift_id, StarGiftResalePrice price, Promise<Unit> &&promise);
 
@@ -189,10 +198,6 @@ class StarGiftManager final : public Actor {
   Status check_star_gift_id(const StarGiftId &star_gift_id, DialogId dialog_id) const;
 
   Status check_star_gift_ids(const vector<StarGiftId> &star_gift_ids, DialogId dialog_id) const;
-
-  void send_get_star_gift_withdrawal_url_query(
-      StarGiftId star_gift_id, telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> input_check_password,
-      Promise<string> &&promise);
 
   double get_gift_message_polling_timeout() const;
 

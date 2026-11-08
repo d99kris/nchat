@@ -11,6 +11,7 @@ set(TD_TEST_SOURCE
   ${CMAKE_CURRENT_SOURCE_DIR}/mtproto.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/poll.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/query_merger.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/requested_dialog_type.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/secret.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/secure_storage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/set_with_position.cpp
@@ -32,7 +33,7 @@ set(TESTS_MAIN
 
 #add_library(all_tests STATIC ${TD_TEST_SOURCE})
 #target_include_directories(all_tests PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-#target_link_libraries(all_tests PRIVATE tdcore tdclient)
+#target_link_libraries(all_tests PRIVATE tdapi tdcore tdclient)
 
 if (NOT CMAKE_CROSSCOMPILING OR EMSCRIPTEN)
   if (OPENSSL_FOUND)
@@ -61,8 +62,8 @@ if (NOT CMAKE_CROSSCOMPILING OR EMSCRIPTEN)
   target_include_directories(run_all_tests PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
   target_include_directories(test-tdutils PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
   target_link_libraries(test-tdutils PRIVATE tdutils)
-  target_link_libraries(run_all_tests PRIVATE tdcore tdclient)
-  target_link_libraries(test-online PRIVATE tdcore tdjson_private tdclient tdutils tdactor)
+  target_link_libraries(run_all_tests PRIVATE tdapi tdcore tdclient)
+  target_link_libraries(test-online PRIVATE tdapi tdcore tdjson_private tdclient tdutils tdactor)
 
   if (CLANG)
 #    add_executable(fuzz_url fuzz_url.cpp)

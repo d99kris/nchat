@@ -89,6 +89,7 @@
 #include "td/utils/buffer.h"
 #include "td/utils/ChangesProcessor.h"
 #include "td/utils/common.h"
+#include "td/utils/ExpiringFlatHashMap.h"
 #include "td/utils/FlatHashMap.h"
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/HashTableUtils.h"
@@ -135,8 +136,6 @@ class Usernames;
 class MessagesManager final : public Actor {
  public:
   static constexpr int32 SEND_MESSAGE_FLAG_DISABLE_WEB_PAGE_PREVIEW = 1 << 1;
-  static constexpr int32 SEND_MESSAGE_FLAG_HAS_REPLY_MARKUP = 1 << 2;
-  static constexpr int32 SEND_MESSAGE_FLAG_HAS_ENTITIES = 1 << 3;
   static constexpr int32 SEND_MESSAGE_FLAG_DISABLE_NOTIFICATION = 1 << 5;
   static constexpr int32 SEND_MESSAGE_FLAG_FROM_BACKGROUND = 1 << 6;
   static constexpr int32 SEND_MESSAGE_FLAG_CLEAR_DRAFT = 1 << 7;
@@ -146,7 +145,6 @@ class MessagesManager final : public Actor {
   static constexpr int32 SEND_MESSAGE_FLAG_HIDE_VIA = 1 << 11;
   static constexpr int32 SEND_MESSAGE_FLAG_DROP_AUTHOR = 1 << 11;
   static constexpr int32 SEND_MESSAGE_FLAG_DROP_MEDIA_CAPTIONS = 1 << 12;
-  static constexpr int32 SEND_MESSAGE_FLAG_HAS_SEND_AS = 1 << 13;
   static constexpr int32 SEND_MESSAGE_FLAG_NOFORWARDS = 1 << 14;
   static constexpr int32 SEND_MESSAGE_FLAG_UPDATE_STICKER_SETS_ORDER = 1 << 15;
   static constexpr int32 SEND_MESSAGE_FLAG_INVERT_MEDIA = 1 << 16;
@@ -432,6 +430,10 @@ class MessagesManager final : public Actor {
                                        SavedMessagesTopicId saved_messages_topic_id);
 
   void read_all_dialog_reactions(DialogId dialog_id, ForumTopicId forum_topic_id, Promise<Unit> &&promise);
+
+  void delete_local_reactions_by_sender(DialogId dialog_id, DialogId sender_dialog_id);
+
+  void delete_reaction_by_sender(DialogId dialog_id, MessageId message_id, DialogId sender_dialog_id);
 
   void read_all_local_dialog_poll_votes(DialogId dialog_id, ForumTopicId forum_topic_id);
 
@@ -1705,6 +1707,8 @@ class MessagesManager final : public Actor {
 
   static constexpr int32 MAX_RESEND_DELAY = 86400;  // seconds, some reasonable limit
 
+  static constexpr int32 PERSISTENT_MESSAGE_ID_CACHE_TIME = 3600;  // some reasonable limit
+
   static constexpr bool DROP_SEND_MESSAGE_UPDATES = false;
 
   vector<UserId> get_message_user_ids(const Message *m) const;
@@ -1817,7 +1821,7 @@ class MessagesManager final : public Actor {
                                vector<string> &&cover_file_references, int32 schedule_date,
                                int32 schedule_repeat_period, uint64 edit_generation, Result<int32> &&result);
 
-  MessageId get_persistent_message_id(const Dialog *d, MessageId message_id) const;
+  MessageId get_persistent_message_id(const Dialog *d, MessageId message_id);
 
   MessageFullId get_replied_message_full_id(DialogId dialog_id, const Message *m) const;
 
@@ -2143,6 +2147,8 @@ class MessagesManager final : public Actor {
   void on_unread_message_reaction_removed(Dialog *d, const Message *m, const char *source);
 
   bool remove_message_unread_reactions(Dialog *d, Message *m, const char *source);
+
+  void delete_message_reactions_by_sender(Dialog *d, Message *m, DialogId sender_dialog_id, const char *source);
 
   void on_unread_poll_vote_added(Dialog *d, const Message *m, const char *source);
 
@@ -3548,7 +3554,8 @@ class MessagesManager final : public Actor {
 
   FlatHashMap<DialogId, MessageId, DialogIdHash> previous_repaired_read_inbox_max_message_id_;
 
-  FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> yet_unsent_message_full_id_to_persistent_message_id_;
+  ExpiringFlatHashMap<MessageFullId, MessageId, MessageFullIdHash> yet_unsent_message_full_id_to_persistent_message_id_{
+      PERSISTENT_MESSAGE_ID_CACHE_TIME};
   FlatHashMap<MessageFullId, std::set<MessageId>, MessageFullIdHash>
       yet_unsent_thread_message_ids_;  // {dialog_id, top_thread_message_id} -> yet unsent message identifiers
 

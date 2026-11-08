@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.68 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.69 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -37,6 +37,7 @@ option(TD_E2E_ONLY "Use \"ON\" to build and install tde2e instead of TDLib.")
 include(CTest)
 
 option(TD_ENABLE_LTO "Use \"ON\" to enable Link Time Optimization.")
+option(TD_ENABLE_PCH "Use \"ON\" to enable precompiled headers to speed up compilation. Requires CMake 3.16 or newer.")
 
 if (TD_ENABLE_LTO)
   include(CheckIPOSupported)
@@ -560,6 +561,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/Session.cpp
   td/telegram/net/SessionMultiProxy.cpp
   td/telegram/net/SessionProxy.cpp
+  td/telegram/net/WebProxyManager.cpp
   td/telegram/NewPasswordState.cpp
   td/telegram/NotificationGroupInfo.cpp
   td/telegram/NotificationGroupType.cpp
@@ -589,6 +591,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Premium.cpp
   td/telegram/PremiumGiftOption.cpp
   td/telegram/PrivacyManager.cpp
+  td/telegram/ProfileShareTheme.cpp
   td/telegram/ProfileTab.cpp
   td/telegram/PromoDataManager.cpp
   td/telegram/QueryCombiner.cpp
@@ -613,6 +616,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/RichButtonStyle.cpp
   td/telegram/RichMessage.cpp
   td/telegram/RichMessageMedia.cpp
+  td/telegram/RichText.cpp
   td/telegram/SavedMessagesManager.cpp
   td/telegram/SavedMessagesTopicId.cpp
   td/telegram/ScopeNotificationSettings.cpp
@@ -686,7 +690,11 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ToDoItem.cpp
   td/telegram/ToDoList.cpp
   td/telegram/TonAmount.cpp
+  td/telegram/TonNft.cpp
+  td/telegram/TonWalletCard.cpp
+  td/telegram/TonWalletCardSticker.cpp
   td/telegram/TonWalletManager.cpp
+  td/telegram/TonWalletOwnershipProof.cpp
   td/telegram/TopDialogCategory.cpp
   td/telegram/TopDialogManager.cpp
   td/telegram/TranscriptionInfo.cpp
@@ -982,6 +990,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/SessionMultiProxy.h
   td/telegram/net/SessionProxy.h
   td/telegram/net/TempAuthKeyWatchdog.h
+  td/telegram/net/WebProxyManager.h
   td/telegram/NewPasswordState.h
   td/telegram/Notification.h
   td/telegram/NotificationGroupFromDatabase.h
@@ -1022,6 +1031,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Premium.h
   td/telegram/PremiumGiftOption.h
   td/telegram/PrivacyManager.h
+  td/telegram/ProfileShareTheme.h
   td/telegram/ProfileTab.h
   td/telegram/PromoDataManager.h
   td/telegram/PtsManager.h
@@ -1052,6 +1062,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/RichButtonStyle.h
   td/telegram/RichMessage.h
   td/telegram/RichMessageMedia.h
+  td/telegram/RichText.h
   td/telegram/SavedMessagesManager.h
   td/telegram/SavedMessagesTopicId.h
   td/telegram/ScheduledServerMessageId.h
@@ -1138,7 +1149,11 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ToDoItem.h
   td/telegram/ToDoList.h
   td/telegram/TonAmount.h
+  td/telegram/TonNft.h
+  td/telegram/TonWalletCard.h
+  td/telegram/TonWalletCardSticker.h
   td/telegram/TonWalletManager.h
+  td/telegram/TonWalletOwnershipProof.h
   td/telegram/TopDialogCategory.h
   td/telegram/TopDialogManager.h
   td/telegram/TranscriptionInfo.h
@@ -1247,6 +1262,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/PollManager.hpp
   td/telegram/PollOption.hpp
   td/telegram/PremiumGiftOption.hpp
+  td/telegram/ProfileShareTheme.hpp
   td/telegram/ReactionManager.hpp
   td/telegram/ReactionNotificationSettings.hpp
   td/telegram/ReactionNotificationsFrom.hpp
@@ -1259,6 +1275,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/RichButtonStyle.hpp
   td/telegram/RichMessage.hpp
   td/telegram/RichMessageMedia.hpp
+  td/telegram/RichText.hpp
   td/telegram/ScopeNotificationSettings.hpp
   td/telegram/SecureValue.hpp
   td/telegram/SendCodeHelper.hpp
@@ -1289,6 +1306,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ToDoItem.hpp
   td/telegram/ToDoList.hpp
   td/telegram/TonAmount.hpp
+  td/telegram/TonNft.hpp
+  td/telegram/TonWalletCard.hpp
+  td/telegram/TonWalletCardSticker.hpp
   td/telegram/TranscriptionInfo.hpp
   td/telegram/VideoNotesManager.hpp
   td/telegram/VideosManager.hpp
@@ -1394,6 +1414,27 @@ else()
   target_link_libraries(tdcore PUBLIC tdapi tdnet tddb tdactor tde2e tdutils PRIVATE tdmtproto)
 
   set(TD_CORE_PART_TARGETS)
+endif()
+
+if (TD_ENABLE_PCH)
+  if (CMAKE_VERSION VERSION_LESS 3.16)
+    message(WARNING "Precompiled headers require CMake 3.16 or newer")
+  else()
+    if (TD_CORE_PART_TARGETS)
+      set(TD_CORE_PCH_TARGETS ${TD_CORE_PART_TARGETS})
+    else()
+      set(TD_CORE_PCH_TARGETS tdcore)
+    endif()
+    foreach (TD_CORE_PCH_TARGET ${TD_CORE_PCH_TARGETS})
+      target_precompile_headers(${TD_CORE_PCH_TARGET} PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/tdactor/td/actor/actor.h>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/tdutils/td/utils/Promise.h>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/tdutils/td/utils/Status.h>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/td_api.h>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/telegram_api.h>"
+      )
+    endforeach()
+  endif()
 endif()
 
 if (NOT CMAKE_CROSSCOMPILING)

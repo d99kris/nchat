@@ -1205,7 +1205,8 @@ class CliClient final : public Actor {
     if (reply_message_id_ != 0) {
       td_api::object_ptr<td_api::inputTextQuote> quote;
       if (!reply_quote_.empty()) {
-        quote = td_api::make_object<td_api::inputTextQuote>(as_formatted_text(reply_quote_), reply_quote_position_);
+        quote =
+            td_api::make_object<td_api::inputTextQuote>(as_formatted_text(reply_quote_), Auto(), reply_quote_position_);
       }
       if (reply_chat_id_ == 0) {
         return td_api::make_object<td_api::inputMessageReplyToMessage>(reply_message_id_, std::move(quote),
@@ -1795,9 +1796,9 @@ class CliClient final : public Actor {
         if (area.empty()) {
           continue;
         }
-        auto position = td_api::make_object<td_api::storyAreaPosition>(Random::fast(1, 99), Random::fast(1, 99),
-                                                                       Random::fast(1, 99), Random::fast(1, 99),
-                                                                       Random::fast(0, 360), Random::fast(1, 19));
+        auto position =
+            td_api::make_object<td_api::areaPosition>(Random::fast(1, 99), Random::fast(1, 99), Random::fast(1, 99),
+                                                      Random::fast(1, 99), Random::fast(0, 360), Random::fast(1, 19));
         td_api::object_ptr<td_api::InputStoryAreaType> type;
         if (area == "l") {
           type = td_api::make_object<td_api::inputStoryAreaTypeLocation>(
@@ -3454,6 +3455,10 @@ class CliClient final : public Actor {
       string star_gift_id;
       get_args(args, star_gift_id);
       send_request(td_api::make_object<td_api::sellGift>(business_connection_id_, star_gift_id));
+    } else if (op == "delg") {
+      string star_gift_id;
+      get_args(args, star_gift_id);
+      send_request(td_api::make_object<td_api::deleteGift>(business_connection_id_, star_gift_id));
     } else if (op == "pgab" || op == "pgabp") {
       int64 gift_id;
       int64 star_count;
@@ -3584,9 +3589,26 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::setGiftResalePrice>(received_gift_id, price));
     } else if (op == "gugwu") {
       string received_gift_id;
-      string password;
-      get_args(args, received_gift_id, password);
-      send_request(td_api::make_object<td_api::getUpgradedGiftWithdrawalUrl>(received_gift_id, password));
+      get_args(args, received_gift_id);
+      send_request(td_api::make_object<td_api::getUpgradedGiftWithdrawalUrl>(received_gift_id));
+    } else if (op == "wug") {
+      string received_gift_id;
+      bool keep_on_profile;
+      get_args(args, received_gift_id, keep_on_profile);
+      send_request(td_api::make_object<td_api::withdrawUpgradedGift>(received_gift_id, keep_on_profile));
+    } else if (op == "gugdi") {
+      string owner_id;
+      string name;
+      bool hide_sender;
+      get_args(args, owner_id, name, hide_sender);
+      send_request(
+          td_api::make_object<td_api::getUpgradedGiftDepositInfo>(as_message_sender(owner_id), name, hide_sender));
+    } else if (op == "dug") {
+      string owner_id;
+      string name;
+      get_args(args, owner_id, name);
+      send_request(td_api::make_object<td_api::displayUpgradedGift>(
+          owner_id.empty() ? nullptr : as_message_sender(owner_id), name));
     } else if (op == "gugpa") {
       send_request(td_api::make_object<td_api::getUpgradedGiftsPromotionalAnimation>());
     } else if (op == "sgfr" || op == "sgfrd" || op == "sgfrn" || op == "spfrc") {
@@ -3694,10 +3716,16 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getCloseFriends>());
     } else if (op == "scfr") {
       send_request(td_api::make_object<td_api::setCloseFriends>(as_user_ids(args)));
-    } else if (op == "gul") {
-      send_request(td_api::make_object<td_api::getUserLink>());
+    } else if (op == "gul" || op == "gulf" || op == "gulfp" || op == "gulfr" || op == "gulfpr") {
+      send_request(td_api::make_object<td_api::getUserLink>(op != "gul", op == "gulfp" || op == "gulfpr",
+                                                            op == "gulfr" || op == "gulfpr"));
     } else if (op == "subt") {
       send_request(td_api::make_object<td_api::searchUserByToken>(args));
+    } else if (op == "aumt") {
+      UserId user_id;
+      string token;
+      get_args(args, user_id, token);
+      send_request(td_api::make_object<td_api::applyUnpaidMessagesToken>(user_id, token));
     } else if (op == "aco" || op == "acon") {
       UserId user_id;
       string first_name;
@@ -4556,6 +4584,38 @@ class CliClient final : public Actor {
       ChatId chat_id;
       get_args(args, chat_id);
       send_request(td_api::make_object<td_api::deleteChatBackground>(chat_id, op == "dcbr"));
+    } else if (op == "gpstb") {
+      send_request(td_api::make_object<td_api::getProfileShareThemeBackdrops>());
+    } else if (op == "spstd") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::setProfileShareTheme>(chat_id, nullptr));
+    } else if (op == "spste" || op == "spstb") {
+      ChatId chat_id;
+      int32 backdrop_id = 0;
+      string emojis;
+      if (op == "spstb") {
+        get_args(args, chat_id, backdrop_id, emojis);
+      } else {
+        get_args(args, chat_id, emojis);
+      }
+      auto emoji_types =
+          transform(autosplit_str(emojis), [](const string &emoji) -> td_api::object_ptr<td_api::EmojiType> {
+            auto r_custom_emoji_id = to_integer_safe<int64>(emoji);
+            if (r_custom_emoji_id.is_ok()) {
+              return td_api::make_object<td_api::emojiTypeCustomEmoji>(r_custom_emoji_id.ok());
+            }
+            return td_api::make_object<td_api::emojiTypeRegular>(emoji);
+          });
+      send_request(td_api::make_object<td_api::setProfileShareTheme>(
+          chat_id, td_api::make_object<td_api::inputProfileShareThemeEmoji>(std::move(emoji_types), op == "spste",
+                                                                            backdrop_id)));
+    } else if (op == "spstg") {
+      ChatId chat_id;
+      string received_gift_id;
+      get_args(args, chat_id, received_gift_id);
+      send_request(td_api::make_object<td_api::setProfileShareTheme>(
+          chat_id, td_api::make_object<td_api::inputProfileShareThemeUpgradedGift>(received_gift_id)));
     } else if (op == "gcos") {
       send_request(td_api::make_object<td_api::getCountries>());
     } else if (op == "gcou") {
@@ -5513,7 +5573,7 @@ class CliClient final : public Actor {
       if (quick_reply_shortcut_name_.empty()) {
         send_request(td_api::make_object<td_api::resendMessages>(
             chat_id, as_message_ids(message_ids),
-            td_api::make_object<td_api::inputTextQuote>(as_formatted_text(quote), quote_position),
+            td_api::make_object<td_api::inputTextQuote>(as_formatted_text(quote), Auto(), quote_position),
             paid_message_star_count_));
       } else {
         send_request(td_api::make_object<td_api::readdQuickReplyShortcutMessages>(quick_reply_shortcut_name_,
@@ -8609,7 +8669,8 @@ class CliClient final : public Actor {
       string link;
       string match_code;
       get_args(args, link, match_code);
-      send_request(td_api::make_object<td_api::acceptOauthRequest>(link, match_code, op == "aorw", op == "aorp"));
+      send_request(
+          td_api::make_object<td_api::acceptOauthRequest>(link, match_code, op == "aorw", op == "aorp", nullptr));
     } else if (op == "dor") {
       const string &link = args;
       send_request(td_api::make_object<td_api::declineOauthRequest>(link));
@@ -8870,6 +8931,22 @@ class CliClient final : public Actor {
       string offset;
       get_args(args, limit, offset);
       send_request(td_api::make_object<td_api::getTonWalletNfts>(offset, as_limit(limit)));
+    } else if (op == "gtwcbgcn") {
+      send_request(td_api::make_object<td_api::getTonWalletCardBackgroundGiftCollectionNames>());
+    } else if (op == "stwcs") {
+      string nft_addresses;
+      string background_nft_address;
+      get_args(args, nft_addresses, background_nft_address);
+      send_request(td_api::make_object<td_api::setTonWalletCardStickers>(
+          transform(autosplit_str(nft_addresses),
+                    [](const string &nft_address) {
+                      return td_api::make_object<td_api::inputTonWalletCardSticker>(
+                          td_api::make_object<td_api::areaPosition>(Random::fast(10, 90), Random::fast(10, 90),
+                                                                    Random::fast(5, 20), Random::fast(5, 20),
+                                                                    Random::fast(0, 360), 0.0),
+                          nft_address);
+                    }),
+          background_nft_address));
     } else if (op == "gtcs") {
       send_request(td_api::make_object<td_api::getTonConnectSessions>());
     } else if (op == "ctwcs") {

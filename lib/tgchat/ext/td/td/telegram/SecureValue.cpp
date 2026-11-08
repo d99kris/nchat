@@ -601,7 +601,6 @@ telegram_api::object_ptr<telegram_api::inputSecureValue> get_input_secure_value_
   bool has_front_side = value.front_side.file.file_id.is_valid();
   bool has_reverse_side = value.reverse_side.file.file_id.is_valid();
   bool has_selfie = value.selfie.file.file_id.is_valid();
-  int32 flags = 0;
   tl_object_ptr<telegram_api::SecurePlainData> plain_data;
   if (is_plain) {
     if (value.type == SecureValueType::PhoneNumber) {
@@ -609,30 +608,18 @@ telegram_api::object_ptr<telegram_api::inputSecureValue> get_input_secure_value_
     } else {
       plain_data = make_tl_object<telegram_api::securePlainEmail>(value.data.data);
     }
-    flags |= telegram_api::inputSecureValue::PLAIN_DATA_MASK;
-  } else {
-    flags |= telegram_api::inputSecureValue::DATA_MASK;
-  }
-  if (!value.files.empty()) {
-    flags |= telegram_api::inputSecureValue::FILES_MASK;
   }
   if (has_front_side) {
-    flags |= telegram_api::inputSecureValue::FRONT_SIDE_MASK;
     CHECK(front_side);
   }
   if (has_reverse_side) {
-    flags |= telegram_api::inputSecureValue::REVERSE_SIDE_MASK;
     CHECK(reverse_side);
   }
   if (has_selfie) {
-    flags |= telegram_api::inputSecureValue::SELFIE_MASK;
     CHECK(selfie);
   }
-  if (!value.translations.empty()) {
-    flags |= telegram_api::inputSecureValue::TRANSLATION_MASK;
-  }
   return telegram_api::make_object<telegram_api::inputSecureValue>(
-      flags, get_input_secure_value_type(value.type), is_plain ? nullptr : get_secure_data_object(value.data),
+      0, get_input_secure_value_type(value.type), is_plain ? nullptr : get_secure_data_object(value.data),
       has_front_side ? get_input_secure_file_object(file_manager, value.front_side, *front_side) : nullptr,
       has_reverse_side ? get_input_secure_file_object(file_manager, value.reverse_side, *reverse_side) : nullptr,
       has_selfie ? get_input_secure_file_object(file_manager, value.selfie, *selfie) : nullptr,

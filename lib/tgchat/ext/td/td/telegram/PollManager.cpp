@@ -126,7 +126,7 @@ class GetPollVotersQuery final : public Td::ResultHandler {
     }
 
     CHECK(!option.empty());
-    int32 flags = telegram_api::messages_getPollVotes::OPTION_MASK;
+    int32 flags = 0;
     if (!offset.empty()) {
       flags |= telegram_api::messages_getPollVotes::OFFSET_MASK;
     }
@@ -291,12 +291,7 @@ class StopPollQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
-    int32 flags = telegram_api::messages_editMessage::MEDIA_MASK;
     auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), reply_markup);
-    if (input_reply_markup != nullptr) {
-      flags |= telegram_api::messages_editMessage::REPLY_MARKUP_MASK;
-    }
-
     auto message_id = message_full_id.get_message_id().get_server_message_id().get();
     auto poll = telegram_api::make_object<telegram_api::poll>(
         poll_id.get(), 0, true, false, false, false, false, false, false, false, true, false,
@@ -304,7 +299,7 @@ class StopPollQuery final : public Td::ResultHandler {
     auto input_media = telegram_api::make_object<telegram_api::inputMediaPoll>(0, std::move(poll), vector<int32>(),
                                                                                nullptr, string(), Auto(), nullptr);
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_editMessage(flags, false, false, std::move(input_peer), message_id, string(),
+        telegram_api::messages_editMessage(0, false, false, std::move(input_peer), message_id, string(),
                                            std::move(input_media), std::move(input_reply_markup),
                                            vector<tl_object_ptr<telegram_api::MessageEntity>>(), 0, 0, 0, nullptr),
         {{poll_id}, {dialog_id_}}));
@@ -2080,29 +2075,21 @@ telegram_api::object_ptr<telegram_api::InputMedia> PollManager::get_input_media(
     poll_flags |= telegram_api::poll::CLOSE_DATE_MASK;
   }
   auto country_codes = poll->country_codes_;
-  if (!country_codes.empty()) {
-    poll_flags |= telegram_api::poll::COUNTRIES_ISO2_MASK;
-  }
 
   int32 flags = 0;
   vector<int32> correct_answers;
   if (poll->is_quiz_) {
-    flags |= telegram_api::inputMediaPoll::CORRECT_ANSWERS_MASK;
     CHECK(!poll->correct_option_ids_.empty());
     for (auto correct_option_id : poll->correct_option_ids_) {
       CHECK(static_cast<size_t>(correct_option_id) < poll->options_.size());
       correct_answers.push_back(correct_option_id);
     }
 
-    if (!poll->explanation_.text.empty()) {
+    if (!poll->explanation_.is_empty()) {
       flags |= telegram_api::inputMediaPoll::SOLUTION_MASK;
     }
-    if (input_media[1] != nullptr) {
-      flags |= telegram_api::inputMediaPoll::SOLUTION_MEDIA_MASK;
-    }
-  }
-  if (input_media[0] != nullptr) {
-    flags |= telegram_api::inputMediaPoll::ATTACHED_MEDIA_MASK;
+  } else {
+    input_media[1] = nullptr;  // just in case
   }
   vector<telegram_api::object_ptr<telegram_api::PollAnswer>> answers;
   for (size_t i = 0; i < poll->options_.size(); i++) {
@@ -2472,7 +2459,7 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
         }
       }
       if (poll->explanation_ != explanation) {
-        if (explanation.text.empty() && !poll->explanation_.text.empty() && poll->has_revoting_disabled_) {
+        if (explanation.is_empty() && !poll->explanation_.is_empty() && poll->has_revoting_disabled_) {
           LOG(ERROR) << "Can't change known " << poll_id << " explanation to empty from " << source;
         } else {
           poll->explanation_ = std::move(explanation);
@@ -2507,7 +2494,7 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
     if (!correct_option_ids.empty()) {
       LOG(ERROR) << "Receive correct option " << correct_option_ids << " in non-quiz " << poll_id << " from " << source;
     }
-    if (!explanation.text.empty() || poll_results->solution_media_ != nullptr) {
+    if (!explanation.is_empty() || poll_results->solution_media_ != nullptr) {
       LOG(ERROR) << "Receive explanation " << explanation << " in non-quiz " << poll_id << " from " << source;
     }
   }

@@ -882,6 +882,15 @@ static void test_is_reserved(const td::string &ip, bool is_reserved) {
   td::IPAddress ip_address;
   ip_address.init_ipv4_port(ip, 80).ensure();
   ASSERT_EQ(is_reserved, ip_address.is_reserved());
+
+  ip_address.init_ipv6_as_ipv4_port(ip, 80).ensure();
+  ASSERT_EQ(is_reserved, ip_address.is_reserved());
+}
+
+static void test_is_reserved_v6(const td::string &ip, bool is_reserved) {
+  td::IPAddress ip_address;
+  ip_address.init_ipv6_port(ip, 80).ensure();
+  ASSERT_EQ(is_reserved, ip_address.is_reserved());
 }
 
 TEST(Misc, IPAddress_is_reserved) {
@@ -911,6 +920,10 @@ TEST(Misc, IPAddress_is_reserved) {
   test_is_reserved("172.32.0.0", false);
   test_is_reserved("191.255.255.255", false);
   test_is_reserved("192.0.0.0", true);
+  test_is_reserved("192.0.0.8", true);
+  test_is_reserved("192.0.0.9", false);
+  test_is_reserved("192.0.0.10", false);
+  test_is_reserved("192.0.0.11", true);
   test_is_reserved("192.0.0.255", true);
   test_is_reserved("192.0.1.0", false);
   test_is_reserved("192.0.1.255", false);
@@ -943,6 +956,100 @@ TEST(Misc, IPAddress_is_reserved) {
   test_is_reserved("240.0.0.0", true);
   test_is_reserved("255.255.255.254", true);
   test_is_reserved("255.255.255.255", true);
+
+  test_is_reserved_v6("::", true);
+  test_is_reserved_v6("::1", true);
+  test_is_reserved_v6("::2", true);
+  test_is_reserved_v6("::808:808", true);
+  test_is_reserved_v6("::ffff:808:808", false);
+  test_is_reserved_v6("::ffff:a00:1", true);
+
+  test_is_reserved_v6("0064:ff9a:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("0064:ff9b::", true);
+  test_is_reserved_v6("0064:ff9b:0000:0000:0000:0000:ffff:ffff", true);
+  test_is_reserved_v6("64:ff9b::808:808", false);
+  test_is_reserved_v6("64:ff9b::a00:1", true);
+  test_is_reserved_v6("64:ff9b::c000:9", false);
+  test_is_reserved_v6("0064:ff9b:0000:0000:0000:0001::", true);
+
+  test_is_reserved_v6("0064:ff9b:0000:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("0064:ff9b:0001::", true);
+  test_is_reserved_v6("0064:ff9b:0001:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("0064:ff9b:0002::", true);
+
+  test_is_reserved_v6("ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("100::", true);
+  test_is_reserved_v6("100::1", true);
+  test_is_reserved_v6("100::ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("100::1:0:0:0:0", true);
+  test_is_reserved_v6("100::1:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("100::2:0:0:0:0", true);
+
+  test_is_reserved_v6("2000:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2001::", true);
+  test_is_reserved_v6("2001:1::", true);
+  test_is_reserved_v6("2001:1::1", false);
+  test_is_reserved_v6("2001:1::2", false);
+  test_is_reserved_v6("2001:1::3", false);
+  test_is_reserved_v6("2001:1::4", true);
+  test_is_reserved_v6("2001:2::", true);
+  test_is_reserved_v6("2001:3::", false);
+  test_is_reserved_v6("2001:3:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2001:4::", true);
+  test_is_reserved_v6("2001:4:112::", false);
+  test_is_reserved_v6("2001:4:112:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2001:4:113::", true);
+  test_is_reserved_v6("2001:1f:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("2001:20::", false);
+  test_is_reserved_v6("2001:3f:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2001:40::", true);
+  test_is_reserved_v6("2001:01ff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("2001:0200::", false);
+
+  test_is_reserved_v6("2000:0db7:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2001:0db8::", true);
+  test_is_reserved_v6("2001:0db8:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("2001:0db9::", false);
+
+  test_is_reserved_v6("2001:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2002::", true);
+  test_is_reserved_v6("2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("2003::", false);
+
+  test_is_reserved_v6("2620:004f:7fff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2620:004f:8000::", false);
+  test_is_reserved_v6("2620:004f:8000:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("2620:004f:8001::", false);
+
+  test_is_reserved_v6("3ffe:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("3fff::", true);
+  test_is_reserved_v6("3fff:0fff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("3fff:1000::", false);
+  test_is_reserved_v6("3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false);
+  test_is_reserved_v6("4000::", true);
+  test_is_reserved_v6("1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+
+  test_is_reserved_v6("5eff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("5f00::", true);
+  test_is_reserved_v6("5f00:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("5f01::", true);
+
+  test_is_reserved_v6("fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("fc00::", true);
+  test_is_reserved_v6("fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("fe00::", true);
+
+  test_is_reserved_v6("fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("fe80::", true);
+  test_is_reserved_v6("febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("fec0::", true);
+
+  test_is_reserved_v6("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+  test_is_reserved_v6("ff00::", true);
+  test_is_reserved_v6("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true);
+
+  test_is_reserved_v6("2001:67c:4e8:f004::9", false);
+  test_is_reserved_v6("2606:4700:4700::1111", false);
 }
 
 TEST(Misc, ipv6_clear) {

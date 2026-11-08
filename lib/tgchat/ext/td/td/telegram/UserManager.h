@@ -47,6 +47,8 @@
 #include "td/actor/MultiTimeout.h"
 
 #include "td/utils/common.h"
+#include "td/utils/ExpiringFlatHashMap.h"
+#include "td/utils/ExpiringWaitFreeHashMap.h"
 #include "td/utils/FlatHashMap.h"
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/HashTableUtils.h"
@@ -74,8 +76,10 @@ class BusinessIntro;
 class BusinessWorkHours;
 class EmojiStatus;
 class PeerColorCollectible;
+class ProfileShareTheme;
 class StarRating;
 class Td;
+class TonWalletCard;
 
 class UserManager final : public Actor {
  public:
@@ -212,6 +216,8 @@ class UserManager final : public Actor {
   void on_update_freeze_state(int32 freeze_since_date, int32 freeze_until_date, string freeze_appeal_url);
 
   void invalidate_user_full(UserId user_id);
+
+  void on_update_my_ton_wallet_card(unique_ptr<TonWalletCard> &&ton_wallet_card);
 
   bool have_accessible_user(UserId user_id) const;
 
@@ -765,6 +771,10 @@ class UserManager final : public Actor {
 
     FormattedText note;
 
+    unique_ptr<TonWalletCard> ton_wallet_card;
+
+    unique_ptr<ProfileShareTheme> share_theme;
+
     bool is_blocked = false;
     bool is_blocked_for_stories = false;
     bool can_be_called = false;
@@ -881,6 +891,9 @@ class UserManager final : public Actor {
   static constexpr int32 MAX_ACTIVE_STORY_ID_RELOAD_TIME = 3600;  // some reasonable limit
 
   static constexpr int32 USER_FULL_EXPIRE_TIME = 60;
+  static constexpr int32 USER_FULL_CONTACT_PRICE_CACHE_TIME = 3600;  // some reasonable value
+  static constexpr int32 USER_PHOTOS_CACHE_TIME = 3600;              // some reasonable value
+  static constexpr int32 USER_SAVED_MUSIC_CACHE_TIME = 3600;         // some reasonable value
 
   static constexpr int32 ACCOUNT_UPDATE_FIRST_NAME = 1 << 0;
   static constexpr int32 ACCOUNT_UPDATE_LAST_NAME = 1 << 1;
@@ -1046,6 +1059,10 @@ class UserManager final : public Actor {
   static void on_update_user_full_first_saved_music_file_id(UserFull *user_full, FileId first_saved_music_file_id);
 
   static void on_update_user_full_note(UserFull *user_full, FormattedText &&note);
+
+  static void on_update_user_full_ton_wallet_card(UserFull *user_full, unique_ptr<TonWalletCard> &&ton_wallet_card);
+
+  static void on_update_user_full_share_theme(UserFull *user_full, unique_ptr<ProfileShareTheme> &&share_theme);
 
   std::pair<int64, int64> get_saved_music_document_id(FileId saved_music_file_id, bool from_server = true) const;
 
@@ -1262,7 +1279,7 @@ class UserManager final : public Actor {
 
   WaitFreeHashMap<UserId, unique_ptr<User>, UserIdHash> users_;
   WaitFreeHashMap<UserId, unique_ptr<UserFull>, UserIdHash> users_full_;
-  WaitFreeHashMap<UserId, unique_ptr<UserPhotos>, UserIdHash> user_photos_;
+  ExpiringWaitFreeHashMap<UserId, UserPhotos, UserIdHash> user_photos_{USER_PHOTOS_CACHE_TIME};
   WaitFreeHashMap<UserId, vector<PendingGetPhotoRequest>, UserIdHash> pending_get_user_photos_requests_;
 
   mutable FlatHashSet<UserId, UserIdHash> unknown_users_;
@@ -1295,7 +1312,7 @@ class UserManager final : public Actor {
     }
   };
   WaitFreeHashMap<UserSavedMusicId, FileSourceId, UserSavedMusicIdHash> user_saved_music_file_source_ids_;
-  WaitFreeHashMap<UserId, unique_ptr<UserSavedMusic>, UserIdHash> user_saved_music_;
+  ExpiringWaitFreeHashMap<UserId, UserSavedMusic, UserIdHash> user_saved_music_{USER_SAVED_MUSIC_CACHE_TIME};
   WaitFreeHashMap<UserId, vector<PendingGetSavedMusicRequest>, UserIdHash> pending_get_user_saved_music_requests_;
 
   bool are_my_saved_music_ids_inited_ = false;
@@ -1381,7 +1398,8 @@ class UserManager final : public Actor {
   bool are_imported_contacts_changing_ = false;
   bool need_clear_imported_contacts_ = false;
 
-  FlatHashMap<UserId, int64, UserIdHash> user_full_contact_price_;  // -1 - premium required
+  // -1 - premium required
+  ExpiringFlatHashMap<UserId, int64, UserIdHash> user_full_contact_price_{USER_FULL_CONTACT_PRICE_CACHE_TIME};
 
   FlatHashMap<MessageFullId, int32, MessageFullIdHash> noforwards_request_ids_;
   FlatHashMap<int32, MessageFullId> noforwards_request_message_full_ids_;

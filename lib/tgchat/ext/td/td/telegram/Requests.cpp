@@ -113,6 +113,7 @@
 #include "td/telegram/net/NetType.h"
 #include "td/telegram/net/Proxy.h"
 #include "td/telegram/net/ProxyChecker.h"
+#include "td/telegram/net/WebProxyManager.h"
 #include "td/telegram/NotificationGroupId.h"
 #include "td/telegram/NotificationId.h"
 #include "td/telegram/NotificationManager.h"
@@ -2068,6 +2069,7 @@ void Requests::on_request(uint64 id, td_api::checkAuthenticationPremiumPurchase 
 }
 
 void Requests::on_request(uint64 id, td_api::setAuthenticationPremiumPurchaseTransaction &request) {
+  CLEAN_INPUT_STRING(request.currency_);
   send_closure(td_->auth_manager_actor_, &AuthManager::set_premium_purchase_transaction, id,
                std::move(request.transaction_), request.is_restore_, request.premium_day_count_,
                std::move(request.currency_), request.amount_);
@@ -2124,7 +2126,6 @@ void Requests::on_request(uint64 id, const td_api::getAuthenticationPasskeyParam
 void Requests::on_request(uint64 id, td_api::checkAuthenticationPasskey &request) {
   CLEAN_INPUT_STRING(request.credential_id_);
   CLEAN_INPUT_STRING(request.client_data_);
-  CLEAN_INPUT_STRING(request.user_handle_);
   send_closure(td_->auth_manager_actor_, &AuthManager::finish_passkey_login, id, request.credential_id_,
                request.client_data_, request.authenticator_data_, request.signature_, request.user_handle_);
 }
@@ -2519,7 +2520,8 @@ void Requests::on_request(uint64 id, td_api::checkPhoneNumberCode &request) {
 void Requests::on_request(uint64 id, const td_api::getUserLink &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
-  td_->account_manager_->get_user_link(std::move(promise));
+  td_->account_manager_->get_user_link(request.remove_messages_fee_, request.return_permanent_link_,
+                                       request.revoke_previous_links_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::searchUserByToken &request) {
@@ -2527,6 +2529,13 @@ void Requests::on_request(uint64 id, td_api::searchUserByToken &request) {
   CLEAN_INPUT_STRING(request.token_);
   CREATE_REQUEST_PROMISE();
   td_->account_manager_->import_contact_token(std::move(request.token_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::applyUnpaidMessagesToken &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.token_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->account_manager_->apply_unpaid_messages_token(UserId(request.user_id_), request.token_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getActiveSessions &request) {
@@ -3654,7 +3663,8 @@ void Requests::on_request(uint64 id, td_api::acceptOauthRequest &request) {
   CLEAN_INPUT_STRING(request.match_code_);
   CREATE_HTTP_URL_REQUEST_PROMISE();
   td_->link_manager_->accept_oauth_request(request.url_, request.match_code_, request.allow_write_access_,
-                                           request.allow_phone_number_access_, std::move(promise));
+                                           request.allow_phone_number_access_,
+                                           std::move(request.ton_connect_connect_data_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::declineOauthRequest &request) {
@@ -8002,8 +8012,15 @@ void Requests::on_request(uint64 id, td_api::getAddressTonWallet &request) {
 void Requests::on_request(uint64 id, td_api::getTonWalletSecretPhrase &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.password_);
-  CREATE_TEXT_REQUEST_PROMISE();
-  td_->ton_wallet_manager_->get_ton_wallet_secret_phrase(request.password_, std::move(promise));
+  CREATE_REQUEST_PROMISE();
+  auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<string> result) mutable {
+    if (result.is_error()) {
+      promise.set_error(result.move_as_error());
+    } else {
+      promise.set_value(td_api::make_object<td_api::tonWalletSecretPhrase>(result.move_as_ok()));
+    }
+  });
+  td_->ton_wallet_manager_->get_ton_wallet_secret_phrase(request.password_, std::move(query_promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getTonWalletOwnershipProofChallenge &request) {
@@ -8069,6 +8086,25 @@ void Requests::on_request(uint64 id, td_api::getTonWalletNfts &request) {
   CLEAN_INPUT_STRING(request.offset_);
   CREATE_REQUEST_PROMISE();
   td_->ton_wallet_manager_->get_nfts(request.offset_, request.limit_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getTonWalletCardBackgroundGiftCollectionNames &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_ton_wallet_card_background_gift_collection_names(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::setTonWalletCardStickers &request) {
+  CHECK_IS_USER();
+  for (auto &sticker : request.stickers_) {
+    if (sticker != nullptr) {
+      CLEAN_INPUT_STRING(sticker->nft_address_);
+    }
+  }
+  CLEAN_INPUT_STRING(request.background_nft_address_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->set_ton_wallet_card_stickers(std::move(request.stickers_), request.background_nft_address_,
+                                                         std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getTonConnectSessions &request) {
@@ -8424,8 +8460,9 @@ void Requests::on_request(uint64 id, td_api::addPollOption &request) {
                                       std::move(request.option_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::deletePollOption &request) {
+void Requests::on_request(uint64 id, td_api::deletePollOption &request) {
   CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.option_id_);
   CREATE_OK_REQUEST_PROMISE();
   td_->poll_manager_->delete_poll_option({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                          request.option_id_, std::move(promise));
@@ -8846,6 +8883,13 @@ void Requests::on_request(uint64 id, td_api::sellGift &request) {
                                         StarGiftId(request.received_gift_id_), std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::deleteGift &request) {
+  CHECK_IS_USER_OR_BUSINESS();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->star_gift_manager_->delete_gift(BusinessConnectionId(std::move(request.business_connection_id_)),
+                                       StarGiftId(request.received_gift_id_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::toggleGiftIsSaved &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
@@ -8974,7 +9018,6 @@ void Requests::on_request(uint64 id, td_api::getGiftsForCrafting &request) {
 }
 
 void Requests::on_request(uint64 id, td_api::getUpgradedGift &request) {
-  CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.name_);
   CREATE_REQUEST_PROMISE();
   td_->star_gift_manager_->get_upgraded_gift(request.name_, std::move(promise));
@@ -8987,12 +9030,34 @@ void Requests::on_request(uint64 id, td_api::getUpgradedGiftValueInfo &request) 
   td_->star_gift_manager_->get_upgraded_gift_value_info(request.name_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getUpgradedGiftWithdrawalUrl &request) {
+void Requests::on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request) {
   CHECK_IS_USER();
-  CLEAN_INPUT_STRING(request.password_);
   CREATE_HTTP_URL_REQUEST_PROMISE();
-  td_->star_gift_manager_->get_star_gift_withdrawal_url(StarGiftId(request.received_gift_id_), request.password_,
-                                                        std::move(promise));
+  td_->star_gift_manager_->get_star_gift_withdrawal_url(StarGiftId(request.received_gift_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::withdrawUpgradedGift &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->star_gift_manager_->withdraw_star_gift(StarGiftId(request.received_gift_id_), request.keep_on_profile_,
+                                              std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getUpgradedGiftDepositInfo &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.name_);
+  CREATE_REQUEST_PROMISE();
+  TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
+  td_->star_gift_manager_->get_upgraded_gift_deposit_info(owner_dialog_id, request.name_, request.hide_sender_,
+                                                          std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::displayUpgradedGift &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.name_);
+  CREATE_OK_REQUEST_PROMISE();
+  TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, true));
+  td_->star_gift_manager_->display_upgraded_gift(owner_dialog_id, request.name_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getUpgradedGiftsPromotionalAnimation &request) {
@@ -9275,6 +9340,19 @@ void Requests::on_request(uint64 id, const td_api::resetInstalledBackgrounds &re
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->background_manager_->reset_backgrounds(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getProfileShareThemeBackdrops &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->theme_manager_->get_profile_share_theme_backdrops(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::setProfileShareTheme &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->theme_manager_->set_profile_share_theme(DialogId(request.chat_id_), std::move(request.theme_),
+                                               std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::getRecentlyVisitedTMeUrls &request) {
@@ -9664,6 +9742,18 @@ void Requests::on_request(uint64 id, td_api::pingProxy &request) {
                std::move(query_promise));
 }
 
+void Requests::on_request(uint64 id, td_api::processWebProxyCarrierMessage &request) {
+  CREATE_OK_REQUEST_PROMISE();
+  send_closure(G()->web_proxy_manager(), &WebProxyManager::process_carrier_message, request.carrier_id_,
+               std::move(request.message_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::reportWebProxyCarrierError &request) {
+  CREATE_OK_REQUEST_PROMISE();
+  send_closure(G()->web_proxy_manager(), &WebProxyManager::report_carrier_error, request.carrier_id_,
+               std::move(request.error_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::getUserSupportInfo &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
@@ -9831,6 +9921,7 @@ void Requests::on_request(uint64 id, const td_api::testSquareInt &request) {
 }
 
 void Requests::on_request(uint64 id, td_api::testCallString &request) {
+  CLEAN_INPUT_STRING(request.x_);
   send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::testString>(std::move(request.x_)));
 }
 

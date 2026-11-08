@@ -16,6 +16,7 @@
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/net/NetQueryCreator.h"
 #include "td/telegram/OptionManager.h"
+#include "td/telegram/PrivacyManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
@@ -567,15 +568,26 @@ class CancelWebTokenAuthorizationQuery final : public Td::ResultHandler {
   }
 };
 
+static int32 get_user_link_expires_in(int32 expire_date) {
+  if (expire_date == 0) {
+    return 0;
+  }
+  return td::max(expire_date - G()->unix_time(), static_cast<int32>(1));
+}
+
 class ExportContactTokenQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::userLink>> promise_;
+  string unpaid_messages_token_;
+  int32 unpaid_messages_token_expire_date_ = 0;
 
  public:
   explicit ExportContactTokenQuery(Promise<td_api::object_ptr<td_api::userLink>> &&promise)
       : promise_(std::move(promise)) {
   }
 
-  void send() {
+  void send(const string &unpaid_messages_token, int32 unpaid_messages_token_expire_date) {
+    unpaid_messages_token_ = unpaid_messages_token;
+    unpaid_messages_token_expire_date_ = unpaid_messages_token_expire_date;
     send_query(G()->net_query_creator().create(telegram_api::contacts_exportContactToken()));
   }
 
@@ -587,8 +599,60 @@ class ExportContactTokenQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for ExportContactTokenQuery: " << to_string(ptr);
-    promise_.set_value(td_api::make_object<td_api::userLink>(
-        ptr->url_, td::max(static_cast<int32>(ptr->expires_ - G()->unix_time()), static_cast<int32>(1))));
+    auto url = std::move(ptr->url_);
+    auto expire_date = ptr->expires_;
+    if (!unpaid_messages_token_.empty()) {
+      auto internal_link = LinkManager::parse_internal_link(url);
+      if (internal_link == nullptr) {
+        return on_error(Status::Error(500, "Receive invalid user link"));
+      }
+      auto link_type = internal_link->get_internal_link_type_object();
+      if (link_type->get_id() != td_api::internalLinkTypeUserToken::ID) {
+        return on_error(Status::Error(500, "Receive unsupported user link"));
+      }
+      static_cast<td_api::internalLinkTypeUserToken *>(link_type.get())->unpaid_messages_token_ =
+          unpaid_messages_token_;
+      auto r_url = LinkManager::get_internal_link(link_type, false);
+      if (r_url.is_error()) {
+        return on_error(r_url.move_as_error());
+      }
+      url = r_url.move_as_ok();
+      if (unpaid_messages_token_expire_date_ != 0 && unpaid_messages_token_expire_date_ < expire_date) {
+        expire_date = unpaid_messages_token_expire_date_;
+      }
+    }
+    promise_.set_value(
+        td_api::make_object<td_api::userLink>(std::move(url), get_user_link_expires_in(expire_date), false));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ExportNoPaidMessagesTokenQuery final : public Td::ResultHandler {
+  Promise<telegram_api::object_ptr<telegram_api::exportedNoPaidMessagesToken>> promise_;
+
+ public:
+  explicit ExportNoPaidMessagesTokenQuery(
+      Promise<telegram_api::object_ptr<telegram_api::exportedNoPaidMessagesToken>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(bool revoke, bool is_temporary) {
+    send_query(
+        G()->net_query_creator().create(telegram_api::contacts_exportNoPaidMessagesToken(0, revoke, is_temporary)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::contacts_exportNoPaidMessagesToken>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for ExportNoPaidMessagesTokenQuery: " << to_string(ptr);
+    promise_.set_value(std::move(ptr));
   }
 
   void on_error(Status status) final {
@@ -618,6 +682,43 @@ class ImportContactTokenQuery final : public Td::ResultHandler {
 
     auto user_id = td_->user_manager_->on_get_user(std::move(user), "ImportContactTokenQuery");
     promise_.set_value(td_->user_manager_->get_user_object(user_id));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ImportNoPaidMessagesTokenQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  UserId user_id_;
+
+ public:
+  explicit ImportNoPaidMessagesTokenQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(UserId user_id, telegram_api::object_ptr<telegram_api::InputUser> &&input_user, const string &token) {
+    user_id_ = user_id;
+    send_query(G()->net_query_creator().create(
+        telegram_api::contacts_importNoPaidMessagesToken(std::move(input_user), token)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::contacts_importNoPaidMessagesToken>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto user = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for ImportNoPaidMessagesTokenQuery: " << to_string(user);
+
+    td_->user_manager_->on_get_user(std::move(user), "ImportNoPaidMessagesTokenQuery");
+    // the number of Telegram Stars needed to send a message to the user has changed;
+    // the token has already been applied, so errors during the reload are ignored
+    td_->user_manager_->reload_user_full(
+        user_id_,
+        PromiseCreator::lambda([promise = std::move(promise_)](Result<Unit> &&) mutable { promise.set_value(Unit()); }),
+        "ImportNoPaidMessagesTokenQuery");
   }
 
   void on_error(Status status) final {
@@ -1231,29 +1332,109 @@ void AccountManager::cancel_web_token(const string &token, Promise<Unit> &&promi
   td_->create_handler<CancelWebTokenAuthorizationQuery>(std::move(promise))->send(token);
 }
 
-void AccountManager::get_user_link(Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
+void AccountManager::get_user_link(bool remove_messages_fee, bool is_permanent, bool revoke_previous_links,
+                                   Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
   td_->user_manager_->get_me(
-      PromiseCreator::lambda([actor_id = actor_id(this), promise = std::move(promise)](Result<Unit> &&result) mutable {
+      PromiseCreator::lambda([actor_id = actor_id(this), remove_messages_fee, is_permanent, revoke_previous_links,
+                              promise = std::move(promise)](Result<Unit> &&result) mutable {
         if (result.is_error()) {
           promise.set_error(result.move_as_error());
         } else {
-          send_closure(actor_id, &AccountManager::get_user_link_impl, std::move(promise));
+          send_closure(actor_id, &AccountManager::get_user_link_impl, remove_messages_fee, is_permanent,
+                       revoke_previous_links, std::move(promise));
         }
       }));
 }
 
-void AccountManager::get_user_link_impl(Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
+void AccountManager::get_user_link_impl(bool remove_messages_fee, bool is_permanent, bool revoke_previous_links,
+                                        Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  if (!remove_messages_fee) {
+    return create_user_link(string(), 0, std::move(promise));
+  }
+  auto query_promise = PromiseCreator::lambda(
+      [actor_id = actor_id(this), promise = std::move(promise)](
+          Result<telegram_api::object_ptr<telegram_api::exportedNoPaidMessagesToken>> r_token) mutable {
+        if (r_token.is_error()) {
+          return promise.set_error(r_token.move_as_error());
+        }
+        auto token = r_token.move_as_ok();
+        send_closure(actor_id, &AccountManager::create_user_link, std::move(token->token_), token->expires_,
+                     std::move(promise));
+      });
+  td_->create_handler<ExportNoPaidMessagesTokenQuery>(std::move(query_promise))
+      ->send(revoke_previous_links, !is_permanent);
+}
+
+void AccountManager::create_user_link(string unpaid_messages_token, int32 unpaid_messages_token_expire_date,
+                                      Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   auto username = td_->user_manager_->get_user_first_username(td_->user_manager_->get_my_id());
   if (!username.empty()) {
-    return promise.set_value(
-        td_api::make_object<td_api::userLink>(LinkManager::get_public_dialog_link(username, Slice(), false, false), 0));
+    return promise.set_value(td_api::make_object<td_api::userLink>(
+        LinkManager::get_public_dialog_link(username, Slice(), false, unpaid_messages_token, false),
+        get_user_link_expires_in(unpaid_messages_token_expire_date), true));
   }
-  td_->create_handler<ExportContactTokenQuery>(std::move(promise))->send();
+  auto query_promise =
+      PromiseCreator::lambda([actor_id = actor_id(this), unpaid_messages_token = std::move(unpaid_messages_token),
+                              unpaid_messages_token_expire_date, promise = std::move(promise)](
+                                 Result<td_api::object_ptr<td_api::userPrivacySettingRules>> r_rules) mutable {
+        send_closure(actor_id, &AccountManager::on_get_find_by_phone_number_privacy, std::move(r_rules),
+                     std::move(unpaid_messages_token), unpaid_messages_token_expire_date, std::move(promise));
+      });
+  td_->privacy_manager_->get_privacy(td_api::make_object<td_api::userPrivacySettingAllowFindingByPhoneNumber>(),
+                                     std::move(query_promise));
+}
+
+static bool are_all_users_allowed(const td_api::userPrivacySettingRules &rules) {
+  for (const auto &rule : rules.rules_) {
+    CHECK(rule != nullptr);
+    switch (rule->get_id()) {
+      case td_api::userPrivacySettingRuleAllowAll::ID:
+        return true;
+      case td_api::userPrivacySettingRuleRestrictAll::ID:
+      case td_api::userPrivacySettingRuleRestrictContacts::ID:
+      case td_api::userPrivacySettingRuleRestrictBots::ID:
+      case td_api::userPrivacySettingRuleRestrictUsers::ID:
+      case td_api::userPrivacySettingRuleRestrictChatMembers::ID:
+        return false;
+      default:
+        break;
+    }
+  }
+  return false;
+}
+
+void AccountManager::on_get_find_by_phone_number_privacy(
+    Result<td_api::object_ptr<td_api::userPrivacySettingRules>> r_rules, string unpaid_messages_token,
+    int32 unpaid_messages_token_expire_date, Promise<td_api::object_ptr<td_api::userLink>> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  if (r_rules.is_ok() && are_all_users_allowed(*r_rules.ok())) {
+    auto phone_number = G()->get_option_string("my_phone_number");
+    if (!phone_number.empty()) {
+      auto r_link = LinkManager::get_internal_link(td_api::make_object<td_api::internalLinkTypeUserPhoneNumber>(
+                                                       std::move(phone_number), string(), false, unpaid_messages_token),
+                                                   false);
+      if (r_link.is_ok()) {
+        return promise.set_value(td_api::make_object<td_api::userLink>(
+            r_link.move_as_ok(), get_user_link_expires_in(unpaid_messages_token_expire_date), true));
+      }
+    }
+  }
+  td_->create_handler<ExportContactTokenQuery>(std::move(promise))
+      ->send(unpaid_messages_token, unpaid_messages_token_expire_date);
 }
 
 void AccountManager::import_contact_token(const string &token, Promise<td_api::object_ptr<td_api::user>> &&promise) {
   td_->create_handler<ImportContactTokenQuery>(std::move(promise))->send(token);
+}
+
+void AccountManager::apply_unpaid_messages_token(UserId user_id, const string &token, Promise<Unit> &&promise) {
+  TRY_RESULT_PROMISE(promise, input_user, td_->user_manager_->get_input_user(user_id));
+  if (token.empty()) {
+    return promise.set_error(400, "Token must be non-empty");
+  }
+  td_->create_handler<ImportNoPaidMessagesTokenQuery>(std::move(promise))->send(user_id, std::move(input_user), token);
 }
 
 class AccountManager::InvalidateSignInCodesOnServerLogEvent {

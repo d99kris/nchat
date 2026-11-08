@@ -177,24 +177,9 @@ class BusinessConnectionManager::SendBusinessMessageQuery final : public Td::Res
     CHECK(input_peer != nullptr);
 
     auto reply_to = message_->input_reply_to_.get_input_reply_to(td_, MessageTopic());
-    if (reply_to != nullptr) {
-      flags |= telegram_api::messages_sendMessage::REPLY_TO_MASK;
-    }
-
     const FormattedText *message_text = get_message_content_text(message_->content_.get());
     CHECK(message_text != nullptr || input_rich_message != nullptr);
     auto entities = get_input_message_entities(td_->user_manager_.get(), message_text, "SendBusinessMessageQuery");
-    if (!entities.empty()) {
-      flags |= telegram_api::messages_sendMessage::ENTITIES_MASK;
-    }
-
-    if (message_->reply_markup_ != nullptr) {
-      flags |= telegram_api::messages_sendMessage::REPLY_MARKUP_MASK;
-    }
-    if (input_rich_message != nullptr) {
-      flags |= telegram_api::messages_sendMessage::RICH_MESSAGE_MASK;
-    }
-
     send_query(G()->net_query_creator().create_with_prefix(
         message_->business_connection_id_.get_invoke_prefix(),
         telegram_api::messages_sendMessage(
@@ -247,19 +232,8 @@ class BusinessConnectionManager::SendBusinessMediaQuery final : public Td::Resul
     CHECK(input_peer != nullptr);
 
     auto reply_to = message_->input_reply_to_.get_input_reply_to(td_, MessageTopic());
-    if (reply_to != nullptr) {
-      flags |= telegram_api::messages_sendMedia::REPLY_TO_MASK;
-    }
-
     const FormattedText *message_text = get_message_content_text(message_->content_.get());
     auto entities = get_input_message_entities(td_->user_manager_.get(), message_text, "SendBusinessMediaQuery");
-    if (!entities.empty()) {
-      flags |= telegram_api::messages_sendMedia::ENTITIES_MASK;
-    }
-    if (message_->reply_markup_ != nullptr) {
-      flags |= telegram_api::messages_sendMedia::REPLY_MARKUP_MASK;
-    }
-
     send_query(G()->net_query_creator().create_with_prefix(
         message_->business_connection_id_.get_invoke_prefix(),
         telegram_api::messages_sendMedia(
@@ -313,10 +287,6 @@ class BusinessConnectionManager::SendBusinessMultiMediaQuery final : public Td::
     CHECK(input_peer != nullptr);
 
     auto reply_to = messages_[0]->input_reply_to_.get_input_reply_to(td_, MessageTopic());
-    if (reply_to != nullptr) {
-      flags |= telegram_api::messages_sendMultiMedia::REPLY_TO_MASK;
-    }
-
     send_query(G()->net_query_creator().create_with_prefix(
         messages_[0]->business_connection_id_.get_invoke_prefix(),
         telegram_api::messages_sendMultiMedia(flags, messages_[0]->disable_notification_, false, false,
@@ -433,25 +403,12 @@ class BusinessConnectionManager::EditBusinessMessageQuery final : public Td::Res
     CHECK(input_peer != nullptr);
 
     int32 flags = 0;
-    if (input_reply_markup != nullptr) {
-      flags |= telegram_api::messages_editMessage::REPLY_MARKUP_MASK;
-    }
     vector<telegram_api::object_ptr<telegram_api::MessageEntity>> entities;
     if (edit_text) {
       flags |= telegram_api::messages_editMessage::MESSAGE_MASK;
 
       entities = get_input_message_entities(td_->user_manager_.get(), text, "EditBusinessMessageQuery");
-      if (!entities.empty()) {
-        flags |= telegram_api::messages_editMessage::ENTITIES_MASK;
-      }
     }
-    if (input_media.media_ != nullptr) {
-      flags |= telegram_api::messages_editMessage::MEDIA_MASK;
-    }
-    if (input_media.rich_message_ != nullptr) {
-      flags |= telegram_api::messages_editMessage::RICH_MESSAGE_MASK;
-    }
-
     int32 server_message_id = message_id.get_server_message_id().get();
     send_query(G()->net_query_creator().create_with_prefix(
         business_connection_id_.get_invoke_prefix(),
@@ -498,12 +455,7 @@ class BusinessConnectionManager::StopBusinessPollQuery final : public Td::Result
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Know);
     CHECK(input_peer != nullptr);
 
-    int32 flags = telegram_api::messages_editMessage::MEDIA_MASK;
     auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), reply_markup);
-    if (input_reply_markup != nullptr) {
-      flags |= telegram_api::messages_editMessage::REPLY_MARKUP_MASK;
-    }
-
     auto poll = telegram_api::make_object<telegram_api::poll>(
         0, 0, true, false, false, false, false, false, false, false, true, false,
         telegram_api::make_object<telegram_api::textWithEntities>(string(), Auto()), Auto(), 0, 0, vector<string>(), 0);
@@ -512,7 +464,7 @@ class BusinessConnectionManager::StopBusinessPollQuery final : public Td::Result
     int32 server_message_id = message_id.get_server_message_id().get();
     send_query(G()->net_query_creator().create_with_prefix(
         business_connection_id.get_invoke_prefix(),
-        telegram_api::messages_editMessage(flags, false, false, std::move(input_peer), server_message_id, string(),
+        telegram_api::messages_editMessage(0, false, false, std::move(input_peer), server_message_id, string(),
                                            std::move(input_media), std::move(input_reply_markup),
                                            vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), 0, 0, 0,
                                            nullptr),
@@ -731,16 +683,11 @@ class UpdateBusinessGiftSettingsQuery final : public Td::ResultHandler {
   void send(const BusinessConnectionId &business_connection_id, UserId user_id, const StarGiftSettings &settings) {
     user_id_ = user_id;
 
-    int32 flags = 0;
     auto gifts_settings = settings.get_disallowed_gifts().get_input_disallowed_gifts_settings();
-    if (gifts_settings != nullptr) {
-      flags |= telegram_api::globalPrivacySettings::DISALLOWED_GIFTS_MASK;
-    }
     send_query(G()->net_query_creator().create_with_prefix(
         business_connection_id.get_invoke_prefix(),
         telegram_api::account_setGlobalPrivacySettings(telegram_api::make_object<telegram_api::globalPrivacySettings>(
-            flags, false, false, false, false, false, settings.get_display_gifts_button(), 0,
-            std::move(gifts_settings))),
+            0, false, false, false, false, false, settings.get_display_gifts_button(), 0, std::move(gifts_settings))),
         td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id)));
   }
 
@@ -1613,9 +1560,9 @@ void BusinessConnectionManager::do_send_message_album(int64 request_id, Business
 
   for (size_t media_pos = 0; media_pos < message_contents.size(); media_pos++) {
     auto &message_content = message_contents[media_pos];
-    auto message =
-        create_business_message_to_send(business_connection_id, dialog_id, input_reply_to.clone(), disable_notification,
-                                        protect_content, effect_id, nullptr, std::move(message_content), true);
+    auto message = create_business_message_to_send(
+        business_connection_id, dialog_id, input_reply_to.clone(td_, dialog_id), disable_notification, protect_content,
+        effect_id, nullptr, std::move(message_content), true);
     auto input_media = std::move(get_message_content_input_media(message->content_.get(), td_, message->ttl_,
                                                                  message->send_emoji_, td_->auth_manager_->is_bot(), -1)
                                      .media_);
@@ -1677,15 +1624,11 @@ void BusinessConnectionManager::on_upload_message_album_media(int64 request_id, 
   for (auto &r_upload_result : upload_results) {
     auto upload_result = r_upload_result.move_as_ok();
     auto message = std::move(upload_result.message_);
-    int32 flags = 0;
     const FormattedText *caption = get_message_content_text(message->content_.get());
     auto entities = get_input_message_entities(td_->user_manager_.get(), caption, "on_upload_message_album_media");
-    if (!entities.empty()) {
-      flags |= telegram_api::inputSingleMedia::ENTITIES_MASK;
-    }
     input_single_media.push_back(telegram_api::make_object<telegram_api::inputSingleMedia>(
-        flags, std::move(upload_result.input_media_), message->random_id_,
-        caption == nullptr ? string() : caption->text, std::move(entities)));
+        0, std::move(upload_result.input_media_), message->random_id_, caption == nullptr ? string() : caption->text,
+        std::move(entities)));
     messages.push_back(std::move(message));
   }
 

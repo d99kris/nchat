@@ -373,9 +373,8 @@ class CreateConferenceCallQuery final : public Td::ResultHandler {
 
   void send(int32 random_id, bool is_join, const GroupCallJoinParameters &join_parameters,
             tde2e_api::PrivateKeyId private_key_id, tde2e_api::PublicKeyId public_key_id) {
-    UInt256 public_key{};
-    BufferSlice block;
     if (is_join) {
+      UInt256 public_key{};
       auto public_key_string = tde2e_move_as_ok(tde2e_api::key_to_public_key(private_key_id));
       CHECK(public_key_string.size() == public_key.as_slice().size());
       public_key.as_mutable_slice().copy_from(public_key_string);
@@ -388,11 +387,14 @@ class CreateConferenceCallQuery final : public Td::ResultHandler {
       tde2e_api::CallState state;
       state.participants.push_back(std::move(participant));
 
-      block = BufferSlice(tde2e_move_as_ok(tde2e_api::call_create_zero_block(private_key_id, state)));
+      auto block = BufferSlice(tde2e_move_as_ok(tde2e_api::call_create_zero_block(private_key_id, state)));
+      send_query(G()->net_query_creator().create(telegram_api::phone_createConferenceCall(
+          0, join_parameters.is_muted_, !join_parameters.is_my_video_enabled_, true, random_id, public_key,
+          std::move(block), telegram_api::make_object<telegram_api::dataJSON>(join_parameters.payload_))));
+    } else {
+      send_query(G()->net_query_creator().create(telegram_api::phone_createConferenceCall(
+          0, false, true, false, random_id, UInt256(), BufferSlice(), nullptr)));
     }
-    send_query(G()->net_query_creator().create(telegram_api::phone_createConferenceCall(
-        0, join_parameters.is_muted_, !join_parameters.is_my_video_enabled_, is_join, random_id, public_key,
-        std::move(block), telegram_api::make_object<telegram_api::dataJSON>(join_parameters.payload_))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -811,7 +813,7 @@ class JoinGroupCallQuery final : public Td::ResultHandler {
     CHECK(public_key_string.size() == public_key.as_slice().size());
     public_key.as_mutable_slice().copy_from(public_key_string);
 
-    int32 flags = telegram_api::phone_joinGroupCall::PUBLIC_KEY_MASK | telegram_api::phone_joinGroupCall::BLOCK_MASK;
+    int32 flags = telegram_api::phone_joinGroupCall::PUBLIC_KEY_MASK;
     send_query(G()->net_query_creator().create(telegram_api::phone_joinGroupCall(
         flags, parameters.is_muted_, !parameters.is_my_video_enabled_, input_group_call.get_input_group_call(),
         telegram_api::make_object<telegram_api::inputPeerSelf>(), string(), public_key, std::move(block),
@@ -1094,10 +1096,9 @@ class SendGroupCallMessageQuery final : public Td::ResultHandler {
       if (send_as_input_peer == nullptr) {
         return on_error(Status::Error(400, "Can't access sender chat"));
       }
-      flags |= telegram_api::phone_sendGroupCallMessage::SEND_AS_MASK;
     }
     if (paid_message_star_count > 0) {
-      if (!text.text.empty()) {
+      if (!text.is_empty()) {
         td_->star_manager_->add_pending_owned_star_count(-paid_message_star_count, false);
       }
       flags |= telegram_api::phone_sendGroupCallMessage::ALLOW_PAID_STARS_MASK;
@@ -5971,7 +5972,7 @@ void GroupCallManager::send_group_call_message(GroupCallId group_call_id,
     td_->create_handler<SendGroupCallEncryptedMessageQuery>(std::move(promise))
         ->send(input_group_call_id, r_data.value());
   } else {
-    CHECK(is_reaction == message.text.empty());
+    CHECK(is_reaction == message.is_empty());
     td_->create_handler<SendGroupCallMessageQuery>(std::move(promise))
         ->send(input_group_call_id, message_id, message, group_call->is_live_story ? as_dialog_id : DialogId(),
                paid_message_star_count, group_call->is_live_story);
