@@ -188,6 +188,6 @@ func (s ServiceID) cFixedArray() *C.SignalType_FixedArray17_uint8_t {
 	return s.FixedBytes().cFixedArray()
 }
 
-func (s ServiceID) cConstFixedArray() cFixedArray17Compat {
-	return cFixedArray17Compat(s.cFixedArray())
+func (s ServiceID) cConstFixedArray() C.SignalType_ConstPointer_FixedArray17_uint8_t {
+	return s.FixedBytes().cConstFixedArray()
 }

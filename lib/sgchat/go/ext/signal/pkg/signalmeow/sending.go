@@ -297,6 +297,20 @@ type GroupMessageSendResult struct {
 	FailedToSendTo     []FailedSendResult
 }
 
+// FailureError returns an error from FailedToSendTo, preferring errors other than ErrUnregisteredUser,
+// so that a permanent failure is only reported if every recipient failed permanently.
+func (r *GroupMessageSendResult) FailureError() error {
+	if len(r.FailedToSendTo) == 0 {
+		return nil
+	}
+	for _, failure := range r.FailedToSendTo {
+		if !errors.Is(failure.Error, ErrUnregisteredUser) {
+			return failure.Error
+		}
+	}
+	return r.FailedToSendTo[len(r.FailedToSendTo)-1].Error
+}
+
 type SendResult interface {
 	isSendResult()
 }
@@ -658,8 +672,7 @@ func (cli *Client) sendToGroup(
 		return result, nil // I only sent to myself
 	}
 	if len(result.SuccessfullySentTo) == 0 {
-		lastError := result.FailedToSendTo[len(result.FailedToSendTo)-1].Error
-		return nil, fmt.Errorf("failed to send to any group members: %w", lastError)
+		return nil, fmt.Errorf("failed to send to any group members: %w", result.FailureError())
 	}
 
 	return result, nil
@@ -1037,6 +1050,8 @@ func (cli *Client) sendContent(
 		}
 		cli.Store.RecipientStore.MarkUnregistered(ctx, recipient, true)
 		return sentUnidentified, fmt.Errorf("%w (send returned 404)", ErrUnregisteredUser)
+	} else if *response.Status == 413 || *response.Status == 429 {
+		return sentUnidentified, fmt.Errorf("%w (send returned %d)", ErrRateLimited, *response.Status)
 	} else if *response.Status != 200 {
 		return sentUnidentified, fmt.Errorf("unexpected status code while sending: %d", *response.Status)
 	}
@@ -1189,7 +1204,7 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 	//		}
 	//	}
 	//}
-	return fmt.Errorf("got 428 error")
+	return fmt.Errorf("%w (send returned 428, retry after %ds)", ErrRateLimited, retryAfterSeconds)
 }
 
 func (cli *Client) ReportSpam(ctx context.Context, aci uuid.UUID, serverGUID string, token []byte) error {

@@ -107,7 +107,7 @@ var (
 	ErrDeviceLinkRateLimited = bridgev2.RespError{
 		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_RATE_LIMITED",
 		Err:        "Signal rate-limited the linking attempt, please wait a few minutes and try again",
-		StatusCode: http.StatusTooManyRequests,
+		StatusCode: http.StatusBadRequest,
 	}
 	ErrDeviceLinkRejected = bridgev2.RespError{
 		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_REJECTED",

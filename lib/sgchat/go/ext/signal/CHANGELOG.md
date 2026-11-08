@@ -1,3 +1,15 @@
+# v26.11 (unreleased)
+
+* Updated libsignal to v0.106.1.
+* Added support for sending more than 2048 characters of text to Signal by
+  uploading the rest of the text as an attachment, like official clients do.
+* Added automatic retrying of group message sends if the server returns a 500
+  or 503 error.
+* Added support for encrypting direct media with FLOE ([MSC4571]).
+* Fixed memory leak in libsignal store implementation.
+
+[MSC4571]: https://github.com/matrix-org/matrix-spec-proposals/pull/4571
+
 # v26.10
 
 * Updated libsignal to v0.105.0.

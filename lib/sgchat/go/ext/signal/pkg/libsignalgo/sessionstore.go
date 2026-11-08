@@ -38,7 +38,8 @@ type SessionStore interface {
 //export signal_load_session_callback
 func signal_load_session_callback(storeCtx unsafe.Pointer, recordp *C.SignalMutPointerSessionRecord, address C.SignalMutPointerProtocolAddress) C.int {
 	return wrapStoreCallback(storeCtx, func(store SessionStore, ctx context.Context) error {
-		record, err := store.LoadSession(ctx, &Address{ptr: address.raw})
+		addr := wrapAddress(address.raw)
+		record, err := store.LoadSession(ctx, addr)
 		if err == nil && record != nil {
 			record.CancelFinalizer()
 			recordp.raw = record.ptr
@@ -50,12 +51,9 @@ func signal_load_session_callback(storeCtx unsafe.Pointer, recordp *C.SignalMutP
 //export signal_store_session_callback
 func signal_store_session_callback(storeCtx unsafe.Pointer, address C.SignalMutPointerProtocolAddress, sessionRecord C.SignalMutPointerSessionRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store SessionStore, ctx context.Context) error {
-		record := SessionRecord{ptr: sessionRecord.raw}
-		cloned, err := record.Clone()
-		if err != nil {
-			return err
-		}
-		return store.StoreSession(ctx, &Address{ptr: address.raw}, cloned)
+		addr := wrapAddress(address.raw)
+		record := wrapSessionRecord(sessionRecord.raw)
+		return store.StoreSession(ctx, addr, record)
 	})
 }
 

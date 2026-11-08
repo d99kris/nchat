@@ -112,6 +112,8 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		PowerLevels: &bridgev2.PowerLevelOverrides{
 			Events: map[event.Type]int{
 				event.StatePowerLevels: moderatorPL,
+				event.EventReaction:    defaultPL,
+				event.EventRedaction:   defaultPL,
 			},
 		},
 		ExcludeChangesFromTimeline: true,
@@ -182,9 +184,12 @@ func addMemberToMap(mc map[networkid.UserID]bridgev2.ChatMember, member bridgev2
 	mc[member.EventSender.Sender] = member
 }
 
+const currentPortalInfoVersion = 1
+
 func updatePortalSyncMeta(ctx context.Context, portal *bridgev2.Portal) bool {
 	meta := portal.Metadata.(*signalid.PortalMetadata)
 	meta.LastSync = jsontime.UnixNow()
+	meta.InfoVersion = currentPortalInfoVersion
 	return true
 }
 

@@ -94,8 +94,11 @@ func (s *SignalConnector) ResetHTTPTransport() {
 		settings = hs.GetHTTPClientSettings()
 	}
 	oldClient := web.SignalHTTPClient
+	oldUploadClient := web.SignalUploadHTTPClient
 	web.SignalHTTPClient = settings.WithTLSConfig(web.SignalTLSConfig).Compile()
+	web.SignalUploadHTTPClient = settings.WithTLSConfig(web.SignalTLSConfig).WithResponseHeaderTimeout(2 * time.Minute).Compile()
 	oldClient.CloseIdleConnections()
+	oldUploadClient.CloseIdleConnections()
 }
 
 func (s *SignalConnector) ResetNetworkConnections() {

@@ -134,12 +134,14 @@ func JoinEntityString(with string, strings ...*EntityString) *EntityString {
 			continue
 		}
 		DebugLog("  + %q %+v\n", s.String, s.Entities)
+		if len(str) > 0 {
+			str = append(str, withUTF16...)
+		}
 		for _, entity := range s.Entities {
 			entity.Start += len(str)
 			entities = append(entities, entity)
 		}
 		str = append(str, s.String...)
-		str = append(str, withUTF16...)
 	}
 	DebugLog("  -> %q %+v\n", str, entities)
 	return &EntityString{

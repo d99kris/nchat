@@ -40,7 +40,8 @@ type SenderKeyStore interface {
 //export signal_load_sender_key_callback
 func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp *C.SignalMutPointerSenderKeyRecord, address C.SignalMutPointerProtocolAddress, distributionID C.SignalUuid) C.int {
 	return wrapStoreCallback(storeCtx, func(store SenderKeyStore, ctx context.Context) error {
-		record, err := store.LoadSenderKey(ctx, &Address{ptr: address.raw}, *(*uuid.UUID)(unsafe.Pointer(&distributionID)))
+		addr := wrapAddress(address.raw)
+		record, err := store.LoadSenderKey(ctx, addr, *(*uuid.UUID)(unsafe.Pointer(&distributionID)))
 		if err == nil && record != nil {
 			record.CancelFinalizer()
 			recordp.raw = record.ptr
@@ -52,13 +53,9 @@ func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp *C.SignalM
 //export signal_store_sender_key_callback
 func signal_store_sender_key_callback(storeCtx unsafe.Pointer, address C.SignalMutPointerProtocolAddress, distributionID C.SignalUuid, senderKeyRecord C.SignalMutPointerSenderKeyRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store SenderKeyStore, ctx context.Context) error {
-		record := SenderKeyRecord{ptr: senderKeyRecord.raw}
-		cloned, err := record.Clone()
-		if err != nil {
-			return err
-		}
-
-		return store.StoreSenderKey(ctx, &Address{ptr: address.raw}, *(*uuid.UUID)(unsafe.Pointer(&distributionID)), cloned)
+		addr := wrapAddress(address.raw)
+		record := wrapSenderKeyRecord(senderKeyRecord.raw)
+		return store.StoreSenderKey(ctx, addr, *(*uuid.UUID)(unsafe.Pointer(&distributionID)), record)
 	})
 }
 

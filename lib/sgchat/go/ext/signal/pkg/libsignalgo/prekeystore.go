@@ -52,12 +52,8 @@ func signal_load_pre_key_callback(storeCtx unsafe.Pointer, keyp *C.SignalMutPoin
 //export signal_store_pre_key_callback
 func signal_store_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord C.SignalMutPointerPreKeyRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store PreKeyStore, ctx context.Context) error {
-		record := PreKeyRecord{ptr: preKeyRecord.raw}
-		cloned, err := record.Clone()
-		if err != nil {
-			return err
-		}
-		return store.StorePreKey(ctx, uint32(id), cloned)
+		record := wrapPreKeyRecord(preKeyRecord.raw)
+		return store.StorePreKey(ctx, uint32(id), record)
 	})
 }
 

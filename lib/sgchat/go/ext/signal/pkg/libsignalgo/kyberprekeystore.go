@@ -52,18 +52,15 @@ func signal_load_kyber_pre_key_callback(storeCtx unsafe.Pointer, keyp *C.SignalM
 //export signal_store_kyber_pre_key_callback
 func signal_store_kyber_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord C.SignalMutPointerKyberPreKeyRecord) C.int {
 	return wrapStoreCallback(storeCtx, func(store KyberPreKeyStore, ctx context.Context) error {
-		record := KyberPreKeyRecord{ptr: preKeyRecord.raw}
-		cloned, err := record.Clone()
-		if err != nil {
-			return err
-		}
-		return store.StoreKyberPreKey(ctx, uint32(id), cloned)
+		record := wrapKyberPreKeyRecord(preKeyRecord.raw)
+		return store.StoreKyberPreKey(ctx, uint32(id), record)
 	})
 }
 
 //export signal_mark_kyber_pre_key_used_callback
 func signal_mark_kyber_pre_key_used_callback(storeCtx unsafe.Pointer, id C.uint32_t, ecPrekeyID C.uint32_t, baseKey C.SignalMutPointerPublicKey) C.int {
 	return wrapStoreCallback(storeCtx, func(store KyberPreKeyStore, ctx context.Context) error {
+		_ = wrapPublicKey(baseKey.raw)
 		// TODO use ecPrekeyID and baseKey?
 		return store.MarkKyberPreKeyUsed(ctx, uint32(id))
 	})

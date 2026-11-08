@@ -204,7 +204,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	if content.MSC3245Voice != nil && mime != "audio/aac" && ffmpeg.Supported() {
 		data, err = ffmpeg.ConvertBytes(ctx, data, ".aac", []string{}, []string{"-c:a", "aac"}, mime)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w (voice to aac): %w", bridgev2.ErrMediaConvertFailed, err)
 		}
 		mime = "audio/aac"
 		fileName += ".aac"
@@ -214,7 +214,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 			// allowed
 		case "image/gif":
 			if !ffmpeg.Supported() {
-				return nil, fmt.Errorf("converting gif stickers is not supported")
+				return nil, fmt.Errorf("%w: converting gif stickers is not supported", bridgev2.ErrUnsupportedMediaType)
 			}
 			data, err = ffmpeg.ConvertBytes(ctx, data, ".apng", []string{}, []string{}, mime)
 			if err != nil {
@@ -223,7 +223,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 			fileName += ".apng"
 			mime = "image/apng"
 		default:
-			return nil, fmt.Errorf("unsupported content type for sticker %s", mime)
+			return nil, fmt.Errorf("%w for sticker: %s", bridgev2.ErrUnsupportedMediaType, mime)
 		}
 	}
 	att, err := getClient(ctx).UploadAttachment(ctx, data)

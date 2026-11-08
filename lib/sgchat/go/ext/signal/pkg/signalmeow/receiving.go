@@ -154,7 +154,10 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			case <-loopCtx.Done():
 				log.Info().Msg("Context done, exiting websocket status loop")
 				return
-			case status := <-authChan:
+			case status, ok := <-authChan:
+				if !ok {
+					return
+				}
 				lastAuthStatus = status
 				currentStatus = status
 
@@ -182,7 +185,11 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 					default:
 					}
 				}
-			case status := <-unauthChan:
+			case status, ok := <-unauthChan:
+				if !ok {
+					unauthChan = nil
+					continue
+				}
 				lastUnauthStatus = status
 				currentStatus = status
 
@@ -644,7 +651,7 @@ func (cli *Client) handleDecryptedResult(
 			})
 		}
 	case *signalpb.Content_CallMessage:
-		if !isBlocked && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
+		if !isBlocked && (content.CallMessage.Offer != nil || (content.CallMessage.Hangup != nil && content.CallMessage.Hangup.GetType() != signalpb.CallMessage_Hangup_HANGUP_ACCEPTED)) {
 			handlerSuccess = cli.handleEvent(&events.Call{
 				Info: events.MessageInfo{
 					Sender:          theirServiceID.UUID,

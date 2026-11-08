@@ -22,7 +22,10 @@ repos:
       # TODO: reenable this and fix all the problems
 
   - repo: https://github.com/beeper/pre-commit-go
-    rev: v0.4.2
+    rev: v0.5.0
     hooks:
       - id: zerolog-ban-msgf
       - id: zerolog-use-stringer
+      - id: bridgelint
+        language: system
+        verbose: true

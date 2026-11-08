@@ -49,8 +49,8 @@ func (bk *BackupKey) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
 	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(bk))
 }
 
-func (bk *BackupKey) cConstFixedArray() cFixedArray32Compat {
-	return cFixedArray32Compat(bk.cFixedArray())
+func (bk *BackupKey) cConstFixedArray() C.SignalType_ConstPointer_FixedArray32_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray32_uint8_t)(unsafe.Pointer(bk))
 }
 
 func GenerateRandomBackupKey() *BackupKey {

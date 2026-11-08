@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +29,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/backuppb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
@@ -48,7 +50,15 @@ func (s *SignalClient) syncChats(ctx context.Context, cancel context.CancelFunc)
 	if s.Client.Store.EphemeralBackupKey != nil {
 		zerolog.Ctx(ctx).Info().Msg("Fetching transfer archive before syncing chats")
 		meta, err := s.Client.WaitForTransfer(ctx)
-		if err != nil {
+		if errors.Is(err, signalmeow.ErrTransferTimedOut) {
+			zerolog.Ctx(ctx).Warn().Msg("Transfer archive wasn't uploaded in time, giving up")
+			s.UserLogin.Metadata.(*signalid.UserLoginMetadata).ChatsSynced = true
+			err = s.UserLogin.Save(ctx)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to save user login metadata after transfer archive timed out")
+			}
+			return
+		} else if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to request transfer archive")
 			return
 		} else if meta.Error != "" {

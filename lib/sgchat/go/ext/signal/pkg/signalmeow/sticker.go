@@ -72,7 +72,7 @@ func downloadStickerData(ctx context.Context, path string, packKey []byte) ([]by
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %w", web.HTTPStatusError{StatusCode: resp.StatusCode, Status: resp.Status})
 	} else if body, err = io.ReadAll(resp.Body); err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	} else if decrypted, err = decryptSticker(packKey, body); err != nil {

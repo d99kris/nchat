@@ -71,12 +71,15 @@ func (cli *Client) decryptEnvelope(
 		}
 		var result *DecryptionResult
 		var bundleType string
+		var ciphertextType libsignalgo.CiphertextMessageType
 		if *envelope.Type == signalpb.Envelope_PREKEY_MESSAGE {
 			result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content, envelope.GetServerTimestamp())
 			bundleType = "prekey bundle"
+			ciphertextType = libsignalgo.CiphertextMessageTypePreKey
 		} else {
 			result, err = cli.decryptCiphertextEnvelope(ctx, destinationServiceID, sender, envelope.Content, envelope.GetServerTimestamp())
 			bundleType = "ciphertext"
+			ciphertextType = libsignalgo.CiphertextMessageTypeWhisper
 		}
 		if err != nil {
 			return DecryptionResult{
@@ -84,7 +87,7 @@ func (cli *Client) decryptEnvelope(
 				Err:            fmt.Errorf("failed to decrypt %s envelope: %w", bundleType, err),
 				Retriable:      true, // TODO should these ever be not retriable?
 				Ciphertext:     envelope.Content,
-				CiphertextType: libsignalgo.CiphertextMessageType(envelope.GetType()),
+				CiphertextType: ciphertextType,
 			}
 		}
 		return *result

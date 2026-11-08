@@ -82,7 +82,7 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 			log.Debug().Msg("No successes or failures - Probably sent to myself")
 		} else if len(result.SuccessfullySentTo) == 0 {
 			log.Error().Msg("Failed to send event to all members of Signal group")
-			return errors.New("failed to send to any members of Signal group")
+			return fmt.Errorf("failed to send to any members of Signal group: %w", result.FailureError())
 		} else if len(result.SuccessfullySentTo) < totalRecipients {
 			if len(result.FailedToSendTo) > 0 {
 				log.Warn().Msg("Failed to send event to some members of Signal group")
@@ -124,7 +124,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, msg.ReplyTo,
 	)
 	if err != nil {
-		return nil, err
+		return nil, wrapConversionError(err)
 	}
 	return s.doSendMessage(ctx, msg, converted, &signalid.MessageMetadata{
 		ContainsAttachments: msgconv.ContainsAttachments(converted),
@@ -147,7 +147,7 @@ func (s *SignalClient) doSendMessage(
 	msg.AddPendingToIgnore(networkid.TransactionID(msgID))
 	err := s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(converted))
 	if err != nil {
-		return nil, bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
+		return nil, wrapSendError(err)
 	}
 	dbMsg := &database.Message{
 		ID:        msgID,
@@ -170,14 +170,14 @@ func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *br
 	if err != nil {
 		return err
 	}
-	return s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
+	return wrapSendError(s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
 		Content: &signalpb.Content_ReceiptMessage{
 			ReceiptMessage: &signalpb.ReceiptMessage{
 				Type:      signalpb.ReceiptMessage_VIEWED.Enum(),
 				Timestamp: []uint64{timestamp},
 			},
 		},
-	})
+	}))
 }
 
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
@@ -188,7 +188,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
 	} else if msg.EditTarget.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
-		return fmt.Errorf("cannot edit other people's messages")
+		return errEditOthersMessage
 	}
 	var replyTo *database.Message
 	if msg.EditTarget.ReplyTo.MessageID != "" {
@@ -199,7 +199,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	}
 	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, replyTo)
 	if err != nil {
-		return err
+		return wrapConversionError(err)
 	}
 	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	converted.Timestamp = &ts
@@ -208,7 +208,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 		DataMessage:         converted,
 	}))
 	if err != nil {
-		return bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
+		return wrapSendError(err)
 	}
 	prevID := msg.EditTarget.ID
 	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, ts)
@@ -277,7 +277,7 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 		},
 	}))
 	if err != nil {
-		return nil, err
+		return nil, wrapSendError(err)
 	}
 	return &database.Reaction{}, nil
 }
@@ -298,10 +298,7 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 			TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
 		},
 	}))
-	if err != nil {
-		return err
-	}
-	return nil
+	return wrapSendError(err)
 }
 
 func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridgev2.MatrixMessageRemove) error {
@@ -309,7 +306,7 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
 	} else if msg.TargetMessage.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
-		return fmt.Errorf("cannot delete other people's messages")
+		return errDeleteOthersMessage
 	}
 	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(&signalpb.DataMessage{
@@ -318,10 +315,7 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 			TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 		},
 	}))
-	if err != nil {
-		return err
-	}
-	return nil
+	return wrapSendError(err)
 }
 
 func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bridgev2.MatrixReadReceipt) error {
@@ -404,7 +398,7 @@ func (s *SignalClient) handleMatrixRoomMeta(ctx context.Context, portal *bridgev
 	gc.Revision = portal.Metadata.(*signalid.PortalMetadata).Revision + 1
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
-		return false, err
+		return false, wrapSendError(err)
 	}
 	if gc.ModifyTitle != nil {
 		portal.Name = *gc.ModifyTitle
@@ -446,7 +440,7 @@ func (s *SignalClient) HandleMatrixRoomAvatar(ctx context.Context, msg *bridgev2
 		avatarHash = sha256.Sum256(data)
 		avatarPath, err = s.Client.UploadGroupAvatar(ctx, data, groupID, "")
 		if err != nil {
-			return false, fmt.Errorf("failed to reupload avatar: %w", err)
+			return false, wrapSendError(fmt.Errorf("failed to reupload avatar: %w", err))
 		}
 	}
 	return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
@@ -473,7 +467,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	if msg.Portal.RoomType == database.RoomTypeDM {
 		switch msg.Type {
 		case bridgev2.Invite:
-			return nil, fmt.Errorf("cannot invite additional user to dm")
+			return nil, errInviteToDM
 		default:
 			return nil, nil
 		}
@@ -602,7 +596,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	gc.Revision = msg.Portal.Metadata.(*signalid.PortalMetadata).Revision + 1
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
-		return nil, err
+		return nil, wrapSendError(err)
 	}
 	if (msg.Type == bridgev2.Invite || msg.Type == bridgev2.AcceptKnock) && targetSignalID.Type != libsignalgo.ServiceIDTypePNI {
 		err = targetIntent.EnsureJoined(ctx, msg.Portal.MXID)
@@ -673,7 +667,7 @@ func (s *SignalClient) HandleMatrixPowerLevels(ctx context.Context, msg *bridgev
 	}
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
-		return false, err
+		return false, wrapSendError(err)
 	}
 	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
 	return true, nil
@@ -724,7 +718,7 @@ func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev
 
 func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *bridgev2.MatrixDisappearingTimer) (bool, error) {
 	if msg.Content.Type != event.DisappearingTypeAfterRead && msg.Content.Timer.Duration != 0 {
-		return false, fmt.Errorf("unsupported disappearing timer type: %s", msg.Content.Type)
+		return false, errUnsupportedDisappearingType
 	}
 	userID, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
 	if err != nil {
@@ -751,7 +745,7 @@ func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *b
 			ExpireTimer: ptr.Ptr(uint32(msg.Content.Timer.Seconds())),
 		}))
 		if !res.WasSuccessful {
-			return false, res.Error
+			return false, wrapSendError(res.Error)
 		}
 		msg.Portal.Disappear = newSetting
 		return true, nil
@@ -776,7 +770,7 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 				Revision:      portalMeta.Revision + 1,
 			}, groupID)
 			if err != nil {
-				return fmt.Errorf("failed to leave group before deleting chat: %w", err)
+				return wrapSendError(fmt.Errorf("failed to leave group before deleting chat: %w", err))
 			}
 			portalMeta.Revision = revision
 		}
@@ -786,7 +780,7 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 		// TODO block and delete support?
 		err = s.syncMessageRequestResponse(ctx, msg.Portal, signalpb.SyncMessage_MessageRequestResponse_DELETE)
 		if err != nil {
-			return fmt.Errorf("failed to send message request delete sync: %w", err)
+			return wrapSendError(fmt.Errorf("failed to send message request delete sync: %w", err))
 		}
 	}
 
@@ -864,7 +858,7 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 		Msg("Sent conversation deletion to Signal")
 
 	if !result.WasSuccessful {
-		return fmt.Errorf("failed to send delete conversation sync message: %w %s %s", result.Error, userID, groupID)
+		return wrapSendError(fmt.Errorf("failed to send delete conversation sync message: %w %s %s", result.Error, userID, groupID))
 	}
 
 	return nil
@@ -968,7 +962,7 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 	}
 	err = s.syncMessageRequestResponse(ctx, msg.Portal, signalpb.SyncMessage_MessageRequestResponse_ACCEPT)
 	if err != nil {
-		return fmt.Errorf("failed to sync message request acceptance: %w", err)
+		return wrapSendError(fmt.Errorf("failed to sync message request acceptance: %w", err))
 	}
 	if userID.Type == libsignalgo.ServiceIDTypeACI {
 		profileKey, err := s.Client.ProfileKeyForSignalID(ctx, s.Client.Store.ACI)
@@ -997,7 +991,7 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 			PniSignatureMessage: pniSig,
 		})
 		if !res.WasSuccessful {
-			return fmt.Errorf("failed to share profile key to accept message request: %w", res.Error)
+			return wrapSendError(fmt.Errorf("failed to share profile key to accept message request: %w", res.Error))
 		}
 		// TODO send read receipts too?
 	}
@@ -1034,7 +1028,7 @@ func (s *SignalClient) HandleMatrixBlockUser(ctx context.Context, msg *bridgev2.
 		}
 	}
 	if err = s.syncMessageRequestResponse(ctx, msg.Portal, respType); err != nil {
-		return err
+		return wrapSendError(err)
 	}
 	_, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (bool, error) {
 		changed := recipient.Blocked != msg.Content.Block
@@ -1056,7 +1050,7 @@ func (s *SignalClient) reportSpam(ctx context.Context, portal *bridgev2.Portal, 
 			continue
 		}
 		if err = s.Client.ReportSpam(ctx, aci, meta.ServerGUID, meta.ReportingToken); err != nil {
-			return err
+			return wrapSendError(err)
 		}
 		seen[meta.ServerGUID] = true
 		if len(seen) == 3 {

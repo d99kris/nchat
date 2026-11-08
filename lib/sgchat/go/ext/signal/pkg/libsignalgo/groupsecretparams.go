@@ -57,24 +57,24 @@ func (gmk *GroupMasterKey) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
 	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(gmk))
 }
 
-func (gmk *GroupMasterKey) cConstFixedArray() cFixedArray32Compat {
-	return cFixedArray32Compat(gmk.cFixedArray())
+func (gmk *GroupMasterKey) cConstFixedArray() C.SignalType_ConstPointer_FixedArray32_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray32_uint8_t)(unsafe.Pointer(gmk))
 }
 
 func (gsp *GroupSecretParams) cFixedArray() *C.SignalType_FixedArray289_uint8_t {
 	return (*C.SignalType_FixedArray289_uint8_t)(unsafe.Pointer(gsp))
 }
 
-func (gsp *GroupSecretParams) cConstFixedArray() cFixedArray289Compat {
-	return cFixedArray289Compat(gsp.cFixedArray())
+func (gsp *GroupSecretParams) cConstFixedArray() C.SignalType_ConstPointer_FixedArray289_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray289_uint8_t)(unsafe.Pointer(gsp))
 }
 
 func (gid *GroupIdentifier) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
 	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(gid))
 }
 
-func (gid *GroupIdentifier) cConstFixedArray() cFixedArray32Compat {
-	return cFixedArray32Compat(gid.cFixedArray())
+func (gid *GroupIdentifier) cConstFixedArray() C.SignalType_ConstPointer_FixedArray32_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray32_uint8_t)(unsafe.Pointer(gid))
 }
 
 func (gid *GroupIdentifier) String() string {

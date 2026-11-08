@@ -64,6 +64,13 @@ func (cli *Client) RegisterAllPreKeys(ctx context.Context, pks store.PreKeyStore
 		return fmt.Errorf("failed to get all kyber prekeys: %w", err)
 	}
 
+	if len(preKeys) > PREKEY_BATCH_SIZE {
+		preKeys = preKeys[len(preKeys)-PREKEY_BATCH_SIZE:]
+	}
+	if len(kyberPreKeys) > PREKEY_BATCH_SIZE {
+		kyberPreKeys = kyberPreKeys[len(kyberPreKeys)-PREKEY_BATCH_SIZE:]
+	}
+
 	// We need to have some keys to upload
 	if len(preKeys) == 0 && len(kyberPreKeys) == 0 {
 		return fmt.Errorf("no prekeys to upload")
@@ -408,6 +415,7 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 var (
 	ErrUnregisteredUser = errors.New("user is unregistered")
 	ErrDevicesChanged   = errors.New("device list changed while sending skdm")
+	ErrRateLimited      = errors.New("rate limited by server")
 )
 
 func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, specificDeviceID int) error {

@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -74,6 +75,9 @@ var signalTransport = &http.Transport{
 var SignalHTTPClient = &http.Client{
 	Transport: signalTransport,
 }
+var SignalUploadHTTPClient = &http.Client{
+	Transport: signalTransport,
+}
 
 func init() {
 	SignalCertPool.AddCert(exerrors.Must(x509.ParseCertificate(signalRootCertBytes)))
@@ -97,9 +101,10 @@ type HTTPReqOpt struct {
 	ContentType ContentType
 	Headers     map[string]string
 	OverrideURL string // Override the full URL, if set ignores path and Host
+	Upload      bool
 }
 
-var httpReqCounter = 0
+var httpReqCounter atomic.Int64
 
 func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPReqOpt) (*http.Response, error) {
 	// Set defaults
@@ -143,11 +148,14 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 		req.SetBasicAuth(*opt.Username, *opt.Password)
 	}
 
-	httpReqCounter++
-	log = log.With().Int("request_number", httpReqCounter).Logger()
+	log = log.With().Int64("request_number", httpReqCounter.Add(1)).Logger()
 	log.Trace().Msg("Sending HTTP request")
+	client := SignalHTTPClient
+	if opt.Upload {
+		client = SignalUploadHTTPClient
+	}
 	start := time.Now()
-	resp, err := SignalHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	dur := time.Since(start)
 	if err != nil {
 		log.Err(err).Dur("duration", dur).Msg("Error sending request")
@@ -155,6 +163,16 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 	}
 	log.Debug().Int("status_code", resp.StatusCode).Dur("duration", dur).Msg("Received HTTP response")
 	return resp, nil
+}
+
+// HTTPStatusError is returned when a Signal server responds with an unexpected HTTP status.
+type HTTPStatusError struct {
+	StatusCode int
+	Status     string
+}
+
+func (e HTTPStatusError) Error() string {
+	return e.Status
 }
 
 func CloseBody(resp *http.Response) {
@@ -242,9 +260,8 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32) (*http.Re
 	req.Header.Add("Content-Type", "application/octet-stream")
 	req.Header.Set("User-Agent", UserAgent)
 
-	httpReqCounter++
 	log = log.With().
-		Int("request_number", httpReqCounter).
+		Int64("request_number", httpReqCounter.Add(1)).
 		Str("url", urlStr).
 		Logger()
 

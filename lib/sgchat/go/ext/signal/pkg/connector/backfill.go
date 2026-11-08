@@ -77,8 +77,8 @@ func (s *SignalClient) FetchMessages(ctx context.Context, params bridgev2.FetchM
 	}
 	// GetBackupChatItems returns in reverse chronological order, so flip the list
 	slices.Reverse(items)
-	var firstDirectionfulProcessed bool
 	var isRead bool
+	var readUpTo time.Time
 	convertedMessages := make([]*bridgev2.BackfillMessage, 0, len(items))
 	attMap := make(msgconv.AttachmentMap)
 	recipientMap := make(map[uint64]*backuppb.Recipient)
@@ -123,20 +123,17 @@ func (s *SignalClient) FetchMessages(ctx context.Context, params bridgev2.FetchM
 		case *backuppb.ChatItem_Incoming:
 			streamOrder = int64(dt.Incoming.GetDateServerSent())
 			prevStreamOrder = streamOrder
-			if !firstDirectionfulProcessed {
-				firstDirectionfulProcessed = true
-				isRead = dt.Incoming.Read
+			isRead = dt.Incoming.Read
+			if isRead {
+				readUpTo = time.UnixMilli(int64(item.DateSent))
 			}
 		case *backuppb.ChatItem_Outgoing:
 			streamOrder = int64(item.GetDateSent())
 			// Ensure stream order is higher than previous incoming item, but lower than next incoming item
 			streamOrder = min(streamOrder, findNextStreamOrder(i+1)-1)
 			streamOrder = max(streamOrder, prevStreamOrder+1)
-
-			if !firstDirectionfulProcessed {
-				firstDirectionfulProcessed = true
-				isRead = true
-			}
+			isRead = true
+			readUpTo = time.UnixMilli(int64(item.DateSent))
 		}
 		if len(attMap) > 0 {
 			clear(attMap)
@@ -178,11 +175,15 @@ func (s *SignalClient) FetchMessages(ctx context.Context, params bridgev2.FetchM
 			Reactions:        convertedReactions,
 		})
 	}
+	if isRead {
+		readUpTo = time.Time{}
+	}
 	return &bridgev2.FetchMessagesResponse{
 		Messages:         convertedMessages,
 		HasMore:          len(items) >= params.Count,
 		Forward:          params.Forward,
 		MarkRead:         isRead,
+		ReadUpTo:         readUpTo,
 		ApproxTotalCount: chat.TotalMessages,
 		CompleteCallback: func() {
 			// When reaching the last backwards backfill batch, delete the chat from the backup store.

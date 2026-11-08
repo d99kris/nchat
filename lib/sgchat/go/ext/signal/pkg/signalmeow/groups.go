@@ -707,7 +707,7 @@ func (cli *Client) DownloadGroupAvatar(ctx context.Context, avatarPath string, g
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("unexpected response status %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected response status: %w", web.HTTPStatusError{StatusCode: resp.StatusCode, Status: resp.Status})
 	}
 	encryptedAvatar, err := io.ReadAll(resp.Body)
 	if err != nil {

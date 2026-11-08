@@ -99,7 +99,9 @@ func (mc *MessageConverter) ToMatrix(
 	}
 	if dm.GetIsViewOnce() {
 		var unavailableReason string
-		if len(dm.GetAttachments()) == 0 || sender == client.Store.ACI ||
+		if sender == client.Store.ACI {
+			unavailableReason = "Sent a view-once message."
+		} else if len(dm.GetAttachments()) == 0 ||
 			!time.UnixMilli(int64(dm.GetTimestamp())).Add(45*24*time.Hour).After(time.Now()) {
 			unavailableReason = "View-once media is no longer available."
 		} else if len(dm.GetAttachments()) != 1 || dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil ||
@@ -607,7 +609,7 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		if err != nil {
 			return nil, err
 		}
-		content.URL, err = mc.Bridge.Matrix.GenerateContentURI(ctx, mediaID)
+		content.URL, content.File, err = mc.Bridge.GenerateContentURI(ctx, getPortal(ctx).MXID, mediaID)
 	} else {
 		err = mc.actuallyReuploadAttachment(ctx, content, att, attMap)
 		if err != nil {

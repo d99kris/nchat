@@ -220,7 +220,7 @@ func (s *SignalClient) resolvePhone(ctx context.Context, number string) (aci, pn
 		aci = recipient.ACI
 		pni = recipient.PNI
 	} else if resp, lookupErr := s.Client.LookupPhone(ctx, e164Number); lookupErr != nil {
-		err = fmt.Errorf("error looking up number on server: %w", lookupErr)
+		err = wrapRespError(fmt.Errorf("error looking up number on server: %w", lookupErr))
 	} else {
 		aci = resp[e164Number].ACI
 		pni = resp[e164Number].PNI
@@ -243,6 +243,7 @@ func (s *SignalClient) resolvePhone(ctx context.Context, number string) (aci, pn
 func (s *SignalClient) resolveUsername(ctx context.Context, username string) (aci, pni uuid.UUID, err error) {
 	serviceID, err := s.Client.ResolveUsername(ctx, username)
 	if err != nil {
+		err = wrapRespError(fmt.Errorf("error looking up username on server: %w", err))
 		return
 	}
 	aci, pni = serviceID.ToACIAndPNI()
@@ -388,7 +389,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 		}
 		group.AvatarPath, err = s.Client.UploadGroupAvatar(ctx, avatarBytes, group.GroupIdentifier, group.GroupMasterKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to upload avatar: %w", err)
+			return nil, wrapRespError(fmt.Errorf("failed to upload avatar: %w", err))
 		}
 	}
 	portal, err := s.Main.Bridge.GetPortalByKey(ctx, s.makePortalKey(string(group.GroupIdentifier)))
@@ -418,7 +419,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 	}
 	resp, err := s.Client.CreateGroup(ctx, group)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create group: %w", err)
+		return nil, wrapRespError(fmt.Errorf("failed to create group: %w", err))
 	}
 	if params.RoomID != "" {
 		// UpdateMatrixRoomID could do this for us if we passed ChatInfoSource to it,
@@ -444,11 +445,15 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 	}
 	resp := make([]*bridgev2.ResolveIdentifierResponse, len(recipients))
 	for i, recipient := range recipients {
-		recipientResp := &bridgev2.ResolveIdentifierResponse{
-			Chat: s.makeCreateDMResponse(ctx, recipient, nil),
+		if err = ctx.Err(); err != nil {
+			return nil, err
 		}
+		recipientResp := &bridgev2.ResolveIdentifierResponse{}
 		var username string
 		if recipient.ACI != uuid.Nil {
+			recipientResp.Chat = &bridgev2.CreateChatResponse{
+				PortalKey: s.makeDMPortalKey(libsignalgo.NewACIServiceID(recipient.ACI)),
+			}
 			recipientResp.UserID = signalid.MakeUserID(recipient.ACI)
 			ghost, err := s.Main.Bridge.GetGhostByID(ctx, recipientResp.UserID)
 			if err != nil {
@@ -457,7 +462,11 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 			recipientResp.Ghost = ghost
 			username = ghost.Metadata.(*signalid.GhostMetadata).Username
 		} else {
-			recipientResp.UserID = signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(recipient.PNI))
+			pniServiceID := libsignalgo.NewPNIServiceID(recipient.PNI)
+			recipientResp.Chat = &bridgev2.CreateChatResponse{
+				PortalKey: s.makeDMPortalKey(pniServiceID),
+			}
+			recipientResp.UserID = signalid.MakeUserIDFromServiceID(pniServiceID)
 		}
 		recipientResp.UserInfo, err = s.contactToUserInfo(ctx, recipient, username, false)
 		if err != nil {

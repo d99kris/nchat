@@ -79,7 +79,7 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		rawDataResp, err = client.Client.DownloadGroupAvatar(ctx, info.GroupAvatarPath, groupMasterKey)
 		if err != nil {
 			log.Err(err).Msg("Direct download failed")
-			return nil, err
+			return nil, wrapDirectMediaError(err)
 		}
 	case *signalid.DirectMediaProfileAvatar:
 		log.Info().
@@ -107,7 +107,7 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		rawDataResp, err = client.Client.DownloadUserAvatar(ctx, info.ProfileAvatarPath, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("Direct download failed")
-			return nil, err
+			return nil, wrapDirectMediaError(err)
 		}
 	case *signalid.DirectMediaSticker:
 		log.Info().
@@ -118,7 +118,7 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		rawDataResp, err = signalmeow.DownloadStickerPackItem(ctx, info.PackID, info.PackKey, info.StickerID)
 		if err != nil {
 			log.Err(err).Msg("Direct download failed")
-			return nil, err
+			return nil, wrapDirectMediaError(err)
 		}
 	default:
 		return nil, fmt.Errorf("no downloader for direct media type: %T", info)

@@ -42,6 +42,7 @@ const transferArchiveFetchTimeout = 1 * time.Hour
 
 var (
 	ErrNoEphemeralBackupKey = errors.New("no ephemeral backup key")
+	ErrTransferTimedOut     = errors.New("timed out waiting for transfer archive")
 )
 
 const (
@@ -271,8 +272,8 @@ func (cli *Client) WaitForTransfer(ctx context.Context) (*TransferArchiveMetadat
 
 	for {
 		remainingTime := time.Until(timeout)
-		if remainingTime < 0 {
-			return nil, fmt.Errorf("timed out")
+		if remainingTime < time.Second {
+			return nil, ErrTransferTimedOut
 		}
 		reqStart := time.Now()
 		reqTimeout := min(remainingTime, 5*time.Minute)

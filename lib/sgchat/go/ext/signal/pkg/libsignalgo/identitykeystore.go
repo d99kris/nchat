@@ -90,12 +90,8 @@ func signal_get_local_registration_id_callback(storeCtx unsafe.Pointer, idp *C.u
 //export signal_save_identity_key_callback
 func signal_save_identity_key_callback(storeCtx unsafe.Pointer, out *C.uint8_t, address C.SignalMutPointerProtocolAddress, publicKey C.SignalMutPointerPublicKey) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
-		publicKeyStruct := PublicKey{ptr: publicKey.raw}
-		cloned, err := publicKeyStruct.Clone()
-		if err != nil {
-			return err
-		}
-		addr := &Address{ptr: address.raw}
+		addr := wrapAddress(address.raw)
+		pub := wrapPublicKey(publicKey.raw)
 		theirServiceID, err := addr.NameServiceID()
 		if err != nil {
 			return err
@@ -103,7 +99,7 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, out *C.uint8_t, 
 		replaced, err := store.SaveIdentityKey(
 			ctx,
 			theirServiceID,
-			&IdentityKey{cloned},
+			&IdentityKey{pub},
 		)
 		if err != nil {
 			return err
@@ -120,7 +116,7 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, out *C.uint8_t, 
 //export signal_get_identity_key_callback
 func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp *C.SignalMutPointerPublicKey, address C.SignalMutPointerProtocolAddress) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
-		addr := &Address{ptr: address.raw}
+		addr := wrapAddress(address.raw)
 		theirServiceID, err := addr.NameServiceID()
 		if err != nil {
 			return err
@@ -137,12 +133,13 @@ func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp *C.Si
 //export signal_is_trusted_identity_callback
 func signal_is_trusted_identity_callback(storeCtx unsafe.Pointer, out *C.bool, address C.SignalMutPointerProtocolAddress, public_key C.SignalMutPointerPublicKey, direction C.uint32_t) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
-		addr := &Address{ptr: address.raw}
+		addr := wrapAddress(address.raw)
+		pub := wrapPublicKey(public_key.raw)
 		theirServiceID, err := addr.NameServiceID()
 		if err != nil {
 			return err
 		}
-		trusted, err := store.IsTrustedIdentity(ctx, theirServiceID, &IdentityKey{&PublicKey{ptr: public_key.raw}}, SignalDirection(direction))
+		trusted, err := store.IsTrustedIdentity(ctx, theirServiceID, &IdentityKey{pub}, SignalDirection(direction))
 		if err != nil {
 			return err
 		}

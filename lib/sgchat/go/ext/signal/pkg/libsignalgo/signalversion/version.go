@@ -2,4 +2,4 @@
 
 package signalversion
 
-const Version = "v0.105.0"
+const Version = "v0.106.1"

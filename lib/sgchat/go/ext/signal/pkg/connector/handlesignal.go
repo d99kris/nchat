@@ -34,7 +34,6 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/simplevent"
-	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -74,7 +73,7 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	case *events.QueueEmpty:
 		s.queueEmptyWaiter.Set()
 	case *events.LoggedOut:
-		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: evt.Error.Error()})
+		s.sendLoggedOutState(evt.Error)
 	case *events.IdentityChange:
 		// TODO send notice
 	default:
@@ -234,13 +233,16 @@ func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal)
 	if !ok || dataMsg.GroupV2 == nil {
 		return
 	}
-	portalRev := portal.Metadata.(*signalid.PortalMetadata).Revision
+	portalMeta := portal.Metadata.(*signalid.PortalMetadata)
+	portalRev := portalMeta.Revision
 	if evt.Info.GroupRevision > portalRev {
 		toRevision := evt.Info.GroupRevision
 		if dataMsg.GetGroupV2().GetGroupChange() != nil {
 			toRevision--
 		}
 		evt.s.catchUpGroup(ctx, portal, portalRev, toRevision, dataMsg.GetTimestamp())
+	} else if portalMeta.InfoVersion < currentPortalInfoVersion && portal.MXID != "" {
+		evt.s.catchUpGroup(ctx, portal, 0, portalRev, dataMsg.GetTimestamp())
 	}
 }
 

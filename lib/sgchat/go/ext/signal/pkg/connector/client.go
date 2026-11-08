@@ -182,9 +182,9 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 					peekedConnectionStatus.Event == signalmeow.SignalConnectionEventNone {
 					s.UserLogin.Log.Debug().Msg("Sending TransientDisconnect BridgeState")
 					if err == nil {
-						s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
+						s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "signal-disconnected"})
 					} else {
-						s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+						s.UserLogin.BridgeState.Send(connectionErrorState(err))
 					}
 				}
 			}
@@ -192,11 +192,7 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 		case signalmeow.SignalConnectionEventLoggedOut:
 			s.stopChatSync()
 			s.UserLogin.Log.Debug().Msg("Sending BadCredentials BridgeState")
-			if err == nil {
-				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
-			} else {
-				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
-			}
+			s.sendLoggedOutState(err)
 			err = s.Client.ClearKeysAndDisconnect(context.TODO())
 			if err != nil {
 				s.UserLogin.Log.Error().Err(err).Msg("Failed to clear keys and disconnect")
@@ -204,18 +200,18 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 
 		case signalmeow.SignalConnectionEventError:
 			s.UserLogin.Log.Debug().Msg("Sending TransientDisconnect BridgeState")
-			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+			s.UserLogin.BridgeState.Send(connectionErrorState(err))
 
 		case signalmeow.SignalConnectionEventFatalError:
 			s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
-			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "signal-connection-failed", Info: map[string]any{"go_error": err.Error()}})
 
 		case signalmeow.SignalConnectionCleanShutdown:
 			if s.Client.IsLoggedIn() {
 				s.UserLogin.Log.Debug().Msg("Clean Shutdown - sending no BridgeState")
 			} else {
 				s.UserLogin.Log.Debug().Msg("Clean Shutdown, but logged out - Sending BadCredentials BridgeState")
-				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
+				s.sendLoggedOutState(nil)
 			}
 		}
 	}
@@ -223,7 +219,7 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 
 func (s *SignalClient) Connect(ctx context.Context) {
 	if s.Client == nil {
-		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Error: "signal-not-logged-in", UserAction: status.UserActionRelogin})
 		return
 	}
 	s.updateRemoteProfile(ctx, false)
@@ -251,6 +247,11 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 				log.Err(status.Err).Msg("Authed websocket disconnected")
 			case web.SignalWebsocketConnectionEventLoggedOut:
 				log.Err(status.Err).Msg("Authed websocket logged out")
+				s.sendLoggedOutState(status.Err)
+				err = s.Client.ClearKeysAndDisconnect(ctx)
+				if err != nil {
+					log.Err(err).Msg("Failed to clear keys and disconnect")
+				}
 				return fmt.Errorf("authed websocket logged out: %w", status.Err)
 			case web.SignalWebsocketConnectionEventError, web.SignalWebsocketConnectionEventFatalError:
 				log.Err(status.Err).Msg("Authed websocket error")
@@ -315,7 +316,7 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, noLoginSy
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
-		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "signal-connect-failed", Info: map[string]any{"go_error": err.Error()}})
 		retryInSeconds := 2 << retryCount
 		if retryInSeconds > 150 {
 			retryInSeconds = 150

@@ -222,10 +222,12 @@ func (s *SignalWebsocket) connectLoop(
 					return
 				}
 				if request == nil {
-					log.Fatal().Msg("Received nil request")
+					log.Error().Msg("Received nil request")
+					continue
 				}
 				if requestHandler == nil {
-					log.Fatal().Msg("Received request but no handler")
+					log.Error().Uint64("request_id", request.GetId()).Msg("Received request but no handler")
+					continue
 				}
 
 				// Handle the request with the request handler function
@@ -254,6 +256,7 @@ func (s *SignalWebsocket) connectLoop(
 	retrying := false
 	errorCount := 0
 	isFirstConnect := true
+	var connectedAt time.Time
 	wsURL := (&url.URL{
 		Scheme: "wss",
 		Host:   APIHostname,
@@ -271,7 +274,7 @@ func (s *SignalWebsocket) connectLoop(
 			case <-ctx.Done():
 			}
 			backoff += backoffIncrement
-		} else if !isFirstConnect && s.basicAuth != nil {
+		} else if !isFirstConnect && (s.basicAuth != nil || time.Since(connectedAt) < time.Minute) {
 			select {
 			case <-time.After(initialBackoff):
 			case <-ctx.Done():
@@ -287,20 +290,17 @@ func (s *SignalWebsocket) connectLoop(
 		if resp != nil {
 			if resp.StatusCode != 101 {
 				// Server didn't want to open websocket
-				if resp.StatusCode >= 500 {
-					// We can try again if it's a 5xx
-					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("5xx opening websocket: %v", resp.Status))
-				} else if resp.StatusCode == 403 {
+				statusErr := HTTPStatusError{StatusCode: resp.StatusCode, Status: resp.Status}
+				if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
+					// We can try again if it's a 5xx or a rate limit
+					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("error opening websocket: %w", statusErr))
+				} else if resp.StatusCode == http.StatusForbidden || (resp.StatusCode == http.StatusUnauthorized && s.basicAuth != nil) {
 					// We are logged out, so we should stop trying to reconnect
-					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("403 opening websocket, we are logged out"))
-					return // NOT RETRYING, KILLING THE CONNECTION LOOP
-				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
-					// Unexpected status code
-					s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("unexpected status opening websocket: %v", resp.Status))
+					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("%w opening websocket, we are logged out", statusErr))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
-					// Something is very wrong
-					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected error opening websocket: %v", resp.Status))
+					// Unexpected status code
+					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected status opening websocket: %w", statusErr))
 				}
 				// Retry the connection
 				retrying = true
@@ -323,6 +323,7 @@ func (s *SignalWebsocket) connectLoop(
 		s.ws.Store(ws)
 		retrying = false
 		backoff = initialBackoff
+		connectedAt = time.Now()
 
 		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
@@ -402,12 +403,16 @@ func (s *SignalWebsocket) connectLoop(
 		if ctxCauseErr == nil || errors.Is(ctxCauseErr, context.Canceled) {
 			s.pushStatus(ctx, SignalWebsocketConnectionEventCleanShutdown, nil)
 		} else {
-			errorCount++
+			if time.Since(connectedAt) > time.Minute {
+				errorCount = 0
+			}
 			s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, ctxCauseErr)
 			if errors.Is(ctxCauseErr, ErrForcedReconnect) {
 				// Skip the delay for forced reconnects
 				// TODO should the delay be lowered globally?
 				isFirstConnect = true
+			} else {
+				errorCount++
 			}
 		}
 
@@ -420,10 +425,12 @@ func (s *SignalWebsocket) connectLoop(
 		wg.Wait()
 		log.Debug().Msg("Finished websocket cleanup")
 		if errorCount > 500 {
-			// Something is really wrong, we better panic.
+			// Something is really wrong, stop reconnecting.
 			// This is a last defense against a runaway error loop,
 			// like the WS continually closing and reconnecting
-			log.Fatal().Int("error_count", errorCount).Msg("Too many errors, panicking")
+			log.Error().Int("error_count", errorCount).Msg("Too many errors, stopping connection loop")
+			s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("too many websocket errors (%d)", errorCount))
+			return
 		}
 	}
 }
@@ -464,13 +471,17 @@ func readLoop(
 				Str("request_verb", *msg.Request.Verb).
 				Str("request_path", *msg.Request.Path).
 				Msg("Received WS request")
-			incomingRequestChan <- msg.Request
+			select {
+			case incomingRequestChan <- msg.Request:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
 			if msg.Response == nil {
-				log.Fatal().Msg("Received response with no response")
+				return errors.New("received response message with no response")
 			}
 			if msg.Response.Id == nil {
-				log.Fatal().Msg("Received response with no id")
+				return errors.New("received response message with no id")
 			}
 			responseChannel, ok := responseChannels.Pop(*msg.Response.Id)
 			if !ok {
@@ -482,9 +493,9 @@ func readLoop(
 			logEvt := log.Debug().
 				Uint64("response_id", msg.Response.GetId()).
 				Uint32("response_status", msg.Response.GetStatus()).
-				Str("response_message", msg.Response.GetMessage())
-			if log.GetLevel() == zerolog.TraceLevel || len(msg.Response.Body) < 256 {
-				logEvt.Strs("response_headers", msg.Response.Headers)
+				Str("response_message", msg.Response.GetMessage()).
+				Strs("response_headers", msg.Response.Headers)
+			if log.GetLevel() == zerolog.TraceLevel || msg.Response.GetStatus() >= 400 {
 				if json.Valid(msg.Response.Body) {
 					logEvt.RawJSON("response_body", msg.Response.Body)
 				} else {
@@ -678,6 +689,7 @@ func OpenWebsocket(ctx context.Context, url string) (*websocket.Conn, *http.Resp
 func CreateWSResponse(ctx context.Context, id uint64, status int) *signalpb.WebSocketMessage {
 	if status != 200 && status != 400 {
 		// TODO support more responses to Signal? Are there more?
+		//bridgelint:ignore GR004 statuses come from the bridge's own handlers, so anything else is a bridge bug
 		zerolog.Ctx(ctx).Fatal().Int("status", status).Msg("Error creating response. Non 200/400 not supported yet.")
 		return nil
 	}

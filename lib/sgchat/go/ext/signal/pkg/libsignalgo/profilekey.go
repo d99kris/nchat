@@ -46,24 +46,24 @@ func (pk *ProfileKey) cFixedArray() *C.SignalType_FixedArray32_uint8_t {
 	return (*C.SignalType_FixedArray32_uint8_t)(unsafe.Pointer(pk))
 }
 
-func (pk *ProfileKey) cConstFixedArray() cFixedArray32Compat {
-	return cFixedArray32Compat(pk.cFixedArray())
+func (pk *ProfileKey) cConstFixedArray() C.SignalType_ConstPointer_FixedArray32_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray32_uint8_t)(unsafe.Pointer(pk))
 }
 
 func (pkv *ProfileKeyVersion) cFixedArray() *C.SignalType_FixedArray64_uint8_t {
 	return (*C.SignalType_FixedArray64_uint8_t)(unsafe.Pointer(pkv))
 }
 
-func (pkv *ProfileKeyVersion) cConstFixedArray() cFixedArray64Compat {
-	return cFixedArray64Compat(pkv.cFixedArray())
+func (pkv *ProfileKeyVersion) cConstFixedArray() C.SignalType_ConstPointer_FixedArray64_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray64_uint8_t)(unsafe.Pointer(pkv))
 }
 
 func (ak *AccessKey) cFixedArray() *C.SignalType_FixedArray16_uint8_t {
 	return (*C.SignalType_FixedArray16_uint8_t)(unsafe.Pointer(ak))
 }
 
-func (ak *AccessKey) cConstFixedArray() cFixedArray16Compat {
-	return cFixedArray16Compat(ak.cFixedArray())
+func (ak *AccessKey) cConstFixedArray() C.SignalType_ConstPointer_FixedArray16_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray16_uint8_t)(unsafe.Pointer(ak))
 }
 
 func DeserializeProfileKey(bytes []byte) (*ProfileKey, error) {
@@ -177,8 +177,8 @@ func (p *ProfileKeyCredentialRequestContext) cFixedArray() *C.SignalType_FixedAr
 	return (*C.SignalType_FixedArray473_uint8_t)(unsafe.Pointer(p))
 }
 
-func (p *ProfileKeyCredentialRequestContext) cConstFixedArray() cFixedArray473Compat {
-	return cFixedArray473Compat(p.cFixedArray())
+func (p *ProfileKeyCredentialRequestContext) cConstFixedArray() C.SignalType_ConstPointer_FixedArray473_uint8_t {
+	return (C.SignalType_ConstPointer_FixedArray473_uint8_t)(unsafe.Pointer(p))
 }
 
 func CreateProfileKeyCredentialRequestContext(serverPublicParams *ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
