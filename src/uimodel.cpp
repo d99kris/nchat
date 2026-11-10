@@ -4341,7 +4341,15 @@ void UiModel::Impl::PerformForwardMessage(const std::pair<std::string, std::stri
 bool UiModel::Impl::IsChatForceHidden(const std::string& p_ChatId)
 {
   static const bool statusBroadcastHidden = (UiConfig::GetNum("status_broadcast") == 0);
-  return statusBroadcastHidden && (p_ChatId == "status@broadcast");
+  static const bool newsletterHidden = (UiConfig::GetNum("newsletter") == 0);
+  static const std::string newsletterSuffix = "@newsletter";
+  if (statusBroadcastHidden && (p_ChatId == "status@broadcast")) return true;
+  if (newsletterHidden && (p_ChatId.size() >= newsletterSuffix.size()) &&
+      (p_ChatId.compare(p_ChatId.size() - newsletterSuffix.size(), newsletterSuffix.size(), newsletterSuffix) == 0))
+  {
+    return true;
+  }
+  return false;
 }
 
 bool UiModel::Impl::IsChatForceMuted(const std::string& p_ChatId)
