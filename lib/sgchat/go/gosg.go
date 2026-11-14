@@ -373,6 +373,52 @@ func GetContactName(connId int, id string) string {
 	return name
 }
 
+// A Signal message may carry several attachments (ex: multiple images sent together), while an
+// nchat message holds a single file. Attachments after the first are therefore surfaced as
+// separate "part" messages with id "<timestamp>_<n>", n >= 1. The first attachment and the text
+// keep the plain timestamp id, so reactions, quotes and edits targeting the Signal message land
+// on it. MsgIdToTimestamp maps either id form back to the Signal message timestamp. Sort order,
+// deletes and receipts of parts are handled in sgchat.cpp - keep msgPartSep in sync with it.
+const msgPartSep = "_"
+
+func MsgPartId(msgId string, part int) string {
+	if part == 0 {
+		return msgId
+	}
+
+	return fmt.Sprintf("%s%s%d", msgId, msgPartSep, part)
+}
+
+func IsMsgPartId(msgId string) bool {
+	return strings.Contains(msgId, msgPartSep)
+}
+
+func BaseMsgId(msgId string) string {
+	base, _, _ := strings.Cut(msgId, msgPartSep)
+	return base
+}
+
+func MsgIdToTimestamp(msgId string) (uint64, error) {
+	return strconv.ParseUint(BaseMsgId(msgId), 10, 64)
+}
+
+// Placeholder for attachment parts that cannot be downloaded, keeps part numbering identical
+// between live and history messages (part n is always attachment index n)
+const msgPartUnavailableText = "[Attachment unavailable]"
+
+// Attachment tmp file name, unique per part as attachments in one message may share a name
+func AttachmentFileName(fileName string, contentType string, partMsgId string, part int) string {
+	if fileName == "" {
+		return partMsgId + ExtensionByType(contentType, ".bin")
+	}
+
+	if part > 0 {
+		return partMsgId + msgPartSep + fileName
+	}
+
+	return fileName
+}
+
 func TrackRecentMessage(connId int, chatId string, senderACI string, timestamp uint64) {
 	mx.Lock()
 	msgs := recentMsgs[connId][chatId]
@@ -404,6 +450,36 @@ type DownloadInfo struct {
 	CdnKey        string `json:"CdnKey_string"`
 	CdnNumber     uint32 `json:"CdnNumber_uint32"`
 	PlaintextHash []byte `json:"PlaintextHash_arraybyte,omitempty"`
+}
+
+// Convert backup FilePointer to a DownloadInfo file id, returns empty string if not downloadable
+func BackupFilePointerToFileId(fp *backuppb.FilePointer, targetPath string) string {
+	if fp == nil {
+		return ""
+	}
+
+	loc := fp.GetLocatorInfo()
+	if loc == nil || loc.GetTransitCdnKey() == "" {
+		return ""
+	}
+
+	dlInfo := DownloadInfo{
+		Version:       downloadInfoVersion,
+		TargetPath:    targetPath,
+		Key:           loc.GetKey(),
+		Digest:        loc.GetEncryptedDigest(),
+		PlaintextHash: loc.GetPlaintextHash(),
+		Size:          loc.GetSize(),
+		CdnKey:        loc.GetTransitCdnKey(),
+		CdnNumber:     loc.GetTransitCdnNumber(),
+	}
+
+	bytes, err := json.Marshal(dlInfo)
+	if err != nil {
+		return ""
+	}
+
+	return string(bytes)
 }
 
 func AttachmentToFileId(attachment *signalpb.AttachmentPointer, targetPath string) string {
@@ -1385,25 +1461,6 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 		quotedId = fmt.Sprintf("%d", msg.GetQuote().GetId())
 	}
 
-	// File handling
-	fileId := ""
-	filePath := ""
-	fileStatus := FileStatusNone
-
-	attachments := msg.GetAttachments()
-	if len(attachments) > 0 {
-		attachment := attachments[0]
-		ext := ExtensionByType(attachment.GetContentType(), ".bin")
-		fileName := attachment.GetFileName()
-		if fileName == "" {
-			fileName = fmt.Sprintf("%d%s", timeSent, ext)
-		}
-		var tmpPath string = GetPath(connId) + "/tmp"
-		filePath = fmt.Sprintf("%s/%s", tmpPath, fileName)
-		fileId = AttachmentToFileId(attachment, filePath)
-		fileStatus = FileStatusNotDownloaded
-	}
-
 	msgId := fmt.Sprintf("%d", msg.GetTimestamp())
 	isRead := fromMe // Messages from self are read
 	isEdited := false
@@ -1414,14 +1471,51 @@ func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string,
 	}
 
 	// Skip truly empty messages to avoid blank bubbles
-	if text == "" && fileId == "" {
+	attachments := msg.GetAttachments()
+	if text == "" && len(attachments) == 0 {
 		LOG_TRACE(fmt.Sprintf("skipping empty DataMessage %v", msg))
 		return
 	}
 
-	LOG_TRACE(fmt.Sprintf("Call CSgNewMessagesNotify %s: %s", chatId, text))
-	CSgNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+	// File handling - one nchat message per attachment, text and quote on the first
+	var tmpPath string = GetPath(connId) + "/tmp"
+	for part := 0; part == 0 || part < len(attachments); part++ {
+		partMsgId := MsgPartId(msgId, part)
+		partText := ""
+		partQuotedId := ""
+		if part == 0 {
+			partText = text
+			partQuotedId = quotedId
+		}
+
+		fileId := ""
+		filePath := ""
+		fileStatus := FileStatusNone
+		if part < len(attachments) {
+			attachment := attachments[part]
+			fileName := AttachmentFileName(attachment.GetFileName(), attachment.GetContentType(), partMsgId, part)
+			filePath = fmt.Sprintf("%s/%s", tmpPath, fileName)
+			fileId = AttachmentToFileId(attachment, filePath)
+			if fileId != "" {
+				fileStatus = FileStatusNotDownloaded
+			} else {
+				filePath = ""
+				if partText == "" {
+					partText = msgPartUnavailableText
+				}
+			}
+		}
+
+		// cache all parts but the last, to notify ui once per Signal message
+		notify := NotifyDirect
+		if part < len(attachments)-1 {
+			notify = NotifyCache
+		}
+
+		LOG_TRACE(fmt.Sprintf("Call CSgNewMessagesNotify %s %s: %s", chatId, partMsgId, partText))
+		CSgNewMessagesNotify(connId, chatId, partMsgId, senderId, partText, BoolToInt(fromMe), partQuotedId, fileId, filePath,
+			fileStatus, timeSent, BoolToInt(isRead), BoolToInt(isEdited), notify)
+	}
 
 	TrackRecentMessage(connId, chatId, senderId, msg.GetTimestamp())
 }
@@ -1577,7 +1671,7 @@ func (handler *SgEventHandler) handleGroupChange(chatId string, senderId string,
 	isRead := fromMe
 
 	CSgNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), "", "", "", FileStatusNone, timeSent,
-		BoolToInt(isRead), 0)
+		BoolToInt(isRead), 0, NotifyDirect)
 	TrackRecentMessage(connId, chatId, senderId, msg.GetTimestamp())
 }
 
@@ -1621,7 +1715,7 @@ func (handler *SgEventHandler) handleEditMessage(chatId string, senderId string,
 
 	LOG_TRACE(fmt.Sprintf("Call CSgNewMessagesNotify (edit) %s: %s", chatId, text))
 	CSgNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), NotifyDirect)
 }
 
 func (handler *SgEventHandler) handleReaction(chatId string, senderId string, fromMe bool, reaction *signalpb.DataMessage_Reaction) {
@@ -2408,9 +2502,9 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 	// Determine anchor time for pagination
 	var anchor time.Time
 	if fromMsgId != "" {
-		ts, parseErr := strconv.ParseInt(fromMsgId, 10, 64)
+		ts, parseErr := MsgIdToTimestamp(fromMsgId)
 		if parseErr == nil {
-			anchor = time.UnixMilli(ts)
+			anchor = time.UnixMilli(int64(ts))
 		}
 	}
 
@@ -2471,11 +2565,15 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 		}
 
 		// Extract message content
+		msgId := fmt.Sprintf("%d", item.DateSent)
+		tmpPath := GetPath(connId) + "/tmp"
 		text := ""
 		quotedId := ""
-		fileId := ""
-		filePath := ""
-		fileStatus := FileStatusNone
+		type histFile struct {
+			fileId   string
+			filePath string
+		}
+		var files []histFile // one nchat message per file, see MsgPartId()
 		switch msg := item.Item.(type) {
 		case *backuppb.ChatItem_StandardMessage:
 			if msg.StandardMessage.GetText() != nil {
@@ -2485,40 +2583,17 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 			if msg.StandardMessage.GetQuote() != nil && msg.StandardMessage.GetQuote().TargetSentTimestamp != nil {
 				quotedId = fmt.Sprintf("%d", msg.StandardMessage.GetQuote().GetTargetSentTimestamp())
 			}
-			// Handle attachments
-			attachments := msg.StandardMessage.GetAttachments()
-			if len(attachments) > 0 {
-				fp := attachments[0].GetPointer()
-				if fp != nil {
-					loc := fp.GetLocatorInfo()
-					if loc != nil && loc.GetTransitCdnKey() != "" {
-						// Convert backup FilePointer to DownloadInfo for download
-						ext := ExtensionByType(fp.GetContentType(), ".bin")
-						fileName := fp.GetFileName()
-						if fileName == "" {
-							fileName = fmt.Sprintf("%d%s", item.DateSent, ext)
-						}
-						tmpPath := GetPath(connId) + "/tmp"
-						targetPath := fmt.Sprintf("%s/%s", tmpPath, fileName)
-
-						dlInfo := DownloadInfo{
-							Version:       downloadInfoVersion,
-							TargetPath:    targetPath,
-							Key:           loc.GetKey(),
-							Digest:        loc.GetEncryptedDigest(),
-							PlaintextHash: loc.GetPlaintextHash(),
-							Size:          loc.GetSize(),
-							CdnKey:        loc.GetTransitCdnKey(),
-							CdnNumber:     loc.GetTransitCdnNumber(),
-						}
-
-						bytes, jsonErr := json.Marshal(dlInfo)
-						if jsonErr == nil {
-							fileId = string(bytes)
-							filePath = targetPath
-							fileStatus = FileStatusNotDownloaded
-						}
-					}
+			// Handle attachments, one entry per attachment (empty if not downloadable) to keep part
+			// numbering identical to live messages
+			for part, attachment := range msg.StandardMessage.GetAttachments() {
+				fp := attachment.GetPointer()
+				fileName := AttachmentFileName(fp.GetFileName(), fp.GetContentType(), MsgPartId(msgId, part), part)
+				targetPath := fmt.Sprintf("%s/%s", tmpPath, fileName)
+				fileId := BackupFilePointerToFileId(fp, targetPath)
+				if fileId != "" {
+					files = append(files, histFile{fileId: fileId, filePath: targetPath})
+				} else {
+					files = append(files, histFile{})
 				}
 			}
 		case *backuppb.ChatItem_StickerMessage:
@@ -2531,30 +2606,11 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 				}
 				fp := sticker.GetData()
 				if fp != nil {
-					loc := fp.GetLocatorInfo()
-					if loc != nil && loc.GetTransitCdnKey() != "" {
-						ext := ExtensionByType(fp.GetContentType(), ".webp")
-						fileName := fmt.Sprintf("%d%s", item.DateSent, ext)
-						tmpPath := GetPath(connId) + "/tmp"
-						targetPath := fmt.Sprintf("%s/%s", tmpPath, fileName)
-
-						dlInfo := DownloadInfo{
-							Version:       downloadInfoVersion,
-							TargetPath:    targetPath,
-							Key:           loc.GetKey(),
-							Digest:        loc.GetEncryptedDigest(),
-							PlaintextHash: loc.GetPlaintextHash(),
-							Size:          loc.GetSize(),
-							CdnKey:        loc.GetTransitCdnKey(),
-							CdnNumber:     loc.GetTransitCdnNumber(),
-						}
-
-						bytes, jsonErr := json.Marshal(dlInfo)
-						if jsonErr == nil {
-							fileId = string(bytes)
-							filePath = targetPath
-							fileStatus = FileStatusNotDownloaded
-						}
+					ext := ExtensionByType(fp.GetContentType(), ".webp")
+					targetPath := fmt.Sprintf("%s/%d%s", tmpPath, item.DateSent, ext)
+					fileId := BackupFilePointerToFileId(fp, targetPath)
+					if fileId != "" {
+						files = append(files, histFile{fileId: fileId, filePath: targetPath})
 					}
 				}
 			}
@@ -2567,12 +2623,40 @@ func SgGetMessages(connId int, chatId string, limit int, fromMsgId string, owner
 			continue
 		}
 
-		msgId := fmt.Sprintf("%d", item.DateSent)
 		timeSent := int(item.DateSent / 1000)
 		isEdited := len(item.GetRevisions()) > 0
 
-		CSgNewHistoryMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId,
-			fileId, filePath, fileStatus, timeSent, BoolToInt(isRead), BoolToInt(isEdited), fromMsgId, notify)
+		// Text and quote on the first part, only the last part may flush the cached batch
+		for part := 0; part == 0 || part < len(files); part++ {
+			partText := ""
+			partQuotedId := ""
+			if part == 0 {
+				partText = text
+				partQuotedId = quotedId
+			}
+
+			fileId := ""
+			filePath := ""
+			fileStatus := FileStatusNone
+			if part < len(files) {
+				if files[part].fileId != "" {
+					fileId = files[part].fileId
+					filePath = files[part].filePath
+					fileStatus = FileStatusNotDownloaded
+				} else if partText == "" {
+					partText = msgPartUnavailableText
+				}
+			}
+
+			partNotify := NotifyCache
+			if part >= len(files)-1 {
+				partNotify = notify
+			}
+
+			CSgNewHistoryMessagesNotify(connId, chatId, MsgPartId(msgId, part), senderId, partText, BoolToInt(fromMe),
+				partQuotedId, fileId, filePath, fileStatus, timeSent, BoolToInt(isRead), BoolToInt(isEdited), fromMsgId,
+				partNotify)
+		}
 	}
 
 	return 0
@@ -2621,6 +2705,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	// Handle edit vs new message
 	if editMsgId != "" {
+		if IsMsgPartId(editMsgId) {
+			LOG_WARNING(fmt.Sprintf("edit of attachment part msg id not supported: %s", editMsgId))
+			return -1
+		}
+
 		targetTimestamp, err := strconv.ParseUint(editMsgId, 10, 64)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("invalid edit msg id: %s", editMsgId))
@@ -2668,7 +2757,7 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		}
 		selfId := UUIDToString(device.ACI)
 		timeSent := int(targetTimestamp / 1000)
-		CSgNewMessagesNotify(connId, chatId, editMsgId, selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1)
+		CSgNewMessagesNotify(connId, chatId, editMsgId, selfId, text, 1, quotedId, "", "", 0, timeSent, 1, 1, NotifyDirect)
 		TrackRecentMessage(connId, chatId, selfId, targetTimestamp)
 	} else {
 		// Set body
@@ -2684,7 +2773,7 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 		// Handle quote
 		if quotedId != "" {
-			quotedTimestamp, err := strconv.ParseUint(quotedId, 10, 64)
+			quotedTimestamp, err := MsgIdToTimestamp(quotedId)
 			if err == nil {
 				quotedAuthorUUID := StringToUUID(quotedSender)
 				quotedAuthorACI := ""
@@ -2787,7 +2876,7 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 			echoFileStatus = FileStatusDownloaded
 		}
 		LOG_TRACE(fmt.Sprintf("echo fileId=%s filePath=%s fileStatus=%d", echoFileId, echoFilePath, echoFileStatus))
-		CSgNewMessagesNotify(connId, chatId, strconv.FormatUint(timestamp, 10), selfId, text, 1, quotedId, echoFileId, echoFilePath, echoFileStatus, timeSent, 0, 0)
+		CSgNewMessagesNotify(connId, chatId, strconv.FormatUint(timestamp, 10), selfId, text, 1, quotedId, echoFileId, echoFilePath, echoFileStatus, timeSent, 0, 0, NotifyDirect)
 		TrackRecentMessage(connId, chatId, selfId, timestamp)
 	}
 
@@ -3055,7 +3144,7 @@ func SgMarkMessageRead(connId int, chatId string, senderId string, msgId string)
 	}
 
 	// Parse message timestamp
-	timestamp, err := strconv.ParseUint(msgId, 10, 64)
+	timestamp, err := MsgIdToTimestamp(msgId)
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("invalid msg id: %s", msgId))
 		return -1
@@ -3119,7 +3208,7 @@ func SgDeleteMessage(connId int, chatId string, senderId string, msgId string) i
 		return -1
 	}
 
-	timestamp, err := strconv.ParseUint(msgId, 10, 64)
+	timestamp, err := MsgIdToTimestamp(msgId)
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("invalid msg id: %s", msgId))
 		return -1
@@ -3472,7 +3561,7 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 	ctx := context.TODO()
 
 	// Parse target message timestamp
-	targetTimestamp, err := strconv.ParseUint(msgId, 10, 64)
+	targetTimestamp, err := MsgIdToTimestamp(msgId)
 	if err != nil {
 		LOG_WARNING(fmt.Sprintf("invalid msg id: %s", msgId))
 		return -1
@@ -3535,7 +3624,8 @@ func SgSendReaction(connId int, chatId string, senderId string, msgId string, em
 		return -1
 	}
 	selfId := UUIDToString(device.ACI)
-	CSgNewMessageReactionNotify(connId, chatId, msgId, selfId, emoji, 1)
+	// echo on base msg id, like incoming reactions, as the reaction targets the whole Signal message
+	CSgNewMessageReactionNotify(connId, chatId, BaseMsgId(msgId), selfId, emoji, 1)
 
 	return 0
 }

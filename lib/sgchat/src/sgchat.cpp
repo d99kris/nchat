@@ -7,6 +7,7 @@
 
 #include "sgchat.h"
 
+#include <algorithm>
 #include <iostream>
 #include <limits>
 
@@ -30,6 +31,36 @@ enum NotifyType
   NotifyCache = 1,
   NotifySendCached = 2,
 };
+
+// Signal messages with multiple attachments are split into one nchat message per attachment, where
+// parts after the first have id "<id>_<n>". Keep in sync with MsgPartId() in gosg.go.
+static const char s_MsgPartSep = '_';
+static const int s_MaxMsgParts = 32;
+
+static std::string GetBaseMsgId(const std::string& p_MsgId)
+{
+  return p_MsgId.substr(0, p_MsgId.find(s_MsgPartSep));
+}
+
+static bool IsMsgPartId(const std::string& p_MsgId)
+{
+  return (p_MsgId.find(s_MsgPartSep) != std::string::npos);
+}
+
+static int GetMsgPart(const std::string& p_MsgId)
+{
+  const size_t sepPos = p_MsgId.find(s_MsgPartSep);
+  return (sepPos != std::string::npos) ? atoi(p_MsgId.c_str() + sepPos + 1) : 0;
+}
+
+// Sort key with a pseudo-random ms offset within the second, to order messages sent in the same
+// second consistently. Attachment parts use the base id offset plus part number, keeping them in
+// order directly after the base message.
+static int64_t GetTimeSentMs(int p_TimeSent, const std::string& p_MsgId)
+{
+  return (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(GetBaseMsgId(p_MsgId)) % 256) +
+         GetMsgPart(p_MsgId);
+}
 
 std::mutex SgChat::s_ConnIdMapMutex;
 std::map<int, SgChat*> SgChat::s_ConnIdMap;
@@ -491,9 +522,14 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::string msgId = markMessageReadRequest->msgId;
         std::string senderId = markMessageReadRequest->senderId;
 
-        int rv = CSgMarkMessageRead(m_ConnId, const_cast<char*>(chatId.c_str()),
-                                    const_cast<char*>(senderId.c_str()),
-                                    const_cast<char*>(msgId.c_str()));
+        // attachment parts share the Signal message timestamp, so only send read receipt for base msg
+        int rv = 0;
+        if (!IsMsgPartId(msgId))
+        {
+          rv = CSgMarkMessageRead(m_ConnId, const_cast<char*>(chatId.c_str()),
+                                  const_cast<char*>(senderId.c_str()),
+                                  const_cast<char*>(msgId.c_str()));
+        }
 
         std::shared_ptr<MarkMessageReadNotify> markMessageReadNotify =
           std::make_shared<MarkMessageReadNotify>(m_ProfileId);
@@ -519,12 +555,17 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
                          const_cast<char*>(msgId.c_str()));
         Status::Clear(m_ProfileId, Status::FlagUpdating);
 
-        std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
-        deleteMessageNotify->success = true;
-        deleteMessageNotify->chatId = deleteMessageRequest->chatId;
-        deleteMessageNotify->msgId = deleteMessageRequest->msgId;
-        deleteMessageNotify->isOutgoing = true;
-        CallMessageHandler(deleteMessageNotify);
+        // the whole Signal message is deleted, so also remove its attachment parts
+        const std::vector<std::string> msgIds = GetMsgPartIds(chatId, msgId);
+        for (const auto& partMsgId : msgIds)
+        {
+          std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(m_ProfileId);
+          deleteMessageNotify->success = true;
+          deleteMessageNotify->chatId = chatId;
+          deleteMessageNotify->msgId = partMsgId;
+          deleteMessageNotify->isOutgoing = true;
+          CallMessageHandler(deleteMessageNotify);
+        }
       }
       break;
 
@@ -822,6 +863,77 @@ void SgChat::ClearHistoryMessages()
   m_HistoryMessages.clear();
 }
 
+// Pending parts are keyed per Signal message, as notifies may come from different threads (ex: send echo)
+void SgChat::AddPendingMessage(const std::string& p_ChatId, const ChatMessage& p_ChatMessage)
+{
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  m_PendingMessages[std::make_pair(p_ChatId, GetBaseMsgId(p_ChatMessage.id))].push_back(p_ChatMessage);
+}
+
+std::vector<ChatMessage> SgChat::TakePendingMessages(const std::string& p_ChatId, const std::string& p_MsgId)
+{
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  std::vector<ChatMessage> pendingMessages;
+  auto it = m_PendingMessages.find(std::make_pair(p_ChatId, GetBaseMsgId(p_MsgId)));
+  if (it != m_PendingMessages.end())
+  {
+    pendingMessages.swap(it->second);
+    m_PendingMessages.erase(it);
+  }
+
+  return pendingMessages;
+}
+
+// Track attachment parts in memory, as receipts and deletes may arrive before they are written to message cache
+void SgChat::AddMsgPartId(const std::string& p_ChatId, const std::string& p_MsgId)
+{
+  const int part = GetMsgPart(p_MsgId);
+  if (part <= 0) return;
+
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  int& lastPart = m_MsgPartCounts[std::make_pair(p_ChatId, GetBaseMsgId(p_MsgId))];
+  lastPart = std::max(lastPart, part);
+}
+
+// Returns base msg id followed by the ids of its attachment parts
+std::vector<std::string> SgChat::GetMsgPartIds(const std::string& p_ChatId, const std::string& p_MsgId)
+{
+  const std::string baseMsgId = GetBaseMsgId(p_MsgId);
+  std::vector<std::string> msgIds = { baseMsgId };
+
+  int lastPart = 0;
+  {
+    std::unique_lock<std::mutex> lock(m_Mutex);
+    auto it = m_MsgPartCounts.find(std::make_pair(p_ChatId, baseMsgId));
+    if (it != m_MsgPartCounts.end())
+    {
+      lastPart = it->second;
+    }
+  }
+
+  if (lastPart > 0)
+  {
+    for (int part = 1; part <= lastPart; ++part)
+    {
+      msgIds.push_back(baseMsgId + s_MsgPartSep + std::to_string(part));
+    }
+
+    return msgIds;
+  }
+
+  // fall back to message cache for messages received in earlier sessions
+  for (int part = 1; part < s_MaxMsgParts; ++part)
+  {
+    const std::string partMsgId = baseMsgId + s_MsgPartSep + std::to_string(part);
+    std::vector<ChatMessage> chatMessages;
+    if (!MessageCache::GetOneMessage(m_ProfileId, p_ChatId, partMsgId, chatMessages)) break;
+
+    msgIds.push_back(partMsgId);
+  }
+
+  return msgIds;
+}
+
 void SgChat::AddInstance(int p_ConnId, SgChat* p_Instance)
 {
   std::unique_lock<std::mutex> lock(s_ConnIdMapMutex);
@@ -939,18 +1051,20 @@ void SgNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson)
 
 void SgNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_ReplyId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
-                         int p_IsRead, int p_IsEdited)
+                         int p_IsRead, int p_IsEdited, int p_Notify)
 {
   SgChat* instance = SgChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
+    instance->AddMsgPartId(std::string(p_ChatId), std::string(p_MsgId));
+
     ChatMessage chatMessage;
     chatMessage.id = std::string(p_MsgId);
     chatMessage.senderId = std::string(p_SenderId);
     chatMessage.text = std::string(p_Text);
     chatMessage.isOutgoing = (p_FromMe == 1);
     chatMessage.quotedId = std::string(p_ReplyId);
-    chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
+    chatMessage.timeSent = GetTimeSentMs(p_TimeSent, chatMessage.id);
     chatMessage.isRead = (p_IsRead == 1);
     chatMessage.isEdited = (p_IsEdited == 1);
 
@@ -978,18 +1092,27 @@ void SgNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_Se
       }
     }
 
-    std::shared_ptr<NewMessagesNotify> newMessagesNotify =
-      std::make_shared<NewMessagesNotify>(instance->GetProfileId());
-    newMessagesNotify->success = true;
-    newMessagesNotify->chatId = std::string(p_ChatId);
-    newMessagesNotify->chatMessages.push_back(chatMessage);
-    newMessagesNotify->fromMsgId = "";
-    newMessagesNotify->cached = false;
-    newMessagesNotify->sequence = true;
+    // attachment parts are collected and notified together, to notify ui once per Signal message
+    if (p_Notify == NotifyCache)
+    {
+      instance->AddPendingMessage(std::string(p_ChatId), chatMessage);
+    }
+    else
+    {
+      std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+        std::make_shared<NewMessagesNotify>(instance->GetProfileId());
+      newMessagesNotify->success = true;
+      newMessagesNotify->chatId = std::string(p_ChatId);
+      newMessagesNotify->chatMessages = instance->TakePendingMessages(std::string(p_ChatId), chatMessage.id);
+      newMessagesNotify->chatMessages.push_back(chatMessage);
+      newMessagesNotify->fromMsgId = "";
+      newMessagesNotify->cached = false;
+      newMessagesNotify->sequence = true;
 
-    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-    deferNotifyRequest->serviceMessage = newMessagesNotify;
-    instance->SendRequest(deferNotifyRequest);
+      std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+      deferNotifyRequest->serviceMessage = newMessagesNotify;
+      instance->SendRequest(deferNotifyRequest);
+    }
   }
 
   free(p_ChatId);
@@ -1009,6 +1132,7 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
   if (instance != nullptr)
   {
     std::shared_ptr<NewMessagesNotify> newMessagesNotify;
+    instance->AddMsgPartId(std::string(p_ChatId), std::string(p_MsgId));
 
     if (p_Notify == NotifyCache)
     {
@@ -1018,7 +1142,7 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
       chatMessage.text = std::string(p_Text);
       chatMessage.isOutgoing = (p_FromMe == 1);
       chatMessage.quotedId = std::string(p_QuotedId);
-      chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
+      chatMessage.timeSent = GetTimeSentMs(p_TimeSent, chatMessage.id);
       chatMessage.isRead = (p_IsRead == 1);
       chatMessage.isEdited = (p_IsEdited == 1);
 
@@ -1042,7 +1166,7 @@ void SgNewHistoryMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, cha
       chatMessage.text = std::string(p_Text);
       chatMessage.isOutgoing = (p_FromMe == 1);
       chatMessage.quotedId = std::string(p_QuotedId);
-      chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
+      chatMessage.timeSent = GetTimeSentMs(p_TimeSent, chatMessage.id);
       chatMessage.isRead = (p_IsRead == 1);
       chatMessage.isEdited = (p_IsEdited == 1);
 
@@ -1132,15 +1256,24 @@ void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
   SgChat* instance = SgChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
-    std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
-      std::make_shared<NewMessageStatusNotify>(instance->GetProfileId());
-    newMessageStatusNotify->chatId = std::string(p_ChatId);
-    newMessageStatusNotify->msgId = std::string(p_MsgId);
-    newMessageStatusNotify->isRead = (p_IsRead == 1);
+    // receipts refer to the Signal message, so apply to all its attachment parts
+    const std::string chatId = std::string(p_ChatId);
+    const std::string msgId = std::string(p_MsgId);
+    const std::vector<std::string> msgIds = IsMsgPartId(msgId)
+      ? std::vector<std::string>({ msgId })
+      : instance->GetMsgPartIds(chatId, msgId);
+    for (const auto& partMsgId : msgIds)
+    {
+      std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
+        std::make_shared<NewMessageStatusNotify>(instance->GetProfileId());
+      newMessageStatusNotify->chatId = chatId;
+      newMessageStatusNotify->msgId = partMsgId;
+      newMessageStatusNotify->isRead = (p_IsRead == 1);
 
-    std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-    deferNotifyRequest->serviceMessage = newMessageStatusNotify;
-    instance->SendRequest(deferNotifyRequest);
+      std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+      deferNotifyRequest->serviceMessage = newMessageStatusNotify;
+      instance->SendRequest(deferNotifyRequest);
+    }
   }
 
   free(p_ChatId);
@@ -1252,56 +1385,62 @@ void SgDeleteMessageNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_Is
   {
     static const int messageDelete = AppConfig::GetNum("message_delete");
     const bool isOutgoing = (p_IsOutgoing != 0);
+    const std::string profileId = instance->GetProfileId();
+    const std::string chatId = std::string(p_ChatId);
 
-    if (!isOutgoing &&
-        ((messageDelete == MessageDeleteReplace) || (messageDelete == MessageDeletePrefix)))
+    // deletes refer to the Signal message, so apply to all its attachment parts
+    const std::vector<std::string> msgIds = instance->GetMsgPartIds(chatId, std::string(p_MsgId));
+    for (const auto& msgId : msgIds)
     {
-      std::vector<ChatMessage> chatMessages;
-      if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
-                                      chatMessages))
+      // keep a single placeholder per deleted message, so erase attachment parts in replace mode
+      const bool isPart = IsMsgPartId(msgId);
+      if (!isOutgoing &&
+          (((messageDelete == MessageDeleteReplace) && !isPart) || (messageDelete == MessageDeletePrefix)))
       {
-        ChatMessage chatMessage = chatMessages.front();
-        chatMessage.isRead = true;
-        chatMessage.isDeleted = true;
+        std::vector<ChatMessage> chatMessages;
+        if (MessageCache::GetOneMessage(profileId, chatId, msgId, chatMessages))
+        {
+          ChatMessage chatMessage = chatMessages.front();
+          chatMessage.isRead = true;
+          chatMessage.isDeleted = true;
 
-        if (messageDelete == MessageDeleteReplace)
-        {
-          chatMessage.text = std::string("[This message was deleted]");
-          chatMessage.fileInfo.clear();
-        }
-        else // MessageDeletePrefix
-        {
-          if (!StrUtil::StartsWith(chatMessage.text, "[This message was deleted]"))
+          if (messageDelete == MessageDeleteReplace)
           {
-            chatMessage.text = std::string("[This message was deleted]\n") + chatMessage.text;
+            chatMessage.text = std::string("[This message was deleted]");
+            chatMessage.fileInfo.clear();
           }
-        }
+          else // MessageDeletePrefix
+          {
+            if (!StrUtil::StartsWith(chatMessage.text, "[This message was deleted]"))
+            {
+              chatMessage.text = std::string("[This message was deleted]\n") + chatMessage.text;
+            }
+          }
 
-        std::shared_ptr<NewMessagesNotify> newMessagesNotify =
-          std::make_shared<NewMessagesNotify>(instance->GetProfileId());
-        newMessagesNotify->success = true;
-        newMessagesNotify->chatId = std::string(p_ChatId);
-        newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
-        newMessagesNotify->cached = false;
-        newMessagesNotify->sequence = true;
+          std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(profileId);
+          newMessagesNotify->success = true;
+          newMessagesNotify->chatId = chatId;
+          newMessagesNotify->chatMessages = std::vector<ChatMessage>({ chatMessage });
+          newMessagesNotify->cached = false;
+          newMessagesNotify->sequence = true;
+
+          std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
+          deferNotifyRequest->serviceMessage = newMessagesNotify;
+          instance->SendRequest(deferNotifyRequest);
+        }
+      }
+      else // erase: mode 1, any self-deletion, or attachment part in replace mode
+      {
+        std::shared_ptr<DeleteMessageNotify> deleteMessageNotify = std::make_shared<DeleteMessageNotify>(profileId);
+        deleteMessageNotify->success = true;
+        deleteMessageNotify->chatId = chatId;
+        deleteMessageNotify->msgId = msgId;
+        deleteMessageNotify->isOutgoing = isOutgoing;
 
         std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-        deferNotifyRequest->serviceMessage = newMessagesNotify;
+        deferNotifyRequest->serviceMessage = deleteMessageNotify;
         instance->SendRequest(deferNotifyRequest);
       }
-    }
-    else // erase: mode 1, or any self-deletion
-    {
-      std::shared_ptr<DeleteMessageNotify> deleteMessageNotify =
-        std::make_shared<DeleteMessageNotify>(instance->GetProfileId());
-      deleteMessageNotify->success = true;
-      deleteMessageNotify->chatId = std::string(p_ChatId);
-      deleteMessageNotify->msgId = std::string(p_MsgId);
-      deleteMessageNotify->isOutgoing = isOutgoing;
-
-      std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
-      deferNotifyRequest->serviceMessage = deleteMessageNotify;
-      instance->SendRequest(deferNotifyRequest);
     }
   }
 
