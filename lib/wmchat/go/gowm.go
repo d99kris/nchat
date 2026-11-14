@@ -9,11 +9,17 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"math"
 	"mime"
@@ -769,6 +775,143 @@ func ExtensionByType(mimeType string, defaultExt string) string {
 	}
 
 	return ext
+}
+
+// thumbnails shown by the recipient's app until the media is downloaded
+const thumbnailMaxSize = 72
+const thumbnailMaxPixels = 40000000
+const thumbnailToolTimeout = 5 * time.Second
+
+var thumbnailToolsOnce sync.Once
+var ffmpegPath string
+var ffprobePath string
+
+func ScaledSize(width int, height int, maxSize int) (int, int) {
+	if (width <= maxSize) && (height <= maxSize) {
+		return width, height
+	}
+
+	if width >= height {
+		return maxSize, max(1, height*maxSize/width)
+	}
+
+	return max(1, width*maxSize/height), maxSize
+}
+
+// image thumbnail by nearest neighbour scaling, transparency drawn on white
+func EncodeJpegThumbnail(img image.Image) []byte {
+	bounds := img.Bounds()
+	srcWidth, srcHeight := bounds.Dx(), bounds.Dy()
+	if (srcWidth <= 0) || (srcHeight <= 0) {
+		return nil
+	}
+
+	width, height := ScaledSize(srcWidth, srcHeight, thumbnailMaxSize)
+	thumbImg := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := img.At(bounds.Min.X+(x*srcWidth/width), bounds.Min.Y+(y*srcHeight/height)).RGBA()
+			thumbImg.Set(x, y, color.RGBA{uint8((r + 0xffff - a) >> 8), uint8((g + 0xffff - a) >> 8),
+				uint8((b + 0xffff - a) >> 8), 0xff})
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, thumbImg, &jpeg.Options{Quality: 75}); err != nil {
+		LOG_WARNING(fmt.Sprintf("thumbnail encode err %#v", err))
+		return nil
+	}
+
+	return buf.Bytes()
+}
+
+// image thumbnail and size, for formats supported by go (jpeg, png, gif)
+func GetImageThumbnail(data []byte) ([]byte, uint32, uint32) {
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		LOG_DEBUG(fmt.Sprintf("image thumbnail unsupported format %#v", err))
+		return nil, 0, 0
+	}
+
+	if (config.Width <= 0) || (config.Height <= 0) || (config.Width > thumbnailMaxPixels/config.Height) {
+		LOG_DEBUG(fmt.Sprintf("image thumbnail skipped size %dx%d", config.Width, config.Height))
+		return nil, 0, 0
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("image thumbnail decode err %#v", err))
+		return nil, uint32(config.Width), uint32(config.Height)
+	}
+
+	return EncodeJpegThumbnail(img), uint32(config.Width), uint32(config.Height)
+}
+
+// video thumbnail, size and duration, using ffmpeg and ffprobe if present (looked up once)
+func GetVideoThumbnail(filePath string) ([]byte, uint32, uint32, uint32) {
+	thumbnailToolsOnce.Do(func() {
+		ffmpegPath, _ = exec.LookPath("ffmpeg")
+		ffprobePath, _ = exec.LookPath("ffprobe")
+		LOG_DEBUG(fmt.Sprintf("video thumbnail ffmpeg '%s' ffprobe '%s'", ffmpegPath, ffprobePath))
+	})
+
+	if (len(ffmpegPath) == 0) || (len(ffprobePath) == 0) {
+		return nil, 0, 0, 0
+	}
+
+	// display size, i.e. swapped for videos rotated by 90 or 270 degrees
+	ctx, cancel := context.WithTimeout(context.Background(), thumbnailToolTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, ffprobePath, "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=width,height:stream_side_data=rotation:format=duration", "-of", "json",
+		filePath).Output()
+	if err != nil {
+		LOG_WARNING(fmt.Sprintf("video thumbnail ffprobe err %#v", err))
+		return nil, 0, 0, 0
+	}
+
+	var probe struct {
+		Streams []struct {
+			Width        int `json:"width"`
+			Height       int `json:"height"`
+			SideDataList []struct {
+				Rotation int `json:"rotation"`
+			} `json:"side_data_list"`
+		} `json:"streams"`
+		Format struct {
+			Duration string `json:"duration"`
+		} `json:"format"`
+	}
+	if (json.Unmarshal(out, &probe) != nil) || (len(probe.Streams) == 0) ||
+		(probe.Streams[0].Width <= 0) || (probe.Streams[0].Height <= 0) {
+		LOG_WARNING("video thumbnail ffprobe unexpected output")
+		return nil, 0, 0, 0
+	}
+
+	width, height := probe.Streams[0].Width, probe.Streams[0].Height
+	for _, sideData := range probe.Streams[0].SideDataList {
+		if (sideData.Rotation % 180) != 0 {
+			width, height = height, width
+			break
+		}
+	}
+
+	var seconds uint32 = 0
+	if duration, durErr := strconv.ParseFloat(probe.Format.Duration, 64); (durErr == nil) && (duration > 0) {
+		seconds = uint32(math.Round(duration))
+	}
+
+	// first frame, scaled by ffmpeg (which applies rotation)
+	thumbWidth, thumbHeight := ScaledSize(width, height, thumbnailMaxSize)
+	frame, err := exec.CommandContext(ctx, ffmpegPath, "-nostdin", "-v", "error", "-i", filePath,
+		"-frames:v", "1", "-vf", fmt.Sprintf("scale=%d:%d", thumbWidth, thumbHeight),
+		"-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "6", "-").Output()
+	if (err != nil) || (len(frame) < 2) || (frame[0] != 0xff) || (frame[1] != 0xd8) {
+		LOG_WARNING(fmt.Sprintf("video thumbnail ffmpeg err %#v", err))
+		return nil, uint32(width), uint32(height), seconds
+	}
+
+	return frame, uint32(width), uint32(height), seconds
 }
 
 // logger
@@ -3163,6 +3306,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				return -1
 			}
 
+			thumbnail, width, height, seconds := GetVideoThumbnail(filePath)
 			videoMessage := waE2E.VideoMessage{
 				URL:           proto.String(uploaded.URL),
 				DirectPath:    proto.String(uploaded.DirectPath),
@@ -3172,7 +3316,15 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 				FileSHA256:    uploaded.FileSHA256,
 				FileLength:    proto.Uint64(uint64(len(data))),
 				GifPlayback:   proto.Bool(true),
+				JPEGThumbnail: thumbnail,
 				ContextInfo:   &contextInfo,
+			}
+			if (width > 0) && (height > 0) {
+				videoMessage.Width = proto.Uint32(width)
+				videoMessage.Height = proto.Uint32(height)
+			}
+			if seconds > 0 {
+				videoMessage.Seconds = proto.Uint32(seconds)
 			}
 
 			message.VideoMessage = &videoMessage
@@ -3239,6 +3391,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					return -1
 				}
 
+				thumbnail, width, height, seconds := GetVideoThumbnail(filePath)
 				videoMessage = waE2E.VideoMessage{
 					Caption:       proto.String(text),
 					URL:           proto.String(uploaded.URL),
@@ -3248,7 +3401,15 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					FileEncSHA256: uploaded.FileEncSHA256,
 					FileSHA256:    uploaded.FileSHA256,
 					FileLength:    proto.Uint64(uint64(len(data))),
+					JPEGThumbnail: thumbnail,
 					ContextInfo:   &contextInfo,
+				}
+				if (width > 0) && (height > 0) {
+					videoMessage.Width = proto.Uint32(width)
+					videoMessage.Height = proto.Uint32(height)
+				}
+				if seconds > 0 {
+					videoMessage.Seconds = proto.Uint32(seconds)
 				}
 			}
 
@@ -3282,6 +3443,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					return -1
 				}
 
+				thumbnail, width, height := GetImageThumbnail(data)
 				imageMessage = waE2E.ImageMessage{
 					Caption:       proto.String(text),
 					URL:           proto.String(uploaded.URL),
@@ -3291,7 +3453,12 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 					FileEncSHA256: uploaded.FileEncSHA256,
 					FileSHA256:    uploaded.FileSHA256,
 					FileLength:    proto.Uint64(uint64(len(data))),
+					JPEGThumbnail: thumbnail,
 					ContextInfo:   &contextInfo,
+				}
+				if (width > 0) && (height > 0) {
+					imageMessage.Width = proto.Uint32(width)
+					imageMessage.Height = proto.Uint32(height)
 				}
 			}
 
