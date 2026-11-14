@@ -203,6 +203,9 @@ private:
   bool IsSponsoredMessageId(const std::string& p_MsgId);
   bool IsGroup(int64_t p_UserId);
   bool IsSelf(int64_t p_UserId);
+  static std::int32_t GetScopeId(const td::td_api::ChatType& p_ChatType);
+  void SetChatNotificationSettings(int64_t p_ChatId, const td::td_api::chatNotificationSettings& p_Settings);
+  bool IsChatMuted(int64_t p_ChatId);
   std::string GetContactName(int64_t p_UserId);
   void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence);
   td::td_api::object_ptr<td::td_api::formattedText> GetFormattedText(const std::string& p_Text);
@@ -241,6 +244,14 @@ private:
   std::map<int64_t, std::set<int64_t>> m_UnreadOutboxMessages;
   std::map<int64_t, ContactInfo> m_ContactInfos;
   std::map<int64_t, ChatType> m_ChatTypes;
+  struct ChatMuteSettings
+  {
+    std::int32_t scopeId = 0;
+    bool useDefaultMuteFor = false;
+    std::int32_t muteFor = 0;
+  };
+  std::map<int64_t, ChatMuteSettings> m_ChatMuteSettings;
+  std::map<std::int32_t, std::int32_t> m_ScopeMuteFor;
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
@@ -721,7 +732,12 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             chatInfo.id = StrUtil::NumToHex(tchat->id_);
             chatInfo.isUnread = (tchat->unread_count_ > 0);
             chatInfo.isUnreadMention = (tchat->unread_mention_count_ > 0);
-            chatInfo.isMuted = (tchat->notification_settings_->mute_for_ > 0);
+            if (tchat->notification_settings_)
+            {
+              SetChatNotificationSettings(tchat->id_, *tchat->notification_settings_);
+            }
+
+            chatInfo.isMuted = IsChatMuted(tchat->id_);
             int64_t lastMessageTimeSec =
               (tchat->last_message_ != nullptr) ? tchat->last_message_->date_ : 0;
             int64_t lastMessageHash =
@@ -1885,6 +1901,16 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     LOG_TRACE("new chat update");
 
     const int64_t contactId = update_new_chat.chat_->id_;
+    if (update_new_chat.chat_->type_)
+    {
+      m_ChatMuteSettings[contactId].scopeId = GetScopeId(*update_new_chat.chat_->type_);
+    }
+
+    if (update_new_chat.chat_->notification_settings_)
+    {
+      SetChatNotificationSettings(contactId, *update_new_chat.chat_->notification_settings_);
+    }
+
     ContactInfo contactInfo;
     contactInfo.id = StrUtil::NumToHex(contactId);
     contactInfo.name = update_new_chat.chat_->title_;
@@ -2226,8 +2252,10 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       td::move_tl_object_as<td::td_api::chatNotificationSettings>(update_chat_notification_settings.notification_settings_);
     if (notification_settings_)
     {
-      std::string chatId = StrUtil::NumToHex(update_chat_notification_settings.chat_id_);
-      bool isMuted = (notification_settings_->mute_for_ > 0);
+      const int64_t chatIdNum = update_chat_notification_settings.chat_id_;
+      SetChatNotificationSettings(chatIdNum, *notification_settings_);
+      std::string chatId = StrUtil::NumToHex(chatIdNum);
+      bool isMuted = IsChatMuted(chatIdNum);
 
       LOG_TRACE("update mute notify %s %d", chatId.c_str(), isMuted);
 
@@ -2307,9 +2335,37 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   {
     LOG_TRACE("update option");
   },
-  [](td::td_api::updateScopeNotificationSettings&)
+  [this](td::td_api::updateScopeNotificationSettings& update_scope_notification_settings)
   {
     LOG_TRACE("update scope notification settings");
+
+    if (!update_scope_notification_settings.scope_ ||
+        !update_scope_notification_settings.notification_settings_) return;
+
+    const std::int32_t scopeId = update_scope_notification_settings.scope_->get_id();
+    const std::int32_t muteFor = update_scope_notification_settings.notification_settings_->mute_for_;
+    const bool wasMuted = (m_ScopeMuteFor[scopeId] > 0);
+    const bool isMuted = (muteFor > 0);
+    m_ScopeMuteFor[scopeId] = muteFor;
+
+    LOG_TRACE("update scope mute %d %d", scopeId, isMuted);
+
+    if (wasMuted == isMuted) return;
+
+    for (const auto& chatMuteSettings : m_ChatMuteSettings)
+    {
+      if ((chatMuteSettings.second.scopeId != scopeId) || !chatMuteSettings.second.useDefaultMuteFor) continue;
+
+      std::string chatId = StrUtil::NumToHex(chatMuteSettings.first);
+      LOG_TRACE("update mute notify %s %d", chatId.c_str(), isMuted);
+
+      std::shared_ptr<UpdateMuteNotify> updateMuteNotify =
+        std::make_shared<UpdateMuteNotify>(m_ProfileId);
+      updateMuteNotify->success = true;
+      updateMuteNotify->chatId = chatId;
+      updateMuteNotify->isMuted = isMuted;
+      CallMessageHandler(updateMuteNotify);
+    }
   },
   [](td::td_api::updateUnreadChatCount&)
   {
@@ -3956,6 +4012,47 @@ bool TgChat::Impl::IsGroup(int64_t p_UserId)
 bool TgChat::Impl::IsSelf(int64_t p_UserId)
 {
   return (p_UserId == m_SelfUserId);
+}
+
+std::int32_t TgChat::Impl::GetScopeId(const td::td_api::ChatType& p_ChatType)
+{
+  switch (p_ChatType.get_id())
+  {
+    case td::td_api::chatTypePrivate::ID:
+    case td::td_api::chatTypeSecret::ID:
+      return td::td_api::notificationSettingsScopePrivateChats::ID;
+
+    case td::td_api::chatTypeBasicGroup::ID:
+      return td::td_api::notificationSettingsScopeGroupChats::ID;
+
+    case td::td_api::chatTypeSupergroup::ID:
+      return static_cast<const td::td_api::chatTypeSupergroup&>(p_ChatType).is_channel_
+             ? td::td_api::notificationSettingsScopeChannelChats::ID
+             : td::td_api::notificationSettingsScopeGroupChats::ID;
+
+    default:
+      return 0;
+  }
+}
+
+void TgChat::Impl::SetChatNotificationSettings(int64_t p_ChatId,
+                                               const td::td_api::chatNotificationSettings& p_Settings)
+{
+  ChatMuteSettings& chatMuteSettings = m_ChatMuteSettings[p_ChatId];
+  chatMuteSettings.useDefaultMuteFor = p_Settings.use_default_mute_for_;
+  chatMuteSettings.muteFor = p_Settings.mute_for_;
+}
+
+bool TgChat::Impl::IsChatMuted(int64_t p_ChatId)
+{
+  auto chatIt = m_ChatMuteSettings.find(p_ChatId);
+  if (chatIt == m_ChatMuteSettings.end()) return false;
+
+  const ChatMuteSettings& chatMuteSettings = chatIt->second;
+  if (!chatMuteSettings.useDefaultMuteFor) return (chatMuteSettings.muteFor > 0);
+
+  auto scopeIt = m_ScopeMuteFor.find(chatMuteSettings.scopeId);
+  return (scopeIt != m_ScopeMuteFor.end()) && (scopeIt->second > 0);
 }
 
 std::string TgChat::Impl::GetContactName(int64_t p_UserId)
