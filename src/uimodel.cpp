@@ -3704,6 +3704,17 @@ void UiModel::Impl::SaveEditMessage()
   // copy original message (time sent, quote id, etc)
   editMessageRequest->chatMessage = chatMessage;
 
+  // quote text and sender are not cached for all protocols, fill them from the quoted message if loaded
+  if (!chatMessage.quotedId.empty() && chatMessage.quotedSender.empty())
+  {
+    auto quotedMessage = messages.find(chatMessage.quotedId);
+    if (quotedMessage != messages.end())
+    {
+      editMessageRequest->chatMessage.quotedText = quotedMessage->second.text;
+      editMessageRequest->chatMessage.quotedSender = quotedMessage->second.senderId;
+    }
+  }
+
   // prepare a new FileInfo struct if original message has a file
   if (!chatMessage.fileInfo.empty())
   {

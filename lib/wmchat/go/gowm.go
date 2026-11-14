@@ -2984,7 +2984,10 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 	// quote context
 	contextInfo := waE2E.ContextInfo{}
-	if len(quotedId) > 0 {
+	if len(quotedId) > 0 && len(quotedSender) == 0 {
+		// an empty participant makes whatsapp notify an unrelated group member
+		LOG_WARNING("skip quote " + quotedId + " without sender")
+	} else if len(quotedId) > 0 {
 		quotedMessage := waE2E.Message{
 			Conversation: &quotedText,
 		}
