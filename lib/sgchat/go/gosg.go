@@ -69,6 +69,7 @@ var (
 	mutedChats  map[int]map[string]bool                        = make(map[int]map[string]bool)
 	recentMsgs  map[int]map[string][]recentMessage             = make(map[int]map[string][]recentMessage)
 	stateStore  map[int]map[string]string                      = make(map[int]map[string]string)
+	chatTimers  map[int]map[string]ChatTimer                   = make(map[int]map[string]ChatTimer)
 )
 
 const maxRecentMessages = 5
@@ -106,7 +107,7 @@ var NotifyDirect = 0
 var NotifyCache = 1
 var NotifySendCached = 2
 
-func SaveMap(path string, m map[string]string) error {
+func SaveMap[V any](path string, m map[string]V) error {
 	data, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -114,20 +115,24 @@ func SaveMap(path string, m map[string]string) error {
 	return os.WriteFile(path, data, 0600)
 }
 
-func LoadMap(path string) (map[string]string, error) {
+func LoadMap[V any](path string) (map[string]V, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return make(map[string]string), err
+		return make(map[string]V), err
 	}
-	var m map[string]string
-	if err := json.Unmarshal(data, &m); err != nil {
-		return make(map[string]string), err
+	var m map[string]V
+	if err := json.Unmarshal(data, &m); err != nil || m == nil {
+		return make(map[string]V), err
 	}
 	return m, nil
 }
 
 func GetStateStorePath(connPath string) string {
 	return connPath + "/state.dat"
+}
+
+func GetChatTimersStorePath(connPath string) string {
+	return connPath + "/timers.dat"
 }
 
 func GetChatsSynced(connId int) bool {
@@ -157,7 +162,8 @@ func AddConn(client *signalmeow.Client, device *store.Device, container *store.C
 	pinnedChats[connId] = make(map[string]bool)
 	mutedChats[connId] = make(map[string]bool)
 	recentMsgs[connId] = make(map[string][]recentMessage)
-	stateStore[connId], _ = LoadMap(GetStateStorePath(path))
+	stateStore[connId], _ = LoadMap[string](GetStateStorePath(path))
+	chatTimers[connId], _ = LoadMap[ChatTimer](GetChatTimersStorePath(path))
 	mx.Unlock()
 	return connId
 }
@@ -165,6 +171,7 @@ func AddConn(client *signalmeow.Client, device *store.Device, container *store.C
 func RemoveConn(connId int) {
 	mx.Lock()
 	SaveMap(GetStateStorePath(paths[connId]), stateStore[connId])
+	SaveMap(GetChatTimersStorePath(paths[connId]), chatTimers[connId])
 	delete(clients, connId)
 	delete(devices, connId)
 	delete(containers, connId)
@@ -177,7 +184,106 @@ func RemoveConn(connId int) {
 	delete(mutedChats, connId)
 	delete(recentMsgs, connId)
 	delete(stateStore, connId)
+	delete(chatTimers, connId)
 	mx.Unlock()
+}
+
+// ChatTimer is the disappearing messages timer of a 1-on-1 chat. Groups are
+// not stored here, their timer is part of the group state (group cache).
+type ChatTimer struct {
+	Timer   uint32 `json:"timer"`   // seconds, 0 = off
+	Version uint32 `json:"version"` // 0 = unknown
+}
+
+func GetChatTimer(connId int, chatId string) (ChatTimer, bool) {
+	mx.Lock()
+	defer mx.Unlock()
+	chatTimer, ok := chatTimers[connId][chatId]
+	return chatTimer, ok
+}
+
+// SetChatTimer stores a 1-on-1 chat timer, unless its version is older than
+// the stored one. Same rule as the official clients (Signal-Desktop
+// updateExpirationTimer), where an equal version is also applied.
+func SetChatTimer(connId int, chatId string, timer uint32, version uint32, source string) {
+	mx.Lock()
+	defer mx.Unlock()
+	connTimers, ok := chatTimers[connId]
+	if !ok {
+		return
+	}
+
+	newTimer := ChatTimer{Timer: timer, Version: version}
+	stored, hasStored := connTimers[chatId]
+	if hasStored && (version < stored.Version) {
+		LOG_TRACE(fmt.Sprintf("ignore outdated chat timer %s %d v%d < v%d (%s)", chatId, timer, version, stored.Version, source))
+		return
+	}
+
+	if hasStored && (newTimer == stored) {
+		return
+	}
+
+	LOG_TRACE(fmt.Sprintf("set chat timer %s %d v%d (%s)", chatId, timer, version, source))
+	connTimers[chatId] = newTimer
+}
+
+// TrackChatTimer learns a 1-on-1 chat's disappearing timer from an incoming
+// or synced data message. Like the official clients, a message without a
+// timer means the timer is off.
+func TrackChatTimer(connId int, chatId string, msg *signalpb.DataMessage) {
+	if StringToServiceID(chatId).IsEmpty() {
+		return // group, timer comes from group state
+	}
+
+	isTimerUpdate := (msg.GetFlags() & uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE)) != 0
+	isMessage := (msg.Body != nil) || (len(msg.GetAttachments()) > 0) || (msg.GetSticker() != nil)
+	if !isTimerUpdate && !isMessage {
+		return // reactions, deletes, profile key updates, etc
+	}
+
+	SetChatTimer(connId, chatId, msg.GetExpireTimer(), msg.GetExpireTimerVersion(), "message")
+}
+
+// GetSendTimer returns the disappearing timer and timer version to set on an
+// outgoing message. Signal clients treat a message without a timer as the
+// sender turning the chat's timer off.
+func GetSendTimer(ctx context.Context, connId int, chatId string) (uint32, uint32) {
+	client := GetClient(connId)
+	if client == nil {
+		return 0, 0
+	}
+
+	serviceID := StringToServiceID(chatId)
+	if serviceID.IsEmpty() {
+		group, _, err := client.RetrieveGroupByID(ctx, types.GroupIdentifier(chatId), 0)
+		if err != nil || group == nil {
+			LOG_WARNING(fmt.Sprintf("get group timer %s failed: %v", chatId, err))
+			return 0, 0
+		}
+
+		return group.DisappearingMessagesDuration, 0
+	}
+
+	chatTimer, ok := GetChatTimer(connId, chatId)
+	if !ok && (client.Store.BackupStore != nil) {
+		// not seen in any message yet, use the setting from the link-time transfer archive
+		backupChat, err := client.Store.BackupStore.GetBackupChatByUserID(ctx, serviceID)
+		if err == nil && backupChat != nil && backupChat.Chat != nil {
+			timer := uint32(backupChat.GetExpirationTimerMs() / 1000)
+			SetChatTimer(connId, chatId, timer, backupChat.GetExpireTimerVersion(), "backup")
+			chatTimer, ok = GetChatTimer(connId, chatId)
+		}
+	}
+
+	// A chat's timer version starts at 1 and is increased on each change, so an
+	// unknown timer sent as version 1 is ignored by recipients that have one set.
+	const initialTimerVersion = 1
+	if !ok {
+		return 0, initialTimerVersion
+	}
+
+	return chatTimer.Timer, max(chatTimer.Version, initialTimerVersion)
 }
 
 func GetClient(connId int) *signalmeow.Client {
@@ -1185,6 +1291,16 @@ func (handler *SgEventHandler) handleChatEvent(evt *events.ChatEvent) bool {
 		}
 	}
 
+	// Refetch group state when the message is from a newer group revision, as the
+	// group cache is not updated from group change messages (see handleGroupChange).
+	// Keeps the disappearing messages timer used for sending current.
+	if StringToServiceID(chatId).IsEmpty() && (info.GroupRevision > 0) {
+		_, _, err := client.RetrieveGroupByID(context.TODO(), types.GroupIdentifier(chatId), info.GroupRevision)
+		if err != nil {
+			LOG_WARNING(fmt.Sprintf("refresh group %s revision %d failed: %v", chatId, info.GroupRevision, err))
+		}
+	}
+
 	switch content := evt.Event.(type) {
 	case *signalpb.DataMessage:
 		handler.handleDataMessage(chatId, senderId, fromMe, timeSent, content)
@@ -1202,6 +1318,8 @@ func (handler *SgEventHandler) handleChatEvent(evt *events.ChatEvent) bool {
 func (handler *SgEventHandler) handleDataMessage(chatId string, senderId string, fromMe bool, timeSent int, msg *signalpb.DataMessage) {
 	LOG_TRACE(fmt.Sprintf("handleDataMessage"))
 	connId := handler.connId
+
+	TrackChatTimer(connId, chatId, msg)
 
 	if msg.GetReaction() != nil {
 		handler.handleReaction(chatId, senderId, fromMe, msg.GetReaction())
@@ -2489,6 +2607,16 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 	timestamp := uint64(time.Now().UnixMilli())
 	dataMsg := &signalpb.DataMessage{
 		Timestamp: proto.Uint64(timestamp),
+	}
+
+	// Disappearing messages timer, for both new and edited messages
+	expireTimer, expireTimerVersion := GetSendTimer(ctx, connId, chatId)
+	LOG_TRACE(fmt.Sprintf("send timer %s %d v%d", chatId, expireTimer, expireTimerVersion))
+	if expireTimer > 0 {
+		dataMsg.ExpireTimer = proto.Uint32(expireTimer)
+	}
+	if expireTimerVersion > 0 {
+		dataMsg.ExpireTimerVersion = proto.Uint32(expireTimerVersion)
 	}
 
 	// Handle edit vs new message
