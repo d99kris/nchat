@@ -67,6 +67,8 @@ public:
   static void AddInstance(int p_ConnId, WmChat* p_Instance);
   static void RemoveInstance(int p_ConnId);
   static WmChat* GetInstance(int p_ConnId);
+  int64_t GetUniqueTimeSent(const std::string& p_ChatId, const std::string& p_MsgId,
+                            int p_TimeSentSec, int p_SortOffset);
 
 private:
   void Init();
@@ -99,9 +101,26 @@ private:
   std::vector<ContactInfo> m_ContactInfos;
   std::string m_SelfUserId;
 
+  // synthetic sub-second sort keys for second-resolution whatsapp timestamps; freed with the
+  // instance. lastTimeSent: last assigned live timeSent (ms) for the chat. msgTimeSent: assigned
+  // timeSent per live message, so re-delivery of a live message keeps its position, bounded to the
+  // most recent s_MaxLiveMsgTimeSent messages per chat (msgOrder gives the eviction order); older
+  // messages get the value of a later delivery (history sync order id, or the hash).
+  struct ChatTimeSent
+  {
+    int64_t lastTimeSent = 0;
+    std::map<std::string, int64_t> msgTimeSent;
+    std::deque<std::string> msgOrder;
+  };
+
+  std::mutex m_TimeSentMutex;
+  std::map<std::string, ChatTimeSent> m_ChatTimeSent;
+
   static std::mutex s_ConnIdMapMutex;
   static std::map<int, WmChat*> s_ConnIdMap;
   static const int s_CacheDirVersion = 0; // update MessageCache::AddProfile() once bumped to 1
+  static const size_t s_MaxLiveMsgTimeSent = 256; // per chat, see m_ChatTimeSent
+  static const int s_SortOffsetLive = -1; // keep in sync with SortOffsetLive in gowm.go
 };
 
 extern "C" {
@@ -112,7 +131,7 @@ void WmNewChatsNotify(int p_ConnId, char* p_ChatId, int p_IsUnread, int p_IsMute
 void WmNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson);
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_ReplyId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
-                         int p_IsRead, int p_IsEdited);
+                         int p_IsRead, int p_IsEdited, int p_SortOffset);
 void WmNewMessageIsPinnedNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsPinned);
 void WmNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
 void WmNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);

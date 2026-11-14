@@ -795,6 +795,62 @@ WmChat* WmChat::GetInstance(int p_ConnId)
   return (it != s_ConnIdMap.end()) ? it->second : nullptr;
 }
 
+int64_t WmChat::GetUniqueTimeSent(const std::string& p_ChatId, const std::string& p_MsgId,
+                                  int p_TimeSentSec, int p_SortOffset)
+{
+  // whatsapp timestamps only have second resolution, so a deterministic sub-second offset based
+  // on message id hash is added to get distinct sort keys.
+  const int64_t base = (((int64_t)p_TimeSentSec) * 1000) + (std::hash<std::string>{ }(p_MsgId) % 256);
+
+  std::unique_lock<std::mutex> lock(m_TimeSentMutex);
+
+  // reuse the value already assigned to a live message this session so its position never shifts
+  // on re-delivery (duplicate event, or later history re-sync).
+  auto chatIt = m_ChatTimeSent.find(p_ChatId);
+  if (chatIt != m_ChatTimeSent.end())
+  {
+    auto msgIt = chatIt->second.msgTimeSent.find(p_MsgId);
+    if (msgIt != chatIt->second.msgTimeSent.end()) return msgIt->second;
+  }
+
+  // history-sync messages are not delivered in send order, but their order id is, so it is
+  // used as offset (wraps every 1000 ids, same as telegram). without one, use the deterministic base.
+  if ((p_SortOffset >= 0) && (p_SortOffset < 1000)) return (((int64_t)p_TimeSentSec) * 1000) + p_SortOffset;
+
+  if (p_SortOffset != s_SortOffsetLive) return base;
+
+  // the hash offset does not reflect actual send order for messages within the same second, so
+  // ensure a live message sorts after the chat's previously received live message.
+  ChatTimeSent& chatTimeSent = m_ChatTimeSent[p_ChatId];
+  int64_t timeSent = base;
+  int64_t& lastTimeSent = chatTimeSent.lastTimeSent;
+  if ((timeSent <= lastTimeSent) && ((timeSent / 1000) == (lastTimeSent / 1000)))
+  {
+    // a second holds 1000 slots; once they are used up the remaining messages of that second all
+    // get the last slot and their relative order is left to the caller's sort. reaching this needs
+    // 1000 live messages within one second.
+    const int64_t maxSameSecTimeSent = ((timeSent / 1000) * 1000) + 999;
+    timeSent = (lastTimeSent + 1 < maxSameSecTimeSent) ? (lastTimeSent + 1) : maxSameSecTimeSent;
+  }
+
+  if (timeSent > lastTimeSent)
+  {
+    lastTimeSent = timeSent;
+  }
+
+  // keep only the most recent messages, this map is only needed to keep re-delivered messages in
+  // place and would otherwise grow for the whole session.
+  chatTimeSent.msgTimeSent[p_MsgId] = timeSent;
+  chatTimeSent.msgOrder.push_back(p_MsgId);
+  if (chatTimeSent.msgOrder.size() > s_MaxLiveMsgTimeSent)
+  {
+    chatTimeSent.msgTimeSent.erase(chatTimeSent.msgOrder.front());
+    chatTimeSent.msgOrder.pop_front();
+  }
+
+  return timeSent;
+}
+
 void WmNewContactsNotify(int p_ConnId, char* p_ChatId, char* p_Name, char* p_Phone, int p_IsSelf, int p_IsAlias,
                          int p_Notify)
 {
@@ -894,35 +950,37 @@ void WmNewGroupMembersNotify(int p_ConnId, char* p_ChatId, char* p_MembersJson)
 
 void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe,
                          char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent,
-                         int p_IsRead, int p_IsEdited)
+                         int p_IsRead, int p_IsEdited, int p_SortOffset)
 {
   WmChat* instance = WmChat::GetInstance(p_ConnId);
   if (instance != nullptr)
   {
+    const std::string chatId = std::string(p_ChatId);
     ChatMessage chatMessage;
     chatMessage.id = std::string(p_MsgId);
     chatMessage.senderId = std::string(p_SenderId);
     chatMessage.text = std::string(p_Text);
     chatMessage.isOutgoing = (p_FromMe == 1);
     chatMessage.quotedId = std::string(p_QuotedId);
-    chatMessage.timeSent = (((int64_t)p_TimeSent) * 1000) + (std::hash<std::string>{ }(chatMessage.id) % 256);
     chatMessage.isRead = (p_IsRead == 1);
     chatMessage.isEdited = (p_IsEdited == 1);
 
-    if (p_IsEdited)
+    // an edit of a message that is not cached (ex: cleared cache, or older than what was synced)
+    // takes the branch below and is treated like a new message, so it gets a sort key and its
+    // attachment handled rather than being stored without either.
+    std::vector<ChatMessage> cachedMessages;
+    if (p_IsEdited &&
+        MessageCache::GetOneMessage(instance->GetProfileId(), chatId, chatMessage.id, cachedMessages))
     {
-      std::vector<ChatMessage> chatMessages;
-      if (MessageCache::GetOneMessage(instance->GetProfileId(), std::string(p_ChatId), std::string(p_MsgId),
-                                      chatMessages))
-      {
-        // retain original sent time, file info, and read state
-        chatMessage.timeSent = chatMessages.at(0).timeSent;
-        chatMessage.fileInfo = chatMessages.at(0).fileInfo;
-        chatMessage.isRead = chatMessages.at(0).isRead;
-      }
+      // retain original sent time, file info, and read state
+      chatMessage.timeSent = cachedMessages.at(0).timeSent;
+      chatMessage.fileInfo = cachedMessages.at(0).fileInfo;
+      chatMessage.isRead = cachedMessages.at(0).isRead;
     }
     else
     {
+      chatMessage.timeSent = instance->GetUniqueTimeSent(chatId, chatMessage.id, p_TimeSent, p_SortOffset);
+
       std::string fileId = std::string(p_FileId);
       if (!fileId.empty())
       {

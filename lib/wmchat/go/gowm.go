@@ -106,6 +106,12 @@ var FileStatusDownloaded = 1
 var FileStatusDownloading = 2
 var FileStatusDownloadFailed = 3
 
+// sub-second sort offset passed to WmNewMessagesNotify, keep in sync with wmchat.h. a value
+// 0-999 is used as is (history sync, from its message order id), live messages are placed after
+// the chat's previous live message, and none uses a hash of the message id.
+var SortOffsetLive = -1
+var SortOffsetNone = -2
+
 // keep in sync with enum Flag in status.h
 var FlagNone = 0
 var FlagOffline = (1 << 0)
@@ -1010,7 +1016,7 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 
 	case *events.Message:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
-		handler.HandleMessage(evt.Info, evt.Message, false /*isSyncRead*/)
+		handler.HandleMessage(evt.Info, evt.Message, false /*isSyncRead*/, SortOffsetLive)
 
 	case *events.UndecryptableMessage:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
@@ -1179,9 +1185,10 @@ func (handler *WmEventHandler) HandleUndecryptableMessage(evt *events.Undecrypta
 
 	handler.ProcessMessageInfo(messageInfo)
 
+	sortOffset := SortOffsetLive
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: view once placeholder", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), "" /*quotedId*/, "" /*fileId*/, "" /*filePath*/, FileStatusNone, timeSent,
-		BoolToInt(isRead), BoolToInt(false) /*isEdited*/)
+		BoolToInt(isRead), BoolToInt(false) /*isEdited*/, sortOffset)
 }
 
 func (handler *WmEventHandler) HandlePresence(presence *events.Presence) {
@@ -1251,7 +1258,14 @@ func (handler *WmEventHandler) HandleHistorySync(historySync *events.HistorySync
 				continue
 			}
 
-			handler.HandleMessage(*messageInfo, message, isSyncRead)
+			// history sync is not delivered in send order, but carries an order id that increases in
+			// send order, so use it for the sub-second part of the sort key (see SortOffsetLive)
+			sortOffset := SortOffsetNone
+			if syncMessage.MsgOrderID != nil {
+				sortOffset = int(syncMessage.GetMsgOrderID() % 1000)
+			}
+
+			handler.HandleMessage(*messageInfo, message, isSyncRead, sortOffset)
 			hasMessages = true
 
 			messageTime := int(messageInfo.Timestamp.Unix())
@@ -1407,6 +1421,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 	// general
 	timeSent := int(groupInfo.Timestamp.Unix())
 	msgId := strconv.Itoa(timeSent) // group info updates do not have msg id
+	sortOffset := SortOffsetLive
 	fromMe := IsSelfUser(client, senderJidStr)
 	senderId := senderJidStr
 	isSelfChat := IsSelfChat(client, chatId)
@@ -1419,7 +1434,7 @@ func (handler *WmEventHandler) HandleGroupInfo(groupInfo *events.GroupInfo) {
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
 func (handler *WmEventHandler) HandleDeleteChat(deleteChat *events.DeleteChat) {
@@ -1888,34 +1903,35 @@ func GetContactCards(contacts []*waE2E.ContactMessage) []ContactCard {
 	return cards
 }
 
-func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
-		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
+		handler.HandleTextMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.ImageMessage != nil:
-		handler.HandleImageMessage(messageInfo, msg, isSyncRead)
+		handler.HandleImageMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.VideoMessage != nil || msg.PtvMessage != nil:
-		handler.HandleVideoMessage(messageInfo, msg, isSyncRead)
+		handler.HandleVideoMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.AudioMessage != nil:
-		handler.HandleAudioMessage(messageInfo, msg, isSyncRead)
+		handler.HandleAudioMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.DocumentMessage != nil:
-		handler.HandleDocumentMessage(messageInfo, msg, isSyncRead)
+		handler.HandleDocumentMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.StickerMessage != nil:
-		handler.HandleStickerMessage(messageInfo, msg, isSyncRead)
+		handler.HandleStickerMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.TemplateMessage != nil:
-		handler.HandleTemplateMessage(messageInfo, msg, isSyncRead)
+		handler.HandleTemplateMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.ReactionMessage != nil:
+		// reactions carry no timeSent, so they need no sort offset
 		handler.HandleReactionMessage(messageInfo, msg, isSyncRead)
 
 	case msg.ProtocolMessage != nil:
-		handler.HandleProtocolMessage(messageInfo, msg, isSyncRead)
+		handler.HandleProtocolMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.PinInChatMessage != nil:
 		handler.HandlePinInChatMessage(messageInfo, msg)
@@ -1928,13 +1944,13 @@ func (handler *WmEventHandler) HandleMessage(messageInfo types.MessageInfo, msg 
 
 		contactText := FormatContactCards(GetContactCards(contacts))
 		msg.Conversation = &contactText
-		handler.HandleTextMessage(messageInfo, msg, isSyncRead)
+		handler.HandleTextMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	case msg.SecretEncryptedMessage != nil:
-		handler.HandleSecretEncryptedMessage(messageInfo, msg, isSyncRead)
+		handler.HandleSecretEncryptedMessage(messageInfo, msg, isSyncRead, sortOffset)
 
 	default:
-		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead)
+		handler.HandleUnsupportedMessage(messageInfo, msg, isSyncRead, sortOffset)
 	}
 
 	// after the message is handled, so a failure here cannot lose it
@@ -2033,7 +2049,7 @@ func (handler *WmEventHandler) ProcessMessageInfo(messageInfo types.MessageInfo)
 	}
 }
 
-func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("TextMessage"))
 
 	connId := handler.connId
@@ -2074,10 +2090,10 @@ func (handler *WmEventHandler) HandleTextMessage(messageInfo types.MessageInfo, 
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
-func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("ImageMessage"))
 
 	connId := handler.connId
@@ -2130,10 +2146,10 @@ func (handler *WmEventHandler) HandleImageMessage(messageInfo types.MessageInfo,
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: image", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
-func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("VideoMessage"))
 
 	connId := handler.connId
@@ -2190,10 +2206,10 @@ func (handler *WmEventHandler) HandleVideoMessage(messageInfo types.MessageInfo,
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: video", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
-func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("AudioMessage"))
 
 	connId := handler.connId
@@ -2242,10 +2258,10 @@ func (handler *WmEventHandler) HandleAudioMessage(messageInfo types.MessageInfo,
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: audio", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
-func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("DocumentMessage"))
 
 	connId := handler.connId
@@ -2295,10 +2311,10 @@ func (handler *WmEventHandler) HandleDocumentMessage(messageInfo types.MessageIn
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: document", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
-func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("StickerMessage"))
 
 	connId := handler.connId
@@ -2347,10 +2363,10 @@ func (handler *WmEventHandler) HandleStickerMessage(messageInfo types.MessageInf
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: sticker", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
-func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("TemplateMessage"))
 
 	connId := handler.connId
@@ -2444,7 +2460,7 @@ func (handler *WmEventHandler) HandleTemplateMessage(messageInfo types.MessageIn
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: template", chatId))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
 func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
@@ -2478,7 +2494,7 @@ func (handler *WmEventHandler) HandleReactionMessage(messageInfo types.MessageIn
 	//WmMarkMessageRead(connId, chatId, senderId, reMsgId)
 }
 
-func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("ProtocolMessage"))
 
 	// get protocol part
@@ -2494,7 +2510,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 		if editedMsg != nil {
 			newMessageInfo := messageInfo
 			newMessageInfo.ID = protocol.GetKey().GetID()
-			handler.HandleMessage(newMessageInfo, editedMsg, isSyncRead)
+			handler.HandleMessage(newMessageInfo, editedMsg, isSyncRead, sortOffset)
 		} else {
 			LOG_WARNING(fmt.Sprintf("get edited message failed"))
 		}
@@ -2525,7 +2541,7 @@ func (handler *WmEventHandler) HandleProtocolMessage(messageInfo types.MessageIn
 	}
 }
 
-func (handler *WmEventHandler) HandleSecretEncryptedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleSecretEncryptedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	LOG_TRACE(fmt.Sprintf("SecretEncryptedMessage"))
 
 	connId := handler.connId
@@ -2545,13 +2561,13 @@ func (handler *WmEventHandler) HandleSecretEncryptedMessage(messageInfo types.Me
 	if originalId != "" {
 		newMessageInfo := messageInfo
 		newMessageInfo.ID = originalId
-		handler.HandleMessage(newMessageInfo, decrypted, isSyncRead)
+		handler.HandleMessage(newMessageInfo, decrypted, isSyncRead, sortOffset)
 	} else {
-		handler.HandleMessage(messageInfo, decrypted, isSyncRead)
+		handler.HandleMessage(messageInfo, decrypted, isSyncRead, sortOffset)
 	}
 }
 
-func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool) {
+func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.MessageInfo, msg *waE2E.Message, isSyncRead bool, sortOffset int) {
 	// list from type Message struct in def.pb.go
 	msgType := "Unknown"
 	msgNotify := false
@@ -2757,7 +2773,7 @@ func (handler *WmEventHandler) HandleUnsupportedMessage(messageInfo types.Messag
 
 	LOG_TRACE(fmt.Sprintf("Call CWmNewMessagesNotify %s: %s", chatId, text))
 	CWmNewMessagesNotify(connId, chatId, msgId, senderId, text, BoolToInt(fromMe), quotedId, fileId, filePath, fileStatus, timeSent,
-		BoolToInt(isRead), BoolToInt(isEdited))
+		BoolToInt(isRead), BoolToInt(isEdited), sortOffset)
 }
 
 func ResetTypingStatus(connId int, chatId string, userId string, fromMe bool, isSyncRead bool) {
@@ -3555,7 +3571,7 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 		isSyncRead := false
 		handler := GetHandler(connId)
-		handler.HandleMessage(messageInfo, &message, isSyncRead)
+		handler.HandleMessage(messageInfo, &message, isSyncRead, SortOffsetLive)
 	}
 
 	return 0
