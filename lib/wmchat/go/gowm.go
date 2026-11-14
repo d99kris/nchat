@@ -84,6 +84,8 @@ var (
 	sendTypes   map[int]int                  = make(map[int]int)
 	namesSynced map[int]bool                 = make(map[int]bool)
 	passkeyWait map[int]bool                 = make(map[int]bool)
+	presences   map[int]int                  = make(map[int]int)
+	subscribed  map[int]map[types.JID]bool   = make(map[int]map[types.JID]bool)
 )
 
 // keep in sync with enum AttachmentSendType in appconfig.h
@@ -162,6 +164,8 @@ func AddConn(conn *whatsmeow.Client, path string, sendType int) int {
 	handlers[connId] = &WmEventHandler{connId}
 	sendTypes[connId] = sendType
 	namesSynced[connId] = false
+	presences[connId] = -1
+	subscribed[connId] = make(map[types.JID]bool)
 	mx.Unlock()
 	return connId
 }
@@ -181,6 +185,8 @@ func RemoveConn(connId int) {
 	delete(handlers, connId)
 	delete(sendTypes, connId)
 	delete(namesSynced, connId)
+	delete(presences, connId)
+	delete(subscribed, connId)
 	mx.Unlock()
 }
 
@@ -223,6 +229,37 @@ func SetState(connId int, status State) {
 	mx.Lock()
 	states[connId] = status
 	mx.Unlock()
+}
+
+func SetPresence(connId int, isOnline int) {
+	mx.Lock()
+	presences[connId] = isOnline
+	mx.Unlock()
+}
+
+func GetPresence(connId int) int {
+	mx.Lock()
+	var isOnline int = presences[connId]
+	mx.Unlock()
+	return isOnline
+}
+
+func AddSubscribed(connId int, jid types.JID) {
+	mx.Lock()
+	if subscribed[connId] != nil {
+		subscribed[connId][jid] = true
+	}
+	mx.Unlock()
+}
+
+func GetSubscribed(connId int) []types.JID {
+	mx.Lock()
+	var jids []types.JID
+	for jid := range subscribed[connId] {
+		jids = append(jids, jid)
+	}
+	mx.Unlock()
+	return jids
 }
 
 func SetPasskeyWait(connId int, isWait bool) {
@@ -917,6 +954,25 @@ func (handler *WmEventHandler) HandleConnected() {
 
 	if len(client.Store.PushName) == 0 {
 		return
+	}
+
+	// whatsapp drops own presence and presence subscriptions when the connection is lost,
+	// so restore them after (re)connect, otherwise contact status stays stale until restart.
+	isOnline := GetPresence(handler.connId)
+	if isOnline != -1 {
+		SendPresence(handler.connId, client, isOnline)
+	}
+
+	jids := GetSubscribed(handler.connId)
+	if len(jids) > 0 {
+		LOG_TRACE(fmt.Sprintf("resubscribe presence of %d users", len(jids)))
+		ctx := context.TODO()
+		for _, jid := range jids {
+			err := client.SubscribePresence(ctx, jid)
+			if err != nil {
+				LOG_WARNING(fmt.Sprintf("resubscribe presence error %#v", err))
+			}
+		}
 	}
 }
 
@@ -3458,7 +3514,8 @@ func WmGetStatus(connId int, userId string) int {
 		return -1
 	}
 
-	// subscribe user presence
+	// subscribe user presence, and remember it for resubscribe after reconnect
+	AddSubscribed(connId, userJid)
 	ctx := context.TODO()
 	err := client.SubscribePresence(ctx, userJid)
 
@@ -3700,29 +3757,7 @@ func WmSendTyping(connId int, chatId string, isTyping int) int {
 	return 0
 }
 
-func WmSendStatus(connId int, isOnline int) int {
-
-	LOG_TRACE("send status " + strconv.Itoa(connId) + ", " + strconv.Itoa(isOnline))
-
-	// sanity check arg
-	if connId == -1 {
-		LOG_WARNING("invalid connId")
-		return -1
-	}
-
-	// get client
-	client := GetClient(connId)
-	if client == nil {
-		LOG_WARNING("client is nil")
-		return -1
-	}
-
-	// bail out if no push name yet
-	if len(client.Store.PushName) == 0 {
-		return -1
-	}
-
-	// set presence
+func SendPresence(connId int, client *whatsmeow.Client, isOnline int) {
 	var presence types.Presence = types.PresenceUnavailable
 	if isOnline == 1 {
 		presence = types.PresenceAvailable
@@ -3740,6 +3775,34 @@ func WmSendStatus(connId int, isOnline int) int {
 			CWmSetStatus(connId, FlagAway)
 		}
 	}
+}
+
+func WmSendStatus(connId int, isOnline int) int {
+
+	LOG_TRACE("send status " + strconv.Itoa(connId) + ", " + strconv.Itoa(isOnline))
+
+	// sanity check arg
+	if connId == -1 {
+		LOG_WARNING("invalid connId")
+		return -1
+	}
+
+	// get client
+	client := GetClient(connId)
+	if client == nil {
+		LOG_WARNING("client is nil")
+		return -1
+	}
+
+	// remember presence for resend after reconnect
+	SetPresence(connId, isOnline)
+
+	// bail out if no push name yet
+	if len(client.Store.PushName) == 0 {
+		return -1
+	}
+
+	SendPresence(connId, client, isOnline)
 
 	return 0
 }
