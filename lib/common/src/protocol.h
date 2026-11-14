@@ -34,6 +34,7 @@ enum ProtocolFeature
   FeatureArchiveChat = (1 << 8),
   FeaturePinMessage = (1 << 9),
   FeaturePresenceRequiresOnline = (1 << 10),
+  FeatureOfflineSend = (1 << 11),
 };
 
 class Protocol
