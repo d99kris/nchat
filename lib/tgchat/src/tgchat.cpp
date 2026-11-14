@@ -39,6 +39,7 @@
 #include "qrutil.h"
 #include "status.h"
 #include "strutil.h"
+#include "tgrichmessage.h"
 #include "timeutil.h"
 
 // TDLib's history view (consulted on startup) has the message erased, so the
@@ -3696,6 +3697,14 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   else if (p_TdMessageContent.get_id() == td::td_api::messageUnsupported::ID)
   {
     p_Text = "[UnsupportedByCurrentTdlibVersion]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messageRichMessage::ID)
+  {
+    auto& messageRichMessage = static_cast<td::td_api::messageRichMessage&>(p_TdMessageContent);
+    if (messageRichMessage.message_)
+    {
+      p_Text = TgRichMessage::ToText(*messageRichMessage.message_);
+    }
   }
   else
   {

@@ -36,6 +36,8 @@ endif()
 add_library(tgchat ${LIBRARY_LINKING_TYPE}
   src/tgchat.cpp
   src/tgchat.h
+  src/tgrichmessage.cpp
+  src/tgrichmessage.h
 )
 install(TARGETS tgchat DESTINATION ${CMAKE_INSTALL_LIBDIR})
 

@@ -33,3 +33,11 @@ endmacro()
 # Unit tests
 add_unit_test(test001)
 add_unit_test(test002)
+
+# Unit tests for telegram
+if(HAS_TELEGRAM)
+  add_unit_test(test003)
+  target_sources(test003 PRIVATE ../lib/tgchat/src/tgrichmessage.cpp)
+  target_include_directories(test003 PRIVATE "../lib/tgchat/src")
+  target_link_libraries(test003 PUBLIC tdapi)
+endif()
