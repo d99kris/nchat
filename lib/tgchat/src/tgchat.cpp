@@ -53,6 +53,19 @@
 
 static const int s_TdlibDate = 20261021;
 
+// telegram timestamps only have second resolution; telegram message ids increase monotonically
+// within a chat (server ids are shifted left by 20 bits), so derive a stable, order-preserving
+// sub-second offset from the id to keep same-second messages in send order. used for both message
+// timeSent and the chat-list last-message time so the two stay consistent.
+// the offset has to fit in the millisecond field, so it wraps every 1000 server ids: two
+// same-second messages whose ids straddle a multiple of 1000 (e.g. 1999 and 2000) sort in reverse.
+// that is rare enough (the old hash-based offset got half of all same-second pairs wrong) that it
+// is not worth keeping state to avoid.
+static int64_t TdMessageTimeSent(int64_t p_MsgId, int64_t p_DateSec)
+{
+  return (p_DateSec * 1000) + ((p_MsgId >> 20) % 1000);
+}
+
 namespace detail
 {
   template<class... Fs>
@@ -261,7 +274,7 @@ private:
   std::mutex m_Mutex;
   size_t m_GetUserDetailsCurrent = 0;
   size_t m_GetUserDetailsTotal = 0;
-  static const int s_CacheDirVersion = 2;
+  static const int s_CacheDirVersion = 3;
 };
 
 // Public interface
@@ -739,14 +752,13 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             }
 
             chatInfo.isMuted = IsChatMuted(tchat->id_);
-            int64_t lastMessageTimeSec =
-              (tchat->last_message_ != nullptr) ? tchat->last_message_->date_ : 0;
-            int64_t lastMessageHash =
-              (tchat->last_message_ != nullptr) ? (std::hash<std::string>{ } (StrUtil::NumToHex(tchat->last_message_->id_)) % 256) : 0;
-
             bool isPinned = false;
             bool isArchived = false;
-            int64_t lastMessageTime = (lastMessageTimeSec * 1000) + lastMessageHash;
+            // keep in sync with the per-message timeSent (TdMessageConvert) so chat-list ordering
+            // and message ordering agree for same-second messages.
+            int64_t lastMessageTime =
+              (tchat->last_message_ != nullptr)
+              ? TdMessageTimeSent(tchat->last_message_->id_, tchat->last_message_->date_) : 0;
             for (auto& position : tchat->positions_)
             {
               auto chatList = td::move_tl_object_as<td::td_api::ChatList>(position->list_);
@@ -3722,7 +3734,7 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
   p_ChatMessage.senderId = StrUtil::NumToHex(senderId);
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
-  p_ChatMessage.timeSent = (((int64_t)p_TdMessage.date_) * 1000) + (std::hash<std::string>{ }(p_ChatMessage.id) % 256);
+  p_ChatMessage.timeSent = TdMessageTimeSent(p_TdMessage.id_, p_TdMessage.date_);
   p_ChatMessage.isEdited = (p_TdMessage.edit_date_ > 0);
   p_ChatMessage.isPinned = p_TdMessage.is_pinned_;
 
