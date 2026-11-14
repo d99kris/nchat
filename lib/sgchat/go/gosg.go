@@ -2703,6 +2703,24 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		dataMsg.ExpireTimerVersion = proto.Uint32(expireTimerVersion)
 	}
 
+	// Prepare quote
+	var quote *signalpb.DataMessage_Quote
+	if quotedId != "" {
+		quotedTimestamp, err := MsgIdToTimestamp(quotedId)
+		if err == nil {
+			quotedAuthorUUID := StringToUUID(quotedSender)
+			quotedAuthorACI := ""
+			if quotedAuthorUUID != uuid.Nil {
+				quotedAuthorACI = quotedAuthorUUID.String()
+			}
+			quote = &signalpb.DataMessage_Quote{
+				Id:        proto.Uint64(quotedTimestamp),
+				AuthorAci: proto.String(quotedAuthorACI),
+				Text:      proto.String(quotedText),
+			}
+		}
+	}
+
 	// Handle edit vs new message
 	if editMsgId != "" {
 		if IsMsgPartId(editMsgId) {
@@ -2722,6 +2740,11 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 		allBodyRanges := append(mdBodyRanges, mentionBodyRanges...)
 		if len(allBodyRanges) > 0 {
 			dataMsg.BodyRanges = allBodyRanges
+		}
+
+		// keep quote of edited reply, unless quoted sender is unknown (quoted message not loaded)
+		if (quote != nil) && (quotedSender != "") {
+			dataMsg.Quote = quote
 		}
 
 		editMsg := &signalpb.EditMessage{
@@ -2771,21 +2794,9 @@ func SgSendMessage(connId int, chatId string, text string, quotedId string, quot
 			}
 		}
 
-		// Handle quote
-		if quotedId != "" {
-			quotedTimestamp, err := MsgIdToTimestamp(quotedId)
-			if err == nil {
-				quotedAuthorUUID := StringToUUID(quotedSender)
-				quotedAuthorACI := ""
-				if quotedAuthorUUID != uuid.Nil {
-					quotedAuthorACI = quotedAuthorUUID.String()
-				}
-				dataMsg.Quote = &signalpb.DataMessage_Quote{
-					Id:        proto.Uint64(quotedTimestamp),
-					AuthorAci: proto.String(quotedAuthorACI),
-					Text:      proto.String(quotedText),
-				}
-			}
+		// Set quote
+		if quote != nil {
+			dataMsg.Quote = quote
 		}
 
 		// Handle attachment
