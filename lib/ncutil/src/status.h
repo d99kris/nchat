@@ -30,6 +30,7 @@ public:
   };
 
   static uint32_t Get(uint32_t p_Mask);
+  static bool IsOnline(const std::string& p_ProfileId);
   static void Set(const std::string& p_ProfileId, uint32_t p_Flags);
   static void Clear(const std::string& p_ProfileId, uint32_t p_Flags);
   static std::string ToString(uint32_t p_Mask);

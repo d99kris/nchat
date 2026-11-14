@@ -183,30 +183,9 @@ void UiModel::Impl::SendMessage()
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
   std::wstring& entryStr = m_EntryStr[profileId][chatId];
+  int& entryPos = m_EntryPos[profileId][chatId];
 
   if (entryStr.empty()) return;
-
-  // --- COOLDOWN MECHANISM START ---
-  using Clock = std::chrono::steady_clock;
-  static Clock::time_point lastSendTime;
-  static std::wstring lastEntryStr;
-  static std::string lastChatId;
-
-  Clock::time_point now = Clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastSendTime).count();
-
-  // Block only if it's the exact same message to the same chat within 5 seconds
-  if (chatId == lastChatId && entryStr == lastEntryStr && elapsed < 5)
-  {
-    LOG_TRACE("SendMessage: Skipped identical message within 5-second cooldown.");
-    return;
-  }
-
-  // Update tracking state for this valid transmission
-  lastSendTime = now;
-  lastEntryStr = entryStr;
-  lastChatId = chatId;
-  // --- COOLDOWN MECHANISM END ---
 
   std::shared_ptr<SendMessageRequest> sendMessageRequest = std::make_shared<SendMessageRequest>();
   sendMessageRequest->chatId = chatId;
@@ -220,9 +199,13 @@ void UiModel::Impl::SendMessage()
     SetSelectMessageActive(false);
   }
 
+  AddPendingSend(profileId, chatId, sendMessageRequest->chatMessage.text, entryStr, false /*p_IsCaption*/);
   SendProtocolRequest(profileId, sendMessageRequest);
-  m_PendingTextSend[profileId][chatId] = true;
 
+  entryStr.clear();
+  entryPos = 0;
+
+  UpdateEntry();
   ResetMessageOffset();
   SetHistoryInteraction(true);
 }
@@ -1382,6 +1365,7 @@ void UiModel::Impl::TransferFile(const std::vector<std::string>& p_FilePaths)
           int& entryPos = m_EntryPos[profileId][chatId];
 
           sendMessageRequest->chatMessage.text = EntryStrToSendStr(entryStr);
+          AddPendingSend(profileId, chatId, sendMessageRequest->chatMessage.text, entryStr, true /*p_IsCaption*/);
 
           entryStr.clear();
           entryPos = 0;
@@ -1878,24 +1862,8 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       {
         std::shared_ptr<SendMessageNotify> sendMessageNotify = std::static_pointer_cast<SendMessageNotify>(
           p_ServiceMessage);
-
-        std::string chatId = sendMessageNotify->chatId;
-
-        if (sendMessageNotify->success)
-        {
-          LOG_TRACE("send ok");
-          if (m_PendingTextSend[profileId][chatId])
-          {
-            m_EntryStr[profileId][chatId].clear();
-            m_EntryPos[profileId][chatId] = 0;
-            UpdateEntry();
-            m_PendingTextSend[profileId][chatId] = false;
-          }
-        }
-        else
-        {
-          LOG_TRACE("send failed");
-        }
+        LOG_TRACE(sendMessageNotify->success ? "send ok" : "send failed");
+        HandleSendResult(profileId, sendMessageNotify);
       }
       break;
 
@@ -3782,6 +3750,112 @@ void UiModel::Impl::OnKeyCancel()
   Clear(allowUndo);
 }
 
+std::string UiModel::Impl::GetSendBlockedReason()
+{
+  if (!IsCurrentChatSet()) return "";
+
+  const std::string& profileId = m_CurrentChat.first;
+  const std::string& chatId = m_CurrentChat.second;
+  if (m_EntryStr[profileId][chatId].empty()) return "";
+
+  // protocols without offline send support fail when offline, block send instead
+  if (!Status::IsOnline(profileId) && !HasProtocolFeature(profileId, FeatureOfflineSend))
+  {
+    return "Cannot send while offline.";
+  }
+
+  // one text message in flight per profile, as protocol requests are sequential and later ones fail too
+  if (!GetEditMessageActive())
+  {
+    const std::vector<PendingSend>& pendingSends = m_PendingSends[profileId];
+    const bool isSending = std::any_of(pendingSends.begin(), pendingSends.end(),
+                                       [&](const PendingSend& p_PendingSend)
+    {
+      return !p_PendingSend.isCaption;
+    });
+    if (isSending)
+    {
+      return "Cannot send while previous message is sending.";
+    }
+  }
+
+  return "";
+}
+
+void UiModel::Impl::AddPendingSend(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                   const std::string& p_SendStr, const std::wstring& p_EntryStr, bool p_IsCaption)
+{
+  if (p_SendStr.empty()) return;
+
+  // keep entry text until send result is known, to restore it if send fails
+  m_PendingSends[p_ProfileId].push_back(PendingSend{ p_ChatId, p_SendStr, p_EntryStr, p_IsCaption });
+}
+
+void UiModel::Impl::HandleSendResult(const std::string& p_ProfileId,
+                                     std::shared_ptr<SendMessageNotify> p_SendMessageNotify)
+{
+  const std::string& chatId = p_SendMessageNotify->chatId;
+  const std::string& sendStr = p_SendMessageNotify->chatMessage.text;
+  if (sendStr.empty()) return;
+
+  std::vector<PendingSend>& pendingSends = m_PendingSends[p_ProfileId];
+  auto it = std::find_if(pendingSends.begin(), pendingSends.end(), [&](const PendingSend& p_PendingSend)
+  {
+    return (p_PendingSend.chatId == chatId) && (p_PendingSend.sendStr == sendStr);
+  });
+  if (it == pendingSends.end()) return; // not from entry, e.g. forwarded message
+
+  const std::wstring failedStr = it->entryStr;
+  pendingSends.erase(it);
+  if (p_SendMessageNotify->success) return;
+
+  std::wstring& entryStr = m_EntryStr[p_ProfileId][chatId];
+  int& entryPos = m_EntryPos[p_ProfileId][chatId];
+  const bool isEditing = GetEditMessageActive() && (m_CurrentChat == std::make_pair(p_ProfileId, chatId));
+  if (isEditing)
+  {
+    // entry holds the message being edited, keep failed text for undo clear input
+    LOG_WARNING("send failed, text kept for undo clear input");
+    m_EntryStrCleared[p_ProfileId][chatId] = failedStr;
+    m_EntryPosCleared[p_ProfileId][chatId] = (int)failedStr.size();
+  }
+  else if (entryStr.empty())
+  {
+    LOG_WARNING("send failed, text restored to entry");
+    entryStr = failedStr;
+    entryPos = (int)entryStr.size();
+  }
+  else
+  {
+    LOG_WARNING("send failed, text restored to start of entry");
+    entryStr = failedStr + L"\n" + entryStr;
+    entryPos += (int)failedStr.size() + 1;
+  }
+
+  UpdateEntry();
+
+  const std::string chatName = GetContactName(p_ProfileId, chatId) + GetProfileSuffix(p_ProfileId);
+  if (std::find(m_SendFailedChatNames.begin(), m_SendFailedChatNames.end(), chatName) ==
+      m_SendFailedChatNames.end())
+  {
+    m_SendFailedChatNames.push_back(chatName);
+  }
+}
+
+std::string UiModel::Impl::TakeSendFailedText()
+{
+  if (m_SendFailedChatNames.empty()) return "";
+
+  std::string chatNames;
+  for (const auto& chatName : m_SendFailedChatNames)
+  {
+    chatNames += (chatNames.empty() ? "" : ", ") + chatName;
+  }
+
+  m_SendFailedChatNames.clear();
+  return "Message to " + chatNames + " failed to send, text restored to input.";
+}
+
 std::string UiModel::Impl::EntryStrToSendStr(const std::wstring& p_EntryStr)
 {
   std::wstring wstr = p_EntryStr;
@@ -4760,8 +4834,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   }
   else if (p_Key == keySendMsg)
   {
-    std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OnKeySendMsg();
+    OnKeySendMsg();
   }
   else if (p_Key == keyExtEdit)
   {
@@ -4928,7 +5001,17 @@ bool UiModel::Process()
     GetImpl().HandleProtocolUiControlEnd();
   }
 
-  return GetImpl().Process();
+  const bool rv = GetImpl().Process();
+  const std::string sendFailedText = GetImpl().TakeSendFailedText();
+  lock.unlock();
+
+  // Open modal dialog without model mutex held
+  if (!sendFailedText.empty())
+  {
+    MessageDialog("Warning", sendFailedText, 0.7, 6);
+  }
+
+  return rv;
 }
 
 void UiModel::RequestContacts()
@@ -5564,6 +5647,26 @@ bool UiModel::MessageDialog(const std::string& p_Title, const std::string& p_Tex
   bool rv = messageDialog.Run();
   ReinitView();
   return rv;
+}
+
+void UiModel::OnKeySendMsg()
+{
+  // Pre-req
+  std::string sendBlockedReason;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    sendBlockedReason = GetImpl().GetSendBlockedReason();
+  }
+
+  // Open modal dialog without model mutex held
+  if (!sendBlockedReason.empty())
+  {
+    MessageDialog("Warning", sendBlockedReason, 0.7, 5);
+    return;
+  }
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().OnKeySendMsg();
 }
 
 void UiModel::OnKeyDeleteMsg()

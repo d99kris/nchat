@@ -355,7 +355,8 @@ bool TgChat::Impl::HasFeature(ProtocolFeature p_ProtocolFeature) const
     FeatureAutoGetContactsOnLogin |
     FeaturePinChat |
     FeatureArchiveChat |
-    FeaturePinMessage;
+    FeaturePinMessage |
+    FeatureOfflineSend;
   return (p_ProtocolFeature & customFeatures);
 }
 
@@ -1010,11 +1011,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         {
           Status::Clear(m_ProfileId, Status::FlagSending);
 
-          if (object->get_id() == td::td_api::error::ID) return;
-
           std::shared_ptr<SendMessageNotify> sendMessageNotify =
             std::make_shared<SendMessageNotify>(m_ProfileId);
-          sendMessageNotify->success = true;
+          sendMessageNotify->success = (object->get_id() != td::td_api::error::ID);
 
           sendMessageNotify->chatId = sendMessageRequest->chatId;
           sendMessageNotify->chatMessage = sendMessageRequest->chatMessage;

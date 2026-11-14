@@ -17,6 +17,13 @@ uint32_t Status::Get(uint32_t p_Mask)
   return m_Flags & p_Mask;
 }
 
+bool Status::IsOnline(const std::string& p_ProfileId)
+{
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  auto it = m_ProfileFlags.find(p_ProfileId);
+  return (it != m_ProfileFlags.end()) && (it->second & FlagOnline);
+}
+
 void Status::Set(const std::string& p_ProfileId, uint32_t p_Flags)
 {
   std::unique_lock<std::mutex> lock(m_Mutex);
