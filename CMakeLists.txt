@@ -401,15 +401,40 @@ add_custom_command(
           -DOUT_FILE=${COMPOSE_SCRIPT_HEADER}
           -DVAR_NAME=ComposeScript
           -P ${CMAKE_CURRENT_SOURCE_DIR}/utils/embedfile.cmake
-  DEPENDS src/compose utils/embedfile.cmake
+  DEPENDS src/compose utils/embedfile.cmake utils/embedutil.cmake
   COMMENT "Embedding compose script"
+  VERBATIM
+)
+
+# Embedded color themes - listed in themes/index.txt, which is a configure
+# dependency so that adding or removing a theme updates the DEPENDS list.
+include(utils/embedutil.cmake)
+set(THEMES_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/themes.h")
+set(THEMES_INDEX "${CMAKE_CURRENT_SOURCE_DIR}/themes/index.txt")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${THEMES_INDEX}")
+embed_theme_names("${THEMES_INDEX}" THEME_NAMES)
+set(THEME_FILES "")
+foreach(THEME_NAME ${THEME_NAMES})
+  list(APPEND THEME_FILES "themes/${THEME_NAME}/color.conf" "themes/${THEME_NAME}/usercolor.conf")
+endforeach()
+add_custom_command(
+  OUTPUT "${THEMES_HEADER}"
+  COMMAND "${CMAKE_COMMAND}"
+          -DTHEMES_DIR=${CMAKE_CURRENT_SOURCE_DIR}/themes
+          -DOUT_FILE=${THEMES_HEADER}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/utils/embedthemes.cmake
+  DEPENDS themes/index.txt ${THEME_FILES} utils/embedthemes.cmake utils/embedutil.cmake
+  COMMENT "Embedding themes"
   VERBATIM
 )
 
 # Application
 add_executable(nchat
   ${COMPOSE_SCRIPT_HEADER}
+  ${THEMES_HEADER}
   src/main.cpp
+  src/theme.cpp
+  src/theme.h
   src/ui.cpp
   src/ui.h
   src/uichatlistdialog.cpp

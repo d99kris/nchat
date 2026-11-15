@@ -57,6 +57,8 @@ Command-line Options:
     -m, --devmode          developer mode
     -r, --remove           remove chat protocol account
     -s, --setup            set up chat protocol account
+    -t, --theme [THEME]    install color theme, or select from list of
+                           available themes if not specified
     -v, --version          output version information and exit
     -x, --export <DIR>     export message cache to specified dir
 
@@ -1107,44 +1109,42 @@ used to pick a color from the list in `~/.config/nchat/usercolor.conf`.
 
 Themes
 ------
-Color themes are available in the source package under the `themes` directory
-and can be used by copying to `~/.config/nchat/`.
+nchat comes with a set of bundled color themes, which can be installed using
+`nchat --theme`. Without a theme name it presents a list of available themes
+to select from:
+
+    nchat --theme
+
+A theme may also be specified directly, for example:
+
+    nchat --theme pastel-blue
 
 Available themes:
 
+    default
     ayu-dark
     basic-color
     catppuccin-mocha
-    default
     dracula
     espresso
     gruvbox-dark
     gruvbox-dark-hard
     pastel-blue
     purple-light
-    solarized-dark-higher-contrast
+    solarized-dark-hc
     tokyo-night
     tomorrow-night
     zenbones-dark
     zenburned
 
+The theme is written to `~/.config/nchat/color.conf` and
+`~/.config/nchat/usercolor.conf`, overwriting any existing files. Themes cannot
+be installed while nchat is running, as it saves its color configuration on
+exit.
+
 See the [Themes wiki-page](https://github.com/d99kris/nchat/wiki/Themes) for
-example screenshots.
-
-### Installing theme from source
-
-With a source code copy, simply copy the theme files to the config directory
-(while nchat is not running). Example installing `dracula` theme:
-
-    cp themes/dracula/* ~/.config/nchat/
-
-### Installing theme from web
-
-One can fetch current `master` copy of a theme from the github repository and
-download to the config directory (while nchat is not running). Example
-installing `dracula` theme:
-
-    THEME="dracula" ; curl -L "https://raw.githubusercontent.com/d99kris/nchat/refs/heads/master/themes/${THEME}/{color.conf,usercolor.conf}" -o ~/.config/nchat/#1
+example screenshots. The theme files are available in the source package
+under the `themes` directory and also listed in `themes/index.txt`.
 
 ### Generating theme from iTerm2-Color-Schemes
 

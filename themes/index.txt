@@ -1,0 +1,21 @@
+# index.txt
+#
+# Themes embedded in the nchat executable, listed in the order presented by
+# "nchat --theme". Each entry <name> refers to themes/<name>/color.conf and
+# themes/<name>/usercolor.conf. The first entry is the default selection.
+
+default
+ayu-dark
+basic-color
+catppuccin-mocha
+dracula
+espresso
+gruvbox-dark
+gruvbox-dark-hard
+pastel-blue
+purple-light
+solarized-dark-hc
+tokyo-night
+tomorrow-night
+zenbones-dark
+zenburned
