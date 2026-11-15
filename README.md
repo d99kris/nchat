@@ -59,6 +59,7 @@ Command-line Options:
     -s, --setup            set up chat protocol account
     -t, --theme [THEME]    install color theme, or select from list of
                            available themes if not specified
+    -u, --upgrade [VER]    upgrade release binary to latest or given version
     -v, --version          output version information and exit
     -x, --export <DIR>     export message cache to specified dir
 
@@ -172,6 +173,12 @@ well as macOS arm64.
 **Install**
 
     curl -fsSL https://raw.githubusercontent.com/d99kris/nchat/master/utils/install.sh | bash
+
+**Upgrade**
+
+    nchat -u
+
+Upgrades to the latest release, or to a specified release, e.g. `nchat -u 5.20.37`.
 
 **Uninstall**
 

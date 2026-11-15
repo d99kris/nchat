@@ -13,6 +13,10 @@
 #include <string>
 
 #include <cassert>
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
+#include <cstring>
 #include <dlfcn.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -53,6 +57,7 @@ static void RemoveProfile();
 static std::shared_ptr<Protocol> SetupProfile();
 static void ShowHelp();
 static void ShowVersion();
+static int Upgrade(const std::string& p_Version, mode_t p_Umask);
 
 
 class ProtocolBaseFactory
@@ -143,7 +148,7 @@ static std::vector<std::shared_ptr<ProtocolBaseFactory>> GetProtocolFactorys()
 int main(int argc, char* argv[])
 {
   // Defaults
-  umask(S_IRWXG | S_IRWXO);
+  const mode_t origUmask = umask(S_IRWXG | S_IRWXO);
   FileUtil::SetApplicationDir(FileUtil::GetDefaultApplicationDir());
   Log::SetVerboseLevel(Log::INFO_LEVEL);
 
@@ -153,7 +158,9 @@ int main(int argc, char* argv[])
   bool isRemove = false;
   bool isSetup = false;
   bool isThemeInstall = false;
+  bool isUpgrade = false;
   std::string theme;
+  std::string upgradeVersion;
   std::vector<std::string> args(argv + 1, argv + argc);
   for (auto it = args.begin(); it != args.end(); ++it)
   {
@@ -207,6 +214,16 @@ int main(int argc, char* argv[])
         theme = *it;
       }
     }
+    else if ((*it == "-u") || (*it == "--upgrade"))
+    {
+      // optional release version, latest if not specified
+      isUpgrade = true;
+      if ((std::distance(it + 1, args.end()) > 0) && ((it + 1)->rfind("-", 0) != 0))
+      {
+        ++it;
+        upgradeVersion = *it;
+      }
+    }
     else if ((*it == "-v") || (*it == "--version"))
     {
       ShowVersion();
@@ -222,6 +239,12 @@ int main(int argc, char* argv[])
       ShowHelp();
       return 1;
     }
+  }
+
+  // Upgrade - done before config dir init, as it does not use it (and may run as root)
+  if (isUpgrade)
+  {
+    return Upgrade(upgradeVersion, origUmask);
   }
 
   bool isDirInited = false;
@@ -679,6 +702,7 @@ void ShowHelp()
     "    -s, --setup            set up chat protocol account\n"
     "    -t, --theme [THEME]    install color theme, or select from list of\n"
     "                           available themes if not specified\n"
+    "    -u, --upgrade [VER]    upgrade release binary to latest or given version\n"
     "    -v, --version          output version information and exit\n"
     "    -x, --export <DIR>     export message cache to specified dir\n"
     "\n"
@@ -761,4 +785,69 @@ void ShowVersion()
     "\n"
     "Written by Kristofer Berggren.\n";
   // *INDENT-ON*
+}
+
+int Upgrade(const std::string& p_Version, mode_t p_Umask)
+{
+  // exit status 0 upgraded, 3 up to date (from install.sh), 5 failed
+  static const int failed = 5;
+  if (!AppUtil::IsUpgradeSupported())
+  {
+    std::cerr <<
+      "error: upgrade is only supported for pre-built release binaries, upgrade\n"
+      "       using the package manager or method nchat was installed with.\n";
+    return failed;
+  }
+
+  // installed by install.sh as <prefix>/bin/nchat
+  char realPath[PATH_MAX];
+  const std::string selfPath = FileUtil::GetSelfPath();
+  if (selfPath.empty() || (realpath(selfPath.c_str(), realPath) == nullptr))
+  {
+    std::cerr << "error: cannot determine nchat binary path\n";
+    return failed;
+  }
+
+  const std::string binPath = realPath;
+  const std::string binDir = binPath.substr(0, binPath.rfind('/'));
+  const size_t binDirPos = binDir.rfind('/');
+  if ((binDirPos == std::string::npos) || (binDir.substr(binDirPos + 1) != "bin"))
+  {
+    std::cerr <<
+      "error: nchat binary " << binPath << " is not in a bin dir,\n"
+      "       re-install using install.sh\n";
+    return failed;
+  }
+
+  if (access(binDir.c_str(), W_OK) != 0)
+  {
+    std::cerr <<
+      "error: install dir " << binDir << " is not writable by the current user,\n"
+      "       re-run with sudo, e.g.: sudo nchat -u\n";
+    return failed;
+  }
+
+  const std::string prefix = (binDirPos == 0) ? "/" : binDir.substr(0, binDirPos);
+
+  // NCHAT_INSTALL_URL allows testing a local install.sh, e.g. file://$PWD/utils/install.sh
+  const char* envUrl = getenv("NCHAT_INSTALL_URL");
+  const std::string url = ((envUrl != nullptr) && (*envUrl != '\0')) ? envUrl :
+    "https://raw.githubusercontent.com/d99kris/nchat/master/utils/install.sh";
+
+  // values passed as positional args to avoid shell quoting
+  static const std::string script =
+    "if command -v curl >/dev/null 2>&1; then s=\"$(curl -fsSL \"$1\")\"\n"
+    "elif command -v wget >/dev/null 2>&1; then s=\"$(wget -qO- \"$1\")\"\n"
+    "else echo \"error: need curl or wget to download\" >&2; exit 5; fi ||\n"
+    "  { echo \"error: failed to download $1\" >&2; exit 5; }\n"
+    "NCHAT_PREFIX=\"$2\" NCHAT_VERSION=\"$3\" NCHAT_CURRENT_VERSION=\"$4\" \\\n"
+    "  exec bash -c \"$s\" install.sh\n";
+
+  // exec so the running binary is not held during install, with user umask restored
+  const std::string curVersion = AppUtil::GetAppVersion();
+  umask(p_Umask);
+  execlp("bash", "bash", "-c", script.c_str(), "nchat-upgrade", url.c_str(), prefix.c_str(),
+         p_Version.c_str(), curVersion.c_str(), (char*)nullptr);
+  std::cerr << "error: failed to run bash: " << strerror(errno) << "\n";
+  return failed;
 }

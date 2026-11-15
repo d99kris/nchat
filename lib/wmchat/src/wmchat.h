@@ -152,6 +152,7 @@ void WmClearStatus(int p_ConnId, int p_Flags);
 int WmAppConfigGetNum(char* p_Param);
 void WmAppConfigSetNum(char* p_Param, int p_Value);
 int WmPromptAuthMethod();
+int WmIsUpgradeSupported();
 char* WmGetQrPath();
 void WmShowImage(char* p_Path);
 void WmLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

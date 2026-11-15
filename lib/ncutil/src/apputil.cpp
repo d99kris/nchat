@@ -73,6 +73,16 @@ std::string AppUtil::GetAppVersion()
   return version;
 }
 
+bool AppUtil::IsUpgradeSupported()
+{
+  // only pre-built release binaries (installed by install.sh) support nchat --upgrade
+#if defined(NCHAT_BUILD_STATIC_EXTLIBS)
+  return (SysUtil::GetBuildOrigin() == "github");
+#else
+  return false;
+#endif
+}
+
 void AppUtil::SetDeveloperMode(bool p_DeveloperMode)
 {
   m_DeveloperMode = p_DeveloperMode;

@@ -22,6 +22,7 @@ public:
   static void AssertionFailed();
   static std::string GetAppName(bool p_WithVersion, bool p_WithBranch = false);
   static std::string GetAppVersion();
+  static bool IsUpgradeSupported();
   static void SetDeveloperMode(bool p_DeveloperMode);
   static bool GetDeveloperMode();
   static void InitCoredump();

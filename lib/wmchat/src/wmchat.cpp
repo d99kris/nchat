@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 
 #include "appconfig.h"
+#include "apputil.h"
 #include "fileutil.h"
 #include "libcgowm.h"
 #include "log.h"
@@ -1374,6 +1375,11 @@ int WmPromptAuthMethod()
   static const int qrCols = 69;
   static const int qrRows = 35;
   return SetupUtil::PromptAuthMethod("Pairing code", qrCols, qrRows);
+}
+
+int WmIsUpgradeSupported()
+{
+  return AppUtil::IsUpgradeSupported() ? 1 : 0;
 }
 
 char* WmGetQrPath()

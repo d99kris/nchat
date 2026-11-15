@@ -17,6 +17,12 @@
 #                   $NCHAT_PREFIX/share/doc). If the prefix is not writable, the
 #                   installer stops and suggests re-running with sudo.
 #   NCHAT_REPO      GitHub owner/name to fetch from; default: d99kris/nchat
+#   NCHAT_CURRENT_VERSION
+#                   currently installed version, set by `nchat -u`; when it
+#                   equals the latest release (and NCHAT_VERSION is not set)
+#                   nothing is installed and the exit status is 3
+#
+# Exit status: 0 when installed, 3 when already up to date, 5 on failure.
 #
 # On glibc Linux (>= 2.28) the glibc build is selected; on musl Linux, on a
 # glibc older than 2.28, or when the glibc version cannot be determined, the
@@ -28,11 +34,15 @@
 
 set -euo pipefail
 
+# Installed dirs must be world-readable regardless of the caller's umask (a
+# hardened root umask of 077, or one inherited from the invoking process).
+umask 022
+
 REPO="${NCHAT_REPO:-d99kris/nchat}"
 
 info() { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "warning: $*" >&2; }
-err()  { printf '%s\n' "error: $*" >&2; }
+err()  { printf '%s\n' "error: $*" >&2; reported=1; }
 die()  { err "$*"; exit 1; }
 
 # Like die(), but also prints the underlying curl/wget diagnostic captured in
@@ -46,6 +56,30 @@ die_fetch() { # <message>
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# Exit status contract (relied on by `nchat -u`): 0 installed, 3 already up to
+# date, 5 failed. Distinct from the low codes used by shells and tools: under
+# `set -e` a failing command exits with its own status (tar exits 2, for
+# instance), so the EXIT trap maps every non-zero status to 5 except an
+# explicit up-to-date exit. It also removes the temp download dir and any
+# partially installed binary. Script-scope vars, as the trap fires after
+# main() returns.
+EXIT_UP_TO_DATE=3
+EXIT_FAILED=5
+up_to_date=0
+reported=0
+tmp=""
+tmpbin=""
+on_exit() {
+  local rc=$?
+  [[ -n "${tmp}" ]] && rm -rf "${tmp}"
+  [[ -n "${tmpbin}" ]] && rm -f "${tmpbin}"
+  if (( rc != 0 )) && ! (( up_to_date && rc == EXIT_UP_TO_DATE )); then
+    (( reported )) || err "install failed (exit status ${rc})"
+    exit "${EXIT_FAILED}"
+  fi
+}
+trap on_exit EXIT
 
 # --- HTTP helpers (curl preferred, wget fallback) --------------------------
 
@@ -262,18 +296,19 @@ main() {
     tag="${RESOLVED_TAG}"
     version="${tag#v}"
     info "latest release is ${tag} (${target})"
+    if [[ "${NCHAT_CURRENT_VERSION:-}" == "${version}" ]]; then
+      info "nchat ${version} is already up to date"
+      up_to_date=1
+      exit "${EXIT_UP_TO_DATE}"
+    fi
   fi
 
   local asset base srcdir
   asset="nchat-${version}-${target}.tar.gz"
   base="https://github.com/${REPO}/releases/download/${tag}"
 
-  # tmp is intentionally NOT local: the EXIT trap fires after main() returns, so
-  # a function-local would be out of scope by then — under `set -u` that both
-  # errors ("tmp: unbound variable", nonzero exit on an otherwise-successful
-  # install) and skips the cleanup. A script-scope var keeps the trap working.
+  # tmp is script-scope (see on_exit) so the EXIT trap can clean it up.
   tmp="$(mktemp -d)"
-  trap 'rm -rf "${tmp}"' EXIT
 
   info "downloading ${asset}"
   fetch_file "${base}/${asset}" "${tmp}/${asset}" \
@@ -301,14 +336,25 @@ main() {
   if ! target_writable "${prefix}"; then
     err "install prefix ${prefix} is not writable by the current user"
     err "re-run with sudo, e.g.:"
-    err "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/utils/install.sh | sudo NCHAT_PREFIX=${prefix} bash"
+    if [[ -n "${NCHAT_CURRENT_VERSION:-}" ]]; then
+      err "  sudo nchat -u"
+    else
+      err "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/utils/install.sh | sudo NCHAT_PREFIX=${prefix} bash"
+    fi
     die "or set NCHAT_PREFIX to a writable location (default: ~/.local)"
   fi
 
   info "installing nchat to ${bindir}"
   mkdir -p "${bindir}" "${mandir}/man1"
-  cp "${srcdir}/bin/nchat" "${bindir}/nchat"
-  chmod 0755 "${bindir}/nchat"
+  # Copy to a temp name and rename over the old binary, giving it a new inode.
+  # Writing in place fails with "Text file busy" on Linux while nchat is
+  # running, and on macOS leaves a stale cached code signature that gets the
+  # new binary killed at launch.
+  tmpbin="${bindir}/.nchat.tmp.$$"
+  cp "${srcdir}/bin/nchat" "${tmpbin}"
+  chmod 0755 "${tmpbin}"
+  mv -f "${tmpbin}" "${bindir}/nchat"
+  tmpbin=""
 
   if [[ -f "${srcdir}/share/man/man1/nchat.1" ]]; then
     info "installing nchat.1 man to ${mandir}/man1"
@@ -337,7 +383,11 @@ main() {
     xattr -dr com.apple.quarantine "${bindir}/nchat" 2>/dev/null || true
   fi
 
-  info "successfully installed nchat"
+  if [[ -n "${NCHAT_CURRENT_VERSION:-}" ]]; then
+    info "successfully installed nchat ${version} (was ${NCHAT_CURRENT_VERSION})"
+  else
+    info "successfully installed nchat"
+  fi
   # The musl build's WhatsApp and Signal support needs /proc mounted (see
   # doc/MUSLGO.md); flag it only when /proc is actually missing. /proc/self is a
   # symlink into the mounted procfs, so -e is false when /proc is not mounted.
