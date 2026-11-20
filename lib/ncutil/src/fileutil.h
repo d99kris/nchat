@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <ctime>
 #include <set>
 #include <string>
 #include <vector>
@@ -18,12 +19,14 @@ struct DirEntry
   DirEntry()
     : name("")
     , size(0)
+    , mtime(0)
   {
   }
 
-  DirEntry(const std::string& p_Name, ssize_t p_Size)
+  DirEntry(const std::string& p_Name, ssize_t p_Size, time_t p_Mtime = 0)
     : name(p_Name)
     , size(p_Size)
+    , mtime(p_Mtime)
   {
   }
 
@@ -39,8 +42,10 @@ struct DirEntry
 
   std::string name;
   ssize_t size = 0;
+  time_t mtime = 0;
 };
 
+// Default comparator: dirs first, then by name (original behavior)
 struct DirEntryCompare
 {
   bool operator()(const DirEntry& p_Lhs, const DirEntry& p_Rhs) const
@@ -52,6 +57,50 @@ struct DirEntryCompare
     else if (p_Lhs.IsDir() != p_Rhs.IsDir())
     {
       return p_Lhs.IsDir() > p_Rhs.IsDir();
+    }
+    else
+    {
+      return p_Lhs.name < p_Rhs.name;
+    }
+  }
+};
+
+// Comparator: dirs first, then by mtime (newest first)
+struct DirEntryCompareDirTime
+{
+  bool operator()(const DirEntry& p_Lhs, const DirEntry& p_Rhs) const
+  {
+    if (p_Lhs.IsHidden() != p_Rhs.IsHidden())
+    {
+      return p_Lhs.IsHidden() < p_Rhs.IsHidden();
+    }
+    else if (p_Lhs.IsDir() != p_Rhs.IsDir())
+    {
+      return p_Lhs.IsDir() > p_Rhs.IsDir();
+    }
+    else if (p_Lhs.mtime != p_Rhs.mtime)
+    {
+      return p_Lhs.mtime > p_Rhs.mtime; // newest first
+    }
+    else
+    {
+      return p_Lhs.name < p_Rhs.name;
+    }
+  }
+};
+
+// Comparator: all by mtime (newest first), dirs and files mixed
+struct DirEntryCompareTime
+{
+  bool operator()(const DirEntry& p_Lhs, const DirEntry& p_Rhs) const
+  {
+    if (p_Lhs.IsHidden() != p_Rhs.IsHidden())
+    {
+      return p_Lhs.IsHidden() < p_Rhs.IsHidden();
+    }
+    else if (p_Lhs.mtime != p_Rhs.mtime)
+    {
+      return p_Lhs.mtime > p_Rhs.mtime; // newest first
     }
     else
     {
