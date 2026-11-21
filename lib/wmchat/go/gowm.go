@@ -3513,16 +3513,17 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 			thumbnail, width, height, seconds := GetVideoThumbnail(filePath)
 			videoMessage := waE2E.VideoMessage{
-				URL:           proto.String(uploaded.URL),
-				DirectPath:    proto.String(uploaded.DirectPath),
-				MediaKey:      uploaded.MediaKey,
-				Mimetype:      proto.String(fileType),
-				FileEncSHA256: uploaded.FileEncSHA256,
-				FileSHA256:    uploaded.FileSHA256,
-				FileLength:    proto.Uint64(uint64(len(data))),
-				GifPlayback:   proto.Bool(true),
-				JPEGThumbnail: thumbnail,
-				ContextInfo:   &contextInfo,
+				URL:              proto.String(uploaded.URL),
+				DirectPath:       proto.String(uploaded.DirectPath),
+				MediaKey:         uploaded.MediaKey,
+				Mimetype:         proto.String(fileType),
+				FileEncSHA256:    uploaded.FileEncSHA256,
+				FileSHA256:       uploaded.FileSHA256,
+				FileLength:       proto.Uint64(uint64(len(data))),
+				StreamingSidecar: uploaded.StreamingSidecar,
+				GifPlayback:      proto.Bool(true),
+				JPEGThumbnail:    thumbnail,
+				ContextInfo:      &contextInfo,
 			}
 			if (width > 0) && (height > 0) {
 				videoMessage.Width = proto.Uint32(width)
@@ -3598,16 +3599,17 @@ func WmSendMessage(connId int, chatId string, text string, quotedId string, quot
 
 				thumbnail, width, height, seconds := GetVideoThumbnail(filePath)
 				videoMessage = waE2E.VideoMessage{
-					Caption:       proto.String(text),
-					URL:           proto.String(uploaded.URL),
-					DirectPath:    proto.String(uploaded.DirectPath),
-					MediaKey:      uploaded.MediaKey,
-					Mimetype:      proto.String(fileType),
-					FileEncSHA256: uploaded.FileEncSHA256,
-					FileSHA256:    uploaded.FileSHA256,
-					FileLength:    proto.Uint64(uint64(len(data))),
-					JPEGThumbnail: thumbnail,
-					ContextInfo:   &contextInfo,
+					Caption:          proto.String(text),
+					URL:              proto.String(uploaded.URL),
+					DirectPath:       proto.String(uploaded.DirectPath),
+					MediaKey:         uploaded.MediaKey,
+					Mimetype:         proto.String(fileType),
+					FileEncSHA256:    uploaded.FileEncSHA256,
+					FileSHA256:       uploaded.FileSHA256,
+					FileLength:       proto.Uint64(uint64(len(data))),
+					StreamingSidecar: uploaded.StreamingSidecar,
+					JPEGThumbnail:    thumbnail,
+					ContextInfo:      &contextInfo,
 				}
 				if (width > 0) && (height > 0) {
 					videoMessage.Width = proto.Uint32(width)
