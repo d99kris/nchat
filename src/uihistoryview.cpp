@@ -62,6 +62,9 @@ void UiHistoryView::Draw()
   static int colorPairTextAttachment = UiColorConfig::GetColorPair("history_text_attachment_color");
   static int attributeTextNormal = UiColorConfig::GetAttribute("history_text_attr");
   static int attributeTextSelected = UiColorConfig::GetAttribute("history_text_attr_selected");
+  static bool hasColorTextSelected = UiColorConfig::HasColor("history_text_color_selected");
+  static int colorPairTextSelected =
+    hasColorTextSelected ? UiColorConfig::GetColorPair("history_text_color_selected") : 0;
 
   static int colorPairNameSent = UiColorConfig::GetColorPair("history_name_sent_color");
   static int colorPairNameRecv = UiColorConfig::GetColorPair("history_name_recv_color");
@@ -106,12 +109,7 @@ void UiHistoryView::Draw()
     int colorPairText = [&]()
     {
       // selected color takes precedence over sent/recv/usercolor for the selected message
-      static bool hasColorSelected = UiColorConfig::HasColor("history_text_color_selected");
-      if (isSelectedMessage && hasColorSelected)
-      {
-        static int colorPairSelected = UiColorConfig::GetColorPair("history_text_color_selected");
-        return colorPairSelected;
-      }
+      if (isSelectedMessage && hasColorTextSelected) return colorPairTextSelected;
 
       if (msg.isOutgoing) return colorPairTextSent;
 
@@ -322,6 +320,11 @@ void UiHistoryView::Draw()
       reactionLines = 0;
     }
 
+    // selected color also applies to attachment and quote lines of the selected message
+    const bool isColorTextSelected = isSelectedMessage && hasColorTextSelected;
+    const int colorPairLineAttachment = isColorTextSelected ? colorPairTextSelected : colorPairTextAttachment;
+    const int colorPairLineQuoted = isColorTextSelected ? colorPairTextSelected : colorPairTextQuoted;
+
     for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
     {
       bool isAttachment = (wline->rfind(attachmentIndicator, 0) == 0);
@@ -330,11 +333,11 @@ void UiHistoryView::Draw()
 
       if (isAttachment)
       {
-        wattron(m_PaddedWin, attributeText | colorPairTextAttachment);
+        wattron(m_PaddedWin, attributeText | colorPairLineAttachment);
       }
       else if (isQuote)
       {
-        wattron(m_PaddedWin, attributeText | colorPairTextQuoted);
+        wattron(m_PaddedWin, attributeText | colorPairLineQuoted);
       }
       else if (isReaction)
       {
@@ -350,11 +353,11 @@ void UiHistoryView::Draw()
 
       if (isAttachment)
       {
-        wattroff(m_PaddedWin, attributeText | colorPairTextAttachment);
+        wattroff(m_PaddedWin, attributeText | colorPairLineAttachment);
       }
       else if (isQuote)
       {
-        wattroff(m_PaddedWin, attributeText | colorPairTextQuoted);
+        wattroff(m_PaddedWin, attributeText | colorPairLineQuoted);
       }
       else if (isReaction)
       {
