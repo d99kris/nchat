@@ -11,6 +11,7 @@
 #include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatReactions.h"
+#include "td/telegram/CommunityId.h"
 #include "td/telegram/DialogDate.h"
 #include "td/telegram/DialogDb.h"
 #include "td/telegram/DialogFilterDialogInfo.h"
@@ -31,7 +32,6 @@
 #include "td/telegram/InputGroupCallId.h"
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MessageContentDupType.h"
-#include "td/telegram/MessageContentType.h"
 #include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageDb.h"
 #include "td/telegram/MessageEffectId.h"
@@ -164,10 +164,7 @@ class MessagesManager final : public Actor {
 
   static bool is_invalid_poll_message(const telegram_api::Message *message);
 
-  static bool process_send_message_fail_error(int32 &error_code, string &error_message, DialogId dialog_id, bool is_bot,
-                                              MessageContentType content_type);
-
-  static int64 get_required_paid_message_star_count(int32 error_code, CSlice error_message);
+  static int64 get_required_paid_message_star_count(int32 error_code, Slice error_message);
 
   static int32 get_message_date(const tl_object_ptr<telegram_api::Message> &message_ptr);
 
@@ -322,6 +319,8 @@ class MessagesManager final : public Actor {
 
   MessageId get_message_id_of_ephemeral_message_id(DialogId dialog_id, EphemeralMessageId ephemeral_message_id);
 
+  bool is_bot_ephemeral_message_channel(DialogId dialog_id) const;
+
   EphemeralMessageId get_ephemeral_message_id_of_message_id(MessageFullId message_full_id);
 
   void on_new_ephemeral_message(telegram_api::object_ptr<telegram_api::ephemeralMessage> &&message);
@@ -376,6 +375,11 @@ class MessagesManager final : public Actor {
       MessageFullId message_full_id,
       vector<telegram_api::object_ptr<telegram_api::MessageExtendedMedia>> extended_media);
 
+  Result<std::pair<string, int64>> get_message_widget_public_data(MessageFullId message_full_id);
+
+  void on_update_message_widget_data(MessageFullId message_full_id, string &&public_data, int64 public_data_hash,
+                                     string &&chat_data, bool update_chat_data);
+
   void on_external_update_message_content(MessageFullId message_full_id, const char *source,
                                           bool expect_no_message = false, bool need_reregister = false);
 
@@ -406,6 +410,8 @@ class MessagesManager final : public Actor {
   void on_messages_deleted(DialogId dialog_id, const vector<MessageId> &message_ids);
 
   void on_failed_message_deletion(DialogId dialog_id, const vector<int32> &server_message_ids);
+
+  void on_failed_ephemeral_message_deletion(DialogId dialog_id, EphemeralMessageId ephemeral_message_id);
 
   void on_scheduled_messages_deleted(DialogId dialog_id, const vector<MessageId> &message_ids);
 
@@ -903,6 +909,12 @@ class MessagesManager final : public Actor {
   void drop_dialog_pending_join_requests(DialogId dialog_id);
 
   void on_update_notification_scope_is_muted(NotificationSettingsScope scope, bool is_muted);
+
+  void on_update_dialog_community_notification_settings(DialogId dialog_id, CommunityId community_id,
+                                                        const DialogNotificationSettings &old_settings,
+                                                        const DialogNotificationSettings &new_settings);
+
+  void on_update_dialog_linked_community_id(DialogId dialog_id, CommunityId old_linked_community_id);
 
   void on_update_dialog_notify_settings(DialogId dialog_id,
                                         tl_object_ptr<telegram_api::peerNotifySettings> &&peer_notify_settings,
@@ -1776,14 +1788,16 @@ class MessagesManager final : public Actor {
                                              unique_ptr<MessageContent> &&content, bool invert_media,
                                              bool suppress_reply_info, unique_ptr<MessageForwardInfo> forward_info,
                                              DialogId real_forward_from_dialog_id, bool is_copy,
-                                             DialogId send_as_dialog_id, bool is_quick_reply_message);
+                                             DialogId send_as_dialog_id, bool is_quick_reply_message,
+                                             bool is_ephemeral = false);
 
   Message *get_message_to_send(Dialog *d, const MessageTopic &message_topic, MessageInputReplyTo &&input_reply_to,
                                const MessageSendOptions &options, unique_ptr<MessageContent> &&content,
                                bool invert_media, bool *need_update_dialog_pos, bool suppress_reply_info = false,
                                unique_ptr<MessageForwardInfo> forward_info = nullptr,
                                DialogId real_forward_from_dialog_id = DialogId(), bool is_copy = false,
-                               DialogId send_as_dialog_id = DialogId(), bool is_quick_reply_message = false);
+                               DialogId send_as_dialog_id = DialogId(), bool is_quick_reply_message = false,
+                               bool is_ephemeral = false);
 
   int64 begin_send_message(DialogId dialog_id, const Message *m);
 
@@ -2695,6 +2709,13 @@ class MessagesManager final : public Actor {
 
   void update_dialog_unmute_timeout(Dialog *d, bool &old_use_default, int32 &old_mute_until, bool new_use_default,
                                     int32 new_mute_until);
+
+  void update_dialog_muted_unread_count(Dialog *d, bool is_muted, const char *source);
+
+  void on_dialog_default_notification_settings_changed(Dialog *d,
+                                                       const DialogNotificationSettings *old_community_settings,
+                                                       const DialogNotificationSettings *new_community_settings,
+                                                       const char *source);
 
   void on_dialog_unmute(DialogId dialog_id);
 

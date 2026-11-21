@@ -264,6 +264,8 @@ class UserManager final : public Actor {
 
   bool is_user_forum_bot(UserId user_id) const;
 
+  CommunityId get_user_linked_community_id(UserId user_id) const;
+
   struct BotData {
     string username;
     bool can_be_edited = false;
@@ -472,10 +474,6 @@ class UserManager final : public Actor {
 
   void add_new_saved_music(td_api::object_ptr<td_api::inputAudio> &&input_audio, Promise<Unit> &&promise);
 
-  void on_uploaded_saved_music_file(FileUploadId file_upload_id, bool is_url,
-                                    telegram_api::object_ptr<telegram_api::MessageMedia> media,
-                                    Promise<Unit> &&promise);
-
   void add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise);
 
   void on_add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise);
@@ -655,6 +653,7 @@ class UserManager final : public Actor {
     bool can_be_edited_bot = false;
     bool has_main_app = false;
     bool has_bot_forum_view = false;
+    bool has_bot_forum_sidebar = false;
     bool can_bot_create_topics = false;
     bool can_manage_bots = false;
     bool is_inline_bot = false;
@@ -1121,15 +1120,6 @@ class UserManager final : public Actor {
 
   void apply_pending_user_photo(User *u, UserId user_id, const char *source);
 
-  void upload_saved_music(FileId file_id, Promise<Unit> &&promise);
-
-  void on_upload_saved_music(FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> input_file);
-
-  void on_upload_saved_music_error(FileUploadId file_upload_id, Status status);
-
-  void do_upload_saved_music(FileUploadId file_upload_id,
-                             telegram_api::object_ptr<telegram_api::InputFile> &&input_file, Promise<Unit> &&promise);
-
   void send_get_user_saved_music_query(UserId user_id, const UserSavedMusic *user_saved_music,
                                        const vector<PendingGetSavedMusicRequest> &requests);
 
@@ -1361,11 +1351,6 @@ class UserManager final : public Actor {
     }
   };
   FlatHashMap<FileUploadId, UploadedProfilePhoto, FileUploadIdHash> being_uploaded_profile_photos_;
-
-  class UploadSavedMusicCallback;
-  std::shared_ptr<UploadSavedMusicCallback> upload_saved_music_callback_;
-
-  FlatHashMap<FileUploadId, Promise<Unit>, FileUploadIdHash> being_uploaded_saved_music_files_;
 
   struct ImportContactsTask {
     Promise<Unit> promise_;

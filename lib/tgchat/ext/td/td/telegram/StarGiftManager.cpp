@@ -1795,6 +1795,9 @@ class GetSavedStarGiftQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetSavedStarGiftQuery: " << to_string(ptr);
 
+    td_->user_manager_->on_get_users(std::move(ptr->users_), "GetSavedStarGiftQuery");
+    td_->chat_manager_->on_get_chats(std::move(ptr->chats_), "GetSavedStarGiftQuery");
+
     for (auto &gift : ptr->gifts_) {
       UserStarGift user_gift(td_, std::move(gift), dialog_id_);
       if (!user_gift.is_valid()) {
@@ -2408,12 +2411,8 @@ class UpdateStarGiftCollectionQuery final : public Td::ResultHandler {
     dialog_id_ = dialog_id;
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     CHECK(input_peer != nullptr);
-    int32 flags = 0;
-    if (!title.empty()) {
-      flags |= telegram_api::payments_updateStarGiftCollection::TITLE_MASK;
-    }
     send_query(G()->net_query_creator().create(telegram_api::payments_updateStarGiftCollection(
-                                                   flags, std::move(input_peer), collection_id.get(), title,
+                                                   0, std::move(input_peer), collection_id.get(), title,
                                                    StarGiftId::get_input_saved_star_gifts(td_, deleted_star_gift_ids),
                                                    StarGiftId::get_input_saved_star_gifts(td_, added_star_gift_ids),
                                                    StarGiftId::get_input_saved_star_gifts(td_, ordered_star_gift_ids)),

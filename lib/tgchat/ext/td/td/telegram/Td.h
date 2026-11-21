@@ -120,6 +120,7 @@ class WebBrowserManager;
 class WebPagesManager;
 class WebProxyManager;
 class WelcomeMessageManager;
+class WidgetManager;
 
 extern int VERBOSITY_NAME(td_init);
 extern int VERBOSITY_NAME(td_requests);
@@ -161,7 +162,6 @@ class Td final : public Actor {
 
   bool ignore_background_updates() const;
 
-  unique_ptr<AudiosManager> audios_manager_;
   unique_ptr<CallbackQueriesManager> callback_queries_manager_;
   unique_ptr<DocumentsManager> documents_manager_;
   unique_ptr<OptionManager> option_manager_;
@@ -173,6 +173,8 @@ class Td final : public Actor {
   ActorOwn<AnimationsManager> animations_manager_actor_;
   unique_ptr<AttachMenuManager> attach_menu_manager_;
   ActorOwn<AttachMenuManager> attach_menu_manager_actor_;
+  unique_ptr<AudiosManager> audios_manager_;
+  ActorOwn<AudiosManager> audios_manager_actor_;
   unique_ptr<AuthManager> auth_manager_;
   ActorOwn<AuthManager> auth_manager_actor_;
   unique_ptr<AutosaveManager> autosave_manager_;
@@ -307,6 +309,8 @@ class Td final : public Actor {
   ActorOwn<WebPagesManager> web_pages_manager_actor_;
   unique_ptr<WelcomeMessageManager> welcome_message_manager_;
   ActorOwn<WelcomeMessageManager> welcome_message_manager_actor_;
+  unique_ptr<WidgetManager> widget_manager_;
+  ActorOwn<WidgetManager> widget_manager_actor_;
 
   ActorOwn<AlarmManager> alarm_manager_;
   ActorOwn<HashtagHints> cashtag_search_hints_;
@@ -471,7 +475,7 @@ class Td final : public Actor {
   Result<std::pair<Parameters, TdDb::Parameters>> get_parameters(
       td_api::object_ptr<td_api::setTdlibParameters> parameters) TD_WARN_UNUSED_RESULT;
 
-  static td_api::object_ptr<td_api::error> make_error(int32 code, CSlice error) {
+  static td_api::object_ptr<td_api::error> make_error(int32 code, Slice error) {
     return td_api::make_object<td_api::error>(code, error.str());
   }
 

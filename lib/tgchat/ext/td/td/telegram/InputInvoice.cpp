@@ -220,7 +220,7 @@ Result<InputInvoice> InputInvoice::process_input_message_invoice(
   result.provider_data_ = std::move(input_invoice->provider_data_);
 
   TRY_RESULT(extended_media, MessageExtendedMedia::get_message_extended_media(td, std::move(input_invoice->paid_media_),
-                                                                              owner_dialog_id));
+                                                                              owner_dialog_id, false));
   result.extended_media_ = std::move(extended_media);
   if (!result.extended_media_.is_empty()) {
     bool is_bot = td->auth_manager_->is_bot();
@@ -260,10 +260,8 @@ tl_object_ptr<telegram_api::invoice> InputInvoice::Invoice::get_input_invoice() 
   string terms_of_service_url;
   if (!recurring_payment_terms_of_service_url_.empty()) {
     is_recurring = true;
-    flags |= telegram_api::invoice::TERMS_URL_MASK;
     terms_of_service_url = recurring_payment_terms_of_service_url_;
-  } else if (!terms_of_service_url_.empty()) {
-    flags |= telegram_api::invoice::TERMS_URL_MASK;
+  } else {
     terms_of_service_url = terms_of_service_url_;
   }
 
@@ -302,10 +300,6 @@ static telegram_api::object_ptr<telegram_api::inputWebDocument> get_input_web_do
 tl_object_ptr<telegram_api::inputMediaInvoice> InputInvoice::get_input_media_invoice(
     Td *td, telegram_api::object_ptr<telegram_api::InputFile> input_file,
     telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail) const {
-  int32 flags = 0;
-  if (!start_parameter_.empty()) {
-    flags |= telegram_api::inputMediaInvoice::START_PARAM_MASK;
-  }
   auto input_web_document = get_input_web_document(td->file_manager_.get(), photo_);
   telegram_api::object_ptr<telegram_api::InputMedia> extended_media;
   if (!extended_media_.is_empty()) {
@@ -314,12 +308,9 @@ tl_object_ptr<telegram_api::inputMediaInvoice> InputInvoice::get_input_media_inv
       return nullptr;
     }
   }
-  if (!provider_token_.empty()) {
-    flags |= telegram_api::inputMediaInvoice::PROVIDER_MASK;
-  }
 
   return make_tl_object<telegram_api::inputMediaInvoice>(
-      flags, title_, description_, std::move(input_web_document), invoice_.get_input_invoice(), BufferSlice(payload_),
+      0, title_, description_, std::move(input_web_document), invoice_.get_input_invoice(), BufferSlice(payload_),
       provider_token_,
       telegram_api::make_object<telegram_api::dataJSON>(provider_data_.empty() ? "null" : provider_data_),
       start_parameter_, std::move(extended_media));

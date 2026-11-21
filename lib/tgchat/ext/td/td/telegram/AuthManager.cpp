@@ -745,6 +745,9 @@ void AuthManager::set_firebase_token(uint64 query_id, string token) {
   if (state_ != State::WaitCode) {
     return on_query_error(query_id, Status::Error(400, "Call to sendAuthenticationFirebaseSms unexpected"));
   }
+  if (token.empty()) {
+    return on_query_error(query_id, Status::Error(400, "Token must be non-empty"));
+  }
   on_new_query(query_id);
 
   start_net_query(NetQueryType::RequestFirebaseSms,
@@ -804,10 +807,9 @@ void AuthManager::resend_authentication_code(uint64 query_id, td_api::object_ptr
 
 void AuthManager::send_auth_sign_in_query() {
   bool is_email = !email_code_.is_empty();
-  int32 flags = is_email ? 0 : telegram_api::auth_signIn::PHONE_CODE_MASK;
   start_net_query(NetQueryType::SignIn,
                   G()->net_query_creator().create_unauth(telegram_api::auth_signIn(
-                      flags, send_code_helper_.get_phone_number(), send_code_helper_.get_phone_code_hash(), code_,
+                      0, send_code_helper_.get_phone_number(), send_code_helper_.get_phone_code_hash(), code_,
                       is_email ? email_code_.get_input_email_verification() : nullptr)));
 }
 
@@ -847,6 +849,9 @@ void AuthManager::reset_email_address(uint64 query_id) {
 void AuthManager::check_code(uint64 query_id, string code) {
   if (state_ != State::WaitCode) {
     return on_query_error(query_id, Status::Error(400, "Call to checkAuthenticationCode unexpected"));
+  }
+  if (code.empty()) {
+    return on_query_error(query_id, Status::Error(400, "Authentication code must be non-empty"));
   }
 
   code_ = std::move(code);
@@ -1117,6 +1122,8 @@ void AuthManager::on_sent_code(telegram_api::object_ptr<telegram_api::auth_SentC
 }
 
 void AuthManager::on_send_code_result(NetQueryPtr &&net_query) {
+  static_assert(
+      std::is_same<telegram_api::auth_resendCode::ReturnType, telegram_api::auth_sendCode::ReturnType>::value);
   auto r_sent_code = fetch_result<telegram_api::auth_sendCode>(std::move(net_query));
   if (r_sent_code.is_error()) {
     return on_current_query_error(r_sent_code.move_as_error());
@@ -1201,6 +1208,8 @@ void AuthManager::on_reset_email_address_result(NetQueryPtr &&net_query) {
 }
 
 void AuthManager::on_request_qr_code_result(NetQueryPtr &&net_query, bool is_import) {
+  static_assert(std::is_same<telegram_api::auth_importLoginToken::ReturnType,
+                             telegram_api::auth_exportLoginToken::ReturnType>::value);
   auto r_login_token = fetch_result<telegram_api::auth_exportLoginToken>(std::move(net_query));
   if (r_login_token.is_ok()) {
     auto login_token = r_login_token.move_as_ok();
@@ -1397,6 +1406,13 @@ void AuthManager::on_request_firebase_sms_result(NetQueryPtr &&net_query) {
 }
 
 void AuthManager::on_authentication_result(NetQueryPtr &&net_query, bool is_from_current_query) {
+  static_assert(std::is_same<telegram_api::auth_signUp::ReturnType, telegram_api::auth_signIn::ReturnType>::value);
+  static_assert(std::is_same<telegram_api::auth_importBotAuthorization::ReturnType,
+                             telegram_api::auth_signIn::ReturnType>::value);
+  static_assert(
+      std::is_same<telegram_api::auth_checkPassword::ReturnType, telegram_api::auth_signIn::ReturnType>::value);
+  static_assert(
+      std::is_same<telegram_api::auth_recoverPassword::ReturnType, telegram_api::auth_signIn::ReturnType>::value);
   auto r_sign_in = fetch_result<telegram_api::auth_signIn>(std::move(net_query));
   if (r_sign_in.is_error()) {
     if (is_from_current_query) {
@@ -1572,7 +1588,7 @@ void AuthManager::on_result(NetQueryPtr net_query) {
            type == NetQueryType::VerifyEmailAddress || type == NetQueryType::SignIn ||
            type == NetQueryType::RequestQrCode || type == NetQueryType::ImportQrCode ||
            type == NetQueryType::FinishPasskeyLogin) &&
-          net_query->error().code() == 401 && net_query->error().message() == CSlice("SESSION_PASSWORD_NEEDED")) {
+          net_query->error().code() == 401 && net_query->error().message() == Slice("SESSION_PASSWORD_NEEDED")) {
         auto dc_id = DcId::main();
         if (type == NetQueryType::ImportQrCode) {
           CHECK(DcId::is_valid(imported_dc_id_));
@@ -1583,7 +1599,7 @@ void AuthManager::on_result(NetQueryPtr net_query) {
                         G()->net_query_creator().create_unauth(telegram_api::account_getPassword(), dc_id));
         return;
       }
-      if (net_query->error().message() == CSlice("PHONE_NUMBER_BANNED")) {
+      if (net_query->error().message() == Slice("PHONE_NUMBER_BANNED")) {
         on_account_banned();
       }
       if (type != NetQueryType::LogOut && type != NetQueryType::DeleteAccount) {

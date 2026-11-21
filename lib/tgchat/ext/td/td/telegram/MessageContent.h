@@ -378,6 +378,12 @@ bool update_message_content_extended_media(
 
 bool need_poll_message_content_extended_media(const MessageContent *content);
 
+void update_message_content_widget_data(MessageContent *content, string &&public_data, int64 public_data_hash,
+                                        string &&chat_data, bool update_chat_data, bool &is_content_changed,
+                                        bool &need_update);
+
+std::pair<string, int64> get_message_content_widget_public_data(const MessageContent *content);
+
 bool need_poll_conference_call_message_content(const MessageContent *content);
 
 void set_message_content_video_start_timestamp(MessageContent *content, int32 start_timestamp);

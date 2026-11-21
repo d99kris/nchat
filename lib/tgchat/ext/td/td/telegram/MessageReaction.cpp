@@ -224,14 +224,9 @@ class GetMessageReactionsListQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
-    int32 flags = 0;
-    if (!offset_.empty()) {
-      flags |= telegram_api::messages_getMessageReactionsList::OFFSET_MASK;
-    }
-
     send_query(G()->net_query_creator().create(
         telegram_api::messages_getMessageReactionsList(
-            flags, std::move(input_peer), message_id_.get_server_message_id().get(),
+            0, std::move(input_peer), message_id_.get_server_message_id().get(),
             reaction_type_.is_empty() ? nullptr : reaction_type_.get_input_reaction(), offset_, limit),
         {{message_full_id}}));
   }
@@ -485,7 +480,8 @@ td_api::object_ptr<td_api::messageReaction> MessageReaction::get_message_reactio
 bool operator==(const MessageReaction &lhs, const MessageReaction &rhs) {
   return lhs.reaction_type_ == rhs.reaction_type_ && lhs.choose_count_ == rhs.choose_count_ &&
          lhs.is_chosen_ == rhs.is_chosen_ && lhs.my_recent_chooser_dialog_id_ == rhs.my_recent_chooser_dialog_id_ &&
-         lhs.recent_chooser_dialog_ids_ == rhs.recent_chooser_dialog_ids_;
+         lhs.recent_chooser_dialog_ids_ == rhs.recent_chooser_dialog_ids_ &&
+         lhs.recent_chooser_min_channels_ == rhs.recent_chooser_min_channels_;
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const MessageReaction &reaction) {

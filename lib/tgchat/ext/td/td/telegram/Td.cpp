@@ -112,6 +112,7 @@
 #include "td/telegram/WebBrowserManager.h"
 #include "td/telegram/WebPagesManager.h"
 #include "td/telegram/WelcomeMessageManager.h"
+#include "td/telegram/WidgetManager.h"
 
 #include "td/db/binlog/BinlogEvent.h"
 
@@ -590,6 +591,7 @@ void Td::dec_actor_refcnt() {
       reset_manager(web_browser_manager_, "WebBrowserManager");
       reset_manager(web_pages_manager_, "WebPagesManager");
       reset_manager(welcome_message_manager_, "WelcomeMessageManager");
+      reset_manager(widget_manager_, "WidgetManager");
 
       G()->set_option_manager(nullptr);
       option_manager_.reset();
@@ -705,6 +707,7 @@ void Td::clear() {
   reset_actor(ActorOwn<Actor>(std::move(account_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(animations_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(attach_menu_manager_actor_)));
+  reset_actor(ActorOwn<Actor>(std::move(audios_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(auth_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(autosave_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(background_manager_actor_)));
@@ -772,6 +775,7 @@ void Td::clear() {
   reset_actor(ActorOwn<Actor>(std::move(web_browser_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(web_pages_manager_actor_)));
   reset_actor(ActorOwn<Actor>(std::move(welcome_message_manager_actor_)));
+  reset_actor(ActorOwn<Actor>(std::move(widget_manager_actor_)));
   LOG(DEBUG) << "All actors were cleared" << timer;
 }
 
@@ -1158,7 +1162,6 @@ void Td::init_file_manager() {
 
 void Td::init_non_actor_managers() {
   VLOG(td_init) << "Create Managers";
-  audios_manager_ = make_unique<AudiosManager>(this);
   callback_queries_manager_ = make_unique<CallbackQueriesManager>(this);
   documents_manager_ = make_unique<DocumentsManager>(this);
   videos_manager_ = make_unique<VideosManager>(this);
@@ -1174,6 +1177,9 @@ void Td::init_managers() {
   attach_menu_manager_ = make_unique<AttachMenuManager>(this, create_reference());
   attach_menu_manager_actor_ = register_actor("AttachMenuManager", attach_menu_manager_.get());
   G()->set_attach_menu_manager(attach_menu_manager_actor_.get());
+  audios_manager_ = make_unique<AudiosManager>(this, create_reference());
+  audios_manager_actor_ = register_actor("AudiosManager", audios_manager_.get());
+  G()->set_audios_manager(audios_manager_actor_.get());
   autosave_manager_ = make_unique<AutosaveManager>(this, create_reference());
   autosave_manager_actor_ = register_actor("AutosaveManager", autosave_manager_.get());
   G()->set_autosave_manager(autosave_manager_actor_.get());
@@ -1352,6 +1358,9 @@ void Td::init_managers() {
   welcome_message_manager_ = make_unique<WelcomeMessageManager>(this, create_reference());
   welcome_message_manager_actor_ = register_actor("WelcomeMessageManager", welcome_message_manager_.get());
   G()->set_welcome_message_manager(welcome_message_manager_actor_.get());
+  widget_manager_ = make_unique<WidgetManager>(this, create_reference());
+  widget_manager_actor_ = register_actor("WidgetManager", widget_manager_.get());
+  G()->set_widget_manager(widget_manager_actor_.get());
 }
 
 void Td::init_pure_actor_managers(const Parameters &parameters) {

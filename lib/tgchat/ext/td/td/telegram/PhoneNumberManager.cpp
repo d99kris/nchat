@@ -17,6 +17,8 @@
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
 
+#include <type_traits>
+
 namespace td {
 
 class SendCodeQuery final : public Td::ResultHandler {
@@ -32,6 +34,12 @@ class SendCodeQuery final : public Td::ResultHandler {
   }
 
   void on_result(BufferSlice packet) final {
+    static_assert(std::is_same<telegram_api::account_sendVerifyPhoneCode::ReturnType,
+                               telegram_api::account_sendChangePhoneCode::ReturnType>::value);
+    static_assert(std::is_same<telegram_api::account_sendConfirmPhoneCode::ReturnType,
+                               telegram_api::account_sendChangePhoneCode::ReturnType>::value);
+    static_assert(std::is_same<telegram_api::auth_resendCode::ReturnType,
+                               telegram_api::account_sendChangePhoneCode::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::account_sendChangePhoneCode>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -276,6 +284,9 @@ void PhoneNumberManager::set_phone_number(string phone_number,
 void PhoneNumberManager::send_firebase_sms(const string &token, Promise<Unit> &&promise) {
   if (state_ != State::WaitCode) {
     return promise.set_error(400, "Can't send Firebase SMS");
+  }
+  if (token.empty()) {
+    return promise.set_error(400, "Token must be non-empty");
   }
 
   td_->create_handler<RequestFirebaseSmsQuery>(std::move(promise))->send(send_code_helper_.request_firebase_sms(token));

@@ -10,6 +10,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChatId.h"
+#include "td/telegram/CommunityId.h"
 #include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogLocation.h"
@@ -124,6 +125,8 @@ class DialogManager final : public Actor {
 
   NotificationSettingsScope get_dialog_notification_setting_scope(DialogId dialog_id) const;
 
+  CommunityId get_dialog_linked_community_id(DialogId dialog_id) const;
+
   void migrate_dialog_to_megagroup(DialogId dialog_id, Promise<td_api::object_ptr<td_api::chat>> &&promise);
 
   void on_dialog_opened(DialogId dialog_id);
@@ -224,6 +227,9 @@ class DialogManager final : public Actor {
   void load_dialog_marks_as_unread();
 
   bool can_report_dialog(DialogId dialog_id) const;
+
+  static td_api::object_ptr<td_api::ReportChatResult> get_report_chat_result_object(
+      telegram_api::object_ptr<telegram_api::ReportResult> &&result);
 
   void report_dialog(DialogId dialog_id, const string &option_id, const vector<MessageId> &message_ids,
                      const string &text, Promise<td_api::object_ptr<td_api::ReportChatResult>> &&promise);

@@ -129,7 +129,7 @@ static void punycode(string &result, Slice part) {
 }
 #endif
 
-Result<string> idn_to_ascii(CSlice host) {
+Result<string> idn_to_ascii(Slice host) {
   if (is_ascii_host(host)) {
     return to_lower(host);
   }
@@ -154,7 +154,7 @@ Result<string> idn_to_ascii(CSlice host) {
   TRY_RESULT(idn_host, from_wstring(punycode, result_length));
   return idn_host;
 #else
-  auto parts = full_split(Slice(host), '.');
+  auto parts = full_split(host, '.');
   bool is_first = true;
   string result;
   result.reserve(host.size());
@@ -218,25 +218,36 @@ bool IPAddress::is_valid() const {
 
 static bool is_reserved_ipv4(uint32 ip) {
   // https://www.iana.org/assignments/iana-ipv4-special-registry
+  // an aggregate, so that the tables below are constant-initialized: with a constructor,
+  // MSVC 14.51 crashes compiling this function at /Ob1
   struct IpBlock {
-    CSlice ip;
+    const char *ip;
     int mask;
-    IpBlock(CSlice ip, int mask) : ip(ip), mask(mask) {
-    }
   };
-  auto is_in_block = [ip](const IpBlock &block) {
-    IPAddress block_ip_address;
-    block_ip_address.init_ipv4_port(block.ip, 80).ensure();
-    uint32 range = block_ip_address.get_ipv4();
-    CHECK(block.mask != 0);
-    uint32 mask = std::numeric_limits<uint32>::max() >> (32 - block.mask) << (32 - block.mask);
-    return (ip & mask) == (range & mask);
+  struct IpRange {
+    uint32 range;
+    uint32 mask;
+  };
+  auto get_ranges = [](const auto &blocks) {
+    vector<IpRange> ranges;
+    for (auto &block : blocks) {
+      IPAddress block_ip_address;
+      block_ip_address.init_ipv4_port(CSlice(block.ip), 80).ensure();
+      CHECK(block.mask != 0);
+      uint32 mask = std::numeric_limits<uint32>::max() >> (32 - block.mask) << (32 - block.mask);
+      ranges.push_back(IpRange{block_ip_address.get_ipv4() & mask, mask});
+    }
+    return ranges;
+  };
+  auto is_in_range = [ip](const IpRange &range) {
+    return (ip & range.mask) == range.range;
   };
 
   // globally reachable addresses from reserved blocks
   static const IpBlock global_blocks[] = {{"192.0.0.9", 32}, {"192.0.0.10", 32}};
-  for (auto &block : global_blocks) {
-    if (is_in_block(block)) {
+  static const vector<IpRange> global_ranges = get_ranges(global_blocks);
+  for (auto &range : global_ranges) {
+    if (is_in_range(range)) {
       return false;
     }
   }
@@ -245,8 +256,9 @@ static bool is_reserved_ipv4(uint32 ip) {
                                    {"169.254.0.0", 16}, {"172.16.0.0", 12},  {"192.0.0.0", 24},  {"192.0.2.0", 24},
                                    {"192.88.99.0", 24}, {"192.168.0.0", 16}, {"198.18.0.0", 15}, {"198.51.100.0", 24},
                                    {"203.0.113.0", 24}, {"224.0.0.0", 3}};
-  for (auto &block : blocks) {
-    if (is_in_block(block)) {
+  static const vector<IpRange> ranges = get_ranges(blocks);
+  for (auto &range : ranges) {
+    if (is_in_range(range)) {
       return true;
     }
   }
@@ -287,15 +299,14 @@ bool IPAddress::is_reserved() const {
     size_t bit_count;
   };
 
-  // globally reachable addresses from reserved blocks
+  // globally reachable addresses from reserved blocks;
+  // 2001:1::2/127 combines 2001:1::2/128 and 2001:1::3/128, 2001:20::/27 combines 2001:20::/28 and 2001:30::/28
   static const Ipv6Block global_blocks[] = {
       {{0x20, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, 128},
-      {{0x20, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, 128},
-      {{0x20, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03}, 128},
+      {{0x20, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, 127},
       {{0x20, 0x01, 0x00, 0x03}, 32},
       {{0x20, 0x01, 0x00, 0x04, 0x01, 0x12}, 48},
-      {{0x20, 0x01, 0x00, 0x20}, 28},
-      {{0x20, 0x01, 0x00, 0x30}, 28}};
+      {{0x20, 0x01, 0x00, 0x20}, 27}};
   for (auto &block : global_blocks) {
     if (begins_with_bits(addr, block.prefix, block.bit_count)) {
       return false;
@@ -545,7 +556,7 @@ Status IPAddress::init_host_port(CSlice host, CSlice port, bool prefer_ipv6) {
   return init_sockaddr(best_info->ai_addr, narrow_cast<socklen_t>(best_info->ai_addrlen));
 }
 
-Status IPAddress::init_host_port(CSlice host_port) {
+Status IPAddress::init_host_port(Slice host_port) {
   auto pos = host_port.rfind(':');
   if (pos == static_cast<size_t>(-1)) {
     return Status::Error("Can't split string into host and port");

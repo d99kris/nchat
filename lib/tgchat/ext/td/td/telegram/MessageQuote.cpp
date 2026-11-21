@@ -32,6 +32,9 @@ static vector<RichText> get_quote_rich_texts(
   vector<RichText> result;
   for (auto &rich_text_ptr : rich_text_ptrs) {
     RichText rich_text(std::move(rich_text_ptr), FlatHashMap<int64, FileId>());
+    if (rich_text.remove_unallowed_quote_entities()) {
+      LOG(ERROR) << "Receive a rich quote with unexpected entities";
+    }
     if (!rich_text.empty()) {
       result.push_back(std::move(rich_text));
     }
@@ -111,6 +114,19 @@ MessageQuote::MessageQuote(Td *td, td_api::object_ptr<td_api::inputTextQuote> qu
   }
 }
 
+bool MessageQuote::remove_unallowed_quote_entities_from_rich_texts(vector<RichText> &rich_texts) {
+  bool is_changed = false;
+  for (auto &rich_text : rich_texts) {
+    if (rich_text.remove_unallowed_quote_entities()) {
+      is_changed = true;
+    }
+  }
+  if (td::remove_if(rich_texts, [](const RichText &rich_text) { return rich_text.empty(); })) {
+    is_changed = true;
+  }
+  return is_changed;
+}
+
 MessageQuote MessageQuote::clone(Td *td, DialogId dialog_id, MessageContentDupType dup_type,
                                  bool ignore_is_manual) const {
   CloneWebPageBlockContext context;
@@ -160,10 +176,18 @@ MessageQuote MessageQuote::create_automatic_quote(Td *td, const RichMessage &ric
   return MessageQuote(FormattedText(), std::move(rich_texts), 0, false);
 }
 
+size_t MessageQuote::get_text_size() const {
+  auto size = text_.text.size();
+  for (auto &rich_text : rich_texts_) {
+    size += rich_text.get_quote_text().size();
+  }
+  return size;
+}
+
 int MessageQuote::need_quote_changed_warning(const MessageQuote &old_quote, const MessageQuote &new_quote) {
   if (old_quote.position_ != new_quote.position_ &&
       max(old_quote.position_, new_quote.position_) <
-          static_cast<int32>(min(old_quote.text_.text.size(), new_quote.text_.text.size()))) {
+          static_cast<int32>(min(old_quote.get_text_size(), new_quote.get_text_size()))) {
     // quote position can't change
     return 1;
   }
@@ -196,7 +220,6 @@ void MessageQuote::update_input_reply_to_message(Td *td,
   }
   CHECK(is_manual_);
   if (rich_texts_.empty()) {
-    input_reply_to_message->flags_ |= telegram_api::inputReplyToMessage::QUOTE_TEXT_MASK;
     input_reply_to_message->quote_text_ = text_.text;
     input_reply_to_message->quote_entities_ =
         get_input_message_entities(td->user_manager_.get(), text_.entities, "update_input_reply_to_message");

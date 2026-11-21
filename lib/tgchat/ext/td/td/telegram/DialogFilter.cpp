@@ -213,6 +213,14 @@ void DialogFilter::set_pinned_dialog_ids(vector<InputDialogId> &&input_dialog_id
 
   auto old_pinned_dialog_ids = std::move(pinned_dialog_ids_);
   pinned_dialog_ids_ = std::move(input_dialog_ids);
+  for (size_t i = 0; i < old_pinned_dialog_ids.size(); i++) {
+    // keep pinned communities in their places
+    if (is_community_dialog_id(old_pinned_dialog_ids[i].get_dialog_id())) {
+      pinned_dialog_ids_.insert(pinned_dialog_ids_.begin() + min(i, pinned_dialog_ids_.size()),
+                                old_pinned_dialog_ids[i]);
+      new_pinned_dialog_ids.insert(old_pinned_dialog_ids[i].get_dialog_id());
+    }
+  }
   auto is_new_pinned = [&new_pinned_dialog_ids](InputDialogId input_dialog_id) {
     return new_pinned_dialog_ids.count(input_dialog_id.get_dialog_id()) > 0;
   };
@@ -439,7 +447,7 @@ string DialogFilter::get_default_icon_name(const td_api::chatFolder *filter) {
 
 telegram_api::object_ptr<telegram_api::DialogFilter> DialogFilter::get_input_dialog_filter() const {
   if (is_shareable_) {
-    int32 flags = telegram_api::dialogFilterChatlist::EMOTICON_MASK;
+    int32 flags = 0;
     if (color_id_ != -1) {
       flags |= telegram_api::dialogFilterChatlist::COLOR_MASK;
     }
@@ -448,7 +456,7 @@ telegram_api::object_ptr<telegram_api::DialogFilter> DialogFilter::get_input_dia
         get_input_text_with_entities(nullptr, title_, "dialogFilterChatlist"), emoji_, color_id_,
         InputDialogId::get_input_peers(pinned_dialog_ids_), InputDialogId::get_input_peers(included_dialog_ids_));
   }
-  int32 flags = telegram_api::dialogFilter::EMOTICON_MASK;
+  int32 flags = 0;
   if (color_id_ != -1) {
     flags |= telegram_api::dialogFilter::COLOR_MASK;
   }
@@ -458,6 +466,25 @@ telegram_api::object_ptr<telegram_api::DialogFilter> DialogFilter::get_input_dia
       get_input_text_with_entities(nullptr, title_, "dialogFilter"), emoji_, color_id_,
       InputDialogId::get_input_peers(pinned_dialog_ids_), InputDialogId::get_input_peers(included_dialog_ids_),
       InputDialogId::get_input_peers(excluded_dialog_ids_));
+}
+
+vector<InputDialogId> DialogFilter::get_pinned_input_dialog_ids() const {
+  auto result = pinned_dialog_ids_;
+  td::remove_if(result, [](const InputDialogId &input_dialog_id) {
+    return is_community_dialog_id(input_dialog_id.get_dialog_id());
+  });
+  return result;
+}
+
+bool DialogFilter::is_community_dialog_id(DialogId dialog_id) {
+  if (dialog_id.get_type() != DialogType::Channel) {
+    return false;
+  }
+  auto channel_id = dialog_id.get_channel_id().get();
+  if (G()->is_test_dc()) {
+    return 1500000000000 <= channel_id && channel_id < 1600000000000;
+  }
+  return 1090000000000 <= channel_id && channel_id < 1100000000000;
 }
 
 td_api::object_ptr<td_api::chatFolder> DialogFilter::get_chat_folder_object(

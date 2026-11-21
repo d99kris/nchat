@@ -35,12 +35,28 @@ DialogNotificationSettings::get_input_peer_notify_settings() const {
       hide_story_sender, get_input_notification_sound(story_sound));
 }
 
+DialogNotificationSettings DialogNotificationSettings::clone() const {
+  auto notification_settings = DialogNotificationSettings(
+      use_default_mute_until, mute_until, dup_notification_sound(sound), use_default_show_preview, show_preview,
+      use_default_mute_stories, mute_stories, dup_notification_sound(story_sound), use_default_hide_story_sender,
+      hide_story_sender, silent_send_message, use_default_disable_pinned_message_notifications,
+      disable_pinned_message_notifications, use_default_disable_mention_notifications, disable_mention_notifications);
+  notification_settings.is_synchronized = is_synchronized;
+  return notification_settings;
+}
+
 DialogNotificationSettings DialogNotificationSettings::clone_for_secret_chat() const {
   auto notification_settings = DialogNotificationSettings(
       use_default_mute_until, mute_until, dup_notification_sound(sound), true /*use_default_show_preview*/,
       false /*show_preview*/, use_default_mute_stories, mute_stories, dup_notification_sound(story_sound),
       use_default_hide_story_sender, hide_story_sender, silent_send_message, true, false, true, false);
   return notification_settings;
+}
+
+void DialogNotificationSettings::fix_mute_until(bool is_bot) {
+  if (is_bot || use_default_mute_until || mute_until <= G()->unix_time()) {
+    mute_until = 0;
+  }
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const DialogNotificationSettings &notification_settings) {

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.69 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.70 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -721,6 +721,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/WebPageBlock.cpp
   td/telegram/WebPagesManager.cpp
   td/telegram/WelcomeMessageManager.cpp
+  td/telegram/WidgetManager.cpp
 
   td/telegram/AccentColorId.h
   td/telegram/AccessRights.h
@@ -1010,6 +1011,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/OnlineManager.h
   td/telegram/OptionManager.h
   td/telegram/OrderedMessage.h
+  td/telegram/OrderedTopics.h
   td/telegram/OrderInfo.h
   td/telegram/Outline.h
   td/telegram/PaidReactionType.h
@@ -1183,6 +1185,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/WebPageId.h
   td/telegram/WebPagesManager.h
   td/telegram/WelcomeMessageManager.h
+  td/telegram/WidgetManager.h
 
   td/telegram/AgeVerificationParameters.hpp
   td/telegram/AiComposeTone.hpp

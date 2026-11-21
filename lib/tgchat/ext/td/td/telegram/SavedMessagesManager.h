@@ -12,6 +12,7 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessagesInfo.h"
 #include "td/telegram/OrderedMessage.h"
+#include "td/telegram/OrderedTopics.h"
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -24,7 +25,6 @@
 #include "td/utils/Status.h"
 
 #include <limits>
-#include <set>
 
 namespace td {
 
@@ -163,8 +163,6 @@ class SavedMessagesManager final : public Actor {
  private:
   static constexpr int32 MAX_GET_HISTORY = 100;  // server-side limit
 
-  static constexpr int64 MIN_PINNED_TOPIC_ORDER = static_cast<int64>(2147000000) << 32;
-
   struct SavedMessagesTopicInfo {
     DialogId peer_dialog_id_;
     MessageId last_topic_message_id_;
@@ -205,52 +203,14 @@ class SavedMessagesManager final : public Actor {
     bool is_changed_ = false;
   };
 
-  class TopicDate {
-    int64 order_;
-    SavedMessagesTopicId topic_id_;
-
-   public:
-    TopicDate(int64 order, SavedMessagesTopicId topic_id) : order_(order), topic_id_(topic_id) {
-    }
-
-    bool operator<(const TopicDate &other) const {
-      return order_ > other.order_ ||
-             (order_ == other.order_ && topic_id_.get_unique_id() > other.topic_id_.get_unique_id());
-    }
-
-    bool operator<=(const TopicDate &other) const {
-      return order_ > other.order_ ||
-             (order_ == other.order_ && topic_id_.get_unique_id() >= other.topic_id_.get_unique_id());
-    }
-
-    bool operator==(const TopicDate &other) const {
-      return order_ == other.order_ && topic_id_ == other.topic_id_;
-    }
-
-    bool operator!=(const TopicDate &other) const {
-      return !(*this == other);
-    }
-
-    SavedMessagesTopicId get_topic_id() const {
-      return topic_id_;
-    }
-  };
-
-  static const TopicDate MIN_TOPIC_DATE;
-  static const TopicDate MAX_TOPIC_DATE;
+  using TopicDate = OrderedTopics<SavedMessagesTopicId>::TopicDate;
 
   struct TopicList {
     DialogId dialog_id_;
-    int32 server_total_count_ = -1;
     int32 sent_total_count_ = -1;
     uint32 generation_ = 0;
 
-    vector<SavedMessagesTopicId> pinned_saved_messages_topic_ids_;
-    bool are_pinned_saved_messages_topics_inited_ = false;
-
-    std::set<TopicDate> ordered_topics_;
-
-    TopicDate last_topic_date_ = MIN_TOPIC_DATE;  // in memory
+    OrderedTopics<SavedMessagesTopicId> ordered_topics_;
 
     vector<Promise<Unit>> load_pinned_queries_;
     vector<Promise<Unit>> load_queries_;
@@ -324,8 +284,6 @@ class SavedMessagesManager final : public Actor {
 
   void load_topics(TopicList *topic_list, int32 limit, Promise<Unit> &&promise);
 
-  int64 get_next_pinned_saved_messages_topic_order();
-
   bool set_pinned_saved_messages_topics(vector<SavedMessagesTopicId> added_saved_messages_topic_ids);
 
   bool set_saved_messages_topic_is_pinned(SavedMessagesTopicId saved_messages_topic_id, bool is_pinned,
@@ -396,8 +354,6 @@ class SavedMessagesManager final : public Actor {
 
   Td *td_;
   ActorShared<> parent_;
-
-  int64 current_pinned_saved_messages_topic_order_ = MIN_PINNED_TOPIC_ORDER;
 
   TopicList topic_list_;
 

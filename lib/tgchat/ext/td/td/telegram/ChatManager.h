@@ -128,6 +128,8 @@ class ChatManager final : public Actor {
 
   bool get_channel_autotranslation(ChannelId channel_id) const;
 
+  CommunityId get_channel_linked_community_id(ChannelId channel_id) const;
+
   bool can_poll_channel_active_stories(ChannelId channel_id) const;
 
   bool can_use_premium_custom_emoji_in_channel(ChannelId channel_id) const;
@@ -288,7 +290,8 @@ class ChatManager final : public Actor {
   void toggle_channel_has_aggressive_anti_spam_enabled(ChannelId channel_id, bool has_aggressive_anti_spam_enabled,
                                                        Promise<Unit> &&promise);
 
-  void toggle_channel_is_forum(ChannelId channel_id, bool is_forum, bool is_forum_tabs, Promise<Unit> &&promise);
+  void toggle_channel_is_forum(ChannelId channel_id, bool is_forum, bool is_forum_tabs, bool is_forum_sidebar,
+                               Promise<Unit> &&promise);
 
   void convert_channel_to_gigagroup(ChannelId channel_id, Promise<Unit> &&promise);
 
@@ -547,6 +550,7 @@ class ChatManager final : public Actor {
     bool is_gigagroup = false;
     bool is_forum = false;
     bool is_forum_tabs = false;
+    bool is_forum_sidebar = false;
     bool is_monoforum = false;
     bool is_admined_monoforum = false;
     bool is_verified = false;
@@ -565,6 +569,7 @@ class ChatManager final : public Actor {
     bool is_noforwards_changed = true;
     bool is_is_forum_changed = true;
     bool is_creator_changed = true;
+    bool is_linked_community_id_changed = true;
     bool is_admined_monoforum_changed = false;
     bool had_read_access = true;
     bool is_being_updated = false;
@@ -775,13 +780,15 @@ class ChatManager final : public Actor {
                                                     RestrictedRights default_permissions);
   static void on_update_channel_has_location(Channel *c, ChannelId channel_id, bool has_location);
   static void on_update_channel_noforwards(Channel *c, ChannelId channel_id, bool noforwards);
-  static void on_update_channel_is_forum(Channel *c, ChannelId channel_id, bool is_forum, bool is_forum_tabs);
+  static void on_update_channel_is_forum(Channel *c, ChannelId channel_id, bool is_forum, bool is_forum_tabs,
+                                         bool is_forum_sidebar);
   void on_update_channel_stories_hidden(Channel *c, ChannelId channel_id, bool stories_hidden);
   void on_update_channel_story_ids_impl(Channel *c, ChannelId channel_id,
                                         telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
                                         StoryId max_read_story_id);
   void on_update_channel_max_read_story_id(Channel *c, ChannelId channel_id, StoryId max_read_story_id);
   void on_update_channel_bot_verification_icon(Channel *c, ChannelId channel_id, CustomEmojiId bot_verification_icon);
+  void on_update_channel_linked_community_id(Channel *c, ChannelId channel_id, CommunityId linked_community_id);
 
   void on_update_channel_full_photo(ChannelFull *channel_full, ChannelId channel_id, Photo photo);
   void on_update_channel_full_invite_link(ChannelFull *channel_full,
@@ -964,9 +971,9 @@ class ChatManager final : public Actor {
   WaitFreeHashSet<ChannelId, ChannelIdHash> invalidated_channels_full_;
   WaitFreeHashMap<ChannelId, FileSourceId, ChannelIdHash> channel_full_file_source_ids_;
 
-  bool created_public_channels_inited_[3] = {false, false, false};
-  vector<ChannelId> created_public_channels_[3];
-  vector<Promise<td_api::object_ptr<td_api::chats>>> get_created_public_channels_queries_[3];
+  bool created_public_channels_inited_[4] = {false, false, false, false};
+  vector<ChannelId> created_public_channels_[4];
+  vector<Promise<td_api::object_ptr<td_api::chats>>> get_created_public_channels_queries_[4];
 
   bool dialogs_for_discussion_inited_ = false;
   vector<DialogId> dialogs_for_discussion_;

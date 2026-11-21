@@ -52,7 +52,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20261021;
+static const int s_TdlibDate = 20261108;
 
 // telegram timestamps only have second resolution; telegram message ids increase monotonically
 // within a chat (server ids are shifted left by 20 bits), so derive a stable, order-preserving

@@ -257,6 +257,7 @@ OptionManager::OptionManager(Td *td)
   set_option_empty("gift_resale_toncoin_cent_count_max");
   set_option_empty("gift_resale_toncoin_earnings_per_mille");
   set_option_empty("toncoin_top_up_url");
+  set_option_empty("venue_search_bot_username");
 }
 
 OptionManager::~OptionManager() = default;
@@ -821,7 +822,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.69");
+        return td_api::make_object<td_api::optionValueString>("1.8.70");
       }
       break;
   }

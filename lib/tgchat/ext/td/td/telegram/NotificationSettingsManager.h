@@ -34,8 +34,6 @@ namespace td {
 
 struct BinlogEvent;
 
-class NotificationSound;
-
 class Td;
 
 class NotificationSettingsManager final : public Actor {
@@ -47,21 +45,31 @@ class NotificationSettingsManager final : public Actor {
   NotificationSettingsManager &operator=(NotificationSettingsManager &&) = delete;
   ~NotificationSettingsManager() final;
 
-  int32 get_scope_mute_until(NotificationSettingsScope scope) const;
+  const DialogNotificationSettings *get_dialog_community_notification_settings(DialogId dialog_id) const;
 
-  std::pair<bool, bool> get_scope_mute_stories(NotificationSettingsScope scope) const;
+  int32 get_dialog_default_mute_until(DialogId dialog_id) const;
 
-  const unique_ptr<NotificationSound> &get_scope_notification_sound(NotificationSettingsScope scope) const;
+  int32 get_dialog_default_mute_until(DialogId dialog_id, const DialogNotificationSettings *community_settings) const;
 
-  const unique_ptr<NotificationSound> &get_scope_story_notification_sound(NotificationSettingsScope scope) const;
+  bool get_dialog_default_disable_pinned_message_notifications(DialogId dialog_id) const;
 
-  bool get_scope_show_preview(NotificationSettingsScope scope) const;
+  bool get_dialog_default_disable_pinned_message_notifications(
+      DialogId dialog_id, const DialogNotificationSettings *community_settings) const;
 
-  bool get_scope_hide_story_sender(NotificationSettingsScope scope) const;
+  bool get_dialog_default_disable_mention_notifications(DialogId dialog_id) const;
 
-  bool get_scope_disable_pinned_message_notifications(NotificationSettingsScope scope) const;
+  bool get_dialog_default_disable_mention_notifications(DialogId dialog_id,
+                                                        const DialogNotificationSettings *community_settings) const;
 
-  bool get_scope_disable_mention_notifications(NotificationSettingsScope scope) const;
+  bool get_dialog_default_show_preview(DialogId dialog_id) const;
+
+  int64 get_dialog_default_notification_ringtone_id(DialogId dialog_id) const;
+
+  std::pair<bool, bool> get_dialog_default_mute_stories(DialogId dialog_id) const;
+
+  int64 get_dialog_default_story_notification_ringtone_id(DialogId dialog_id) const;
+
+  bool get_dialog_default_hide_story_sender(DialogId dialog_id) const;
 
   tl_object_ptr<telegram_api::InputNotifyPeer> get_input_notify_peer(DialogId dialog_id,
                                                                      ForumTopicId forum_topic_id) const;

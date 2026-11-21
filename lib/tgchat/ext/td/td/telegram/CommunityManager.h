@@ -8,6 +8,7 @@
 
 #include "td/telegram/CommunityId.h"
 #include "td/telegram/DialogId.h"
+#include "td/telegram/DialogNotificationSettings.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/DialogPhoto.h"
 #include "td/telegram/files/FileId.h"
@@ -19,6 +20,7 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/actor/actor.h"
+#include "td/actor/MultiTimeout.h"
 
 #include "td/utils/common.h"
 #include "td/utils/FlatHashMap.h"
@@ -59,6 +61,15 @@ class CommunityManager final : public Actor {
 
   void on_get_community_full(telegram_api::object_ptr<telegram_api::communityFull> &&community);
 
+  void on_update_community_notify_settings(
+      CommunityId community_id, telegram_api::object_ptr<telegram_api::peerNotifySettings> &&peer_notify_settings,
+      const char *source);
+
+  void get_joined_communities(Promise<td_api::object_ptr<td_api::communities>> &&promise);
+
+  void on_get_joined_communities(vector<telegram_api::object_ptr<telegram_api::Chat>> &&chats,
+                                 Promise<td_api::object_ptr<td_api::communities>> &&promise);
+
   void create_community(const string &name, DialogId dialog_id, bool is_hidden,
                         Promise<td_api::object_ptr<td_api::communityId>> &&promise);
 
@@ -69,9 +80,40 @@ class CommunityManager final : public Actor {
   void set_community_photo(CommunityId community_id, const td_api::object_ptr<td_api::InputChatPhoto> &input_photo,
                            Promise<Unit> &&promise);
 
+  void set_community_notification_settings(CommunityId community_id,
+                                           td_api::object_ptr<td_api::chatNotificationSettings> &&notification_settings,
+                                           Promise<Unit> &&promise);
+
+  const DialogNotificationSettings *get_community_notification_settings(CommunityId community_id);
+
+  void reset_all_community_notification_settings();
+
   void set_community_permissions(CommunityId community_id,
                                  const td_api::object_ptr<td_api::communityPermissions> &permissions,
                                  Promise<Unit> &&promise);
+
+  void add_community_dialog(CommunityId community_id, DialogId dialog_id, bool is_hidden, Promise<Unit> &&promise);
+
+  void remove_community_dialog(CommunityId community_id, DialogId dialog_id, Promise<Unit> &&promise);
+
+  void on_change_community_dialogs(CommunityId community_id, Promise<Unit> &&promise);
+
+  void get_community_add_dialog_requests(CommunityId community_id, const string &offset, int32 limit,
+                                         Promise<td_api::object_ptr<td_api::communityAddChatRequests>> &&promise);
+
+  void process_community_add_dialog_request(CommunityId community_id, DialogId dialog_id, bool approve,
+                                            Promise<Unit> &&promise);
+
+  void process_community_add_dialog_requests(CommunityId community_id, bool approve, Promise<Unit> &&promise);
+
+  void toggle_community_are_dialogs_collapsed(CommunityId community_id, bool are_dialogs_collapsed,
+                                              Promise<Unit> &&promise);
+
+  void toggle_community_participant_is_banned(CommunityId community_id, DialogId participant_dialog_id, bool is_banned,
+                                              Promise<Unit> &&promise);
+
+  void get_community_participant_dialogs(CommunityId community_id, DialogId participant_dialog_id,
+                                         Promise<td_api::object_ptr<td_api::communityMemberChats>> &&promise);
 
   void delete_community(CommunityId community_id, Promise<Unit> &&promise);
 
@@ -100,6 +142,7 @@ class CommunityManager final : public Actor {
     RestrictedRights default_permissions = RestrictedRights::restrict_all();
     int32 date = 0;
     bool collapsed_in_dialogs = false;
+    DialogNotificationSettings notification_settings;  // copy of CommunityFull::notification_settings
 
     static constexpr uint32 CACHE_VERSION = 1;
     uint32 cache_version = 0;
@@ -165,6 +208,7 @@ class CommunityManager final : public Actor {
     int32 administrator_count = 0;
     int32 banned_count = 0;
     int32 peer_link_requests_pending = 0;
+    DialogNotificationSettings notification_settings;
 
     vector<FileId> registered_photo_file_ids;
     FileSourceId file_source_id;
@@ -224,6 +268,8 @@ class CommunityManager final : public Actor {
 
   DialogParticipantStatus get_community_permissions(const Community *c) const;
 
+  bool is_dialog_owner(DialogId dialog_id) const;
+
   void on_update_community_photo(Community *c, CommunityId community_id,
                                  telegram_api::object_ptr<telegram_api::ChatPhoto> &&chat_photo_ptr);
 
@@ -253,6 +299,28 @@ class CommunityManager final : public Actor {
 
   void on_update_community_full_photo(CommunityFull *community_full, CommunityId community_id, Photo photo);
 
+  static bool need_update_community_dialogs(const DialogNotificationSettings &old_settings,
+                                            const DialogNotificationSettings &new_settings);
+
+  void update_community_notification_settings(Community *c, CommunityId community_id,
+                                              DialogNotificationSettings &&new_settings);
+
+  void on_reload_community_full_for_notification_settings(CommunityId community_id);
+
+  void on_get_community_notification_settings_error(CommunityId community_id);
+
+  void do_update_community_notification_settings(Community *c, CommunityId community_id,
+                                                 DialogNotificationSettings &&new_settings);
+
+  bool update_community_full_notification_settings(CommunityFull *community_full, CommunityId community_id,
+                                                   DialogNotificationSettings &&new_settings, const char *source);
+
+  static void on_community_unmute_timeout_callback(void *community_manager_ptr, int64 community_id_int);
+
+  void schedule_community_unmute(CommunityId community_id, bool use_default, int32 mute_until, int32 unix_time);
+
+  void on_community_unmute(CommunityId community_id);
+
   void update_community_full(CommunityFull *community_full, CommunityId community_id, const char *source,
                              bool from_database = false);
 
@@ -280,6 +348,11 @@ class CommunityManager final : public Actor {
   FlatHashMap<CommunityId, vector<Promise<Unit>>, CommunityIdHash> load_community_from_database_queries_;
   FlatHashSet<CommunityId, CommunityIdHash> loaded_from_database_communities_;
   FlatHashSet<CommunityId, CommunityIdHash> unavailable_community_fulls_;
+  FlatHashSet<CommunityId, CommunityIdHash> get_community_notification_settings_queries_;
+  FlatHashMap<CommunityId, unique_ptr<DialogNotificationSettings>, CommunityIdHash>
+      pending_community_notification_settings_;
+
+  MultiTimeout community_unmute_timeout_{"CommunityUnmuteTimeout"};
 
   QueryMerger get_community_queries_{"GetCommunityMerger", 10, 1};
 

@@ -39,6 +39,7 @@
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/ToDoList.h"
+#include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/UserManager.h"
 
@@ -343,12 +344,11 @@ class BusinessConnectionManager::UploadBusinessMediaQuery final : public Td::Res
       return on_error(Status::Error(400, "FILE_PART_1_MISSING"));
     }
 
-    int32 flags = telegram_api::messages_uploadMedia::BUSINESS_CONNECTION_ID_MASK;
     auto input_peer = td_->dialog_manager_->get_input_peer(message_->dialog_id_, AccessRights::Know);
     CHECK(input_peer != nullptr);
 
     send_query(G()->net_query_creator().create(telegram_api::messages_uploadMedia(
-        flags, message_->business_connection_id_.get(), std::move(input_peer), std::move(input_media))));
+        0, message_->business_connection_id_.get(), std::move(input_peer), std::move(input_media))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -778,6 +778,7 @@ class TransferBusinessStarsQuery final : public Td::ResultHandler {
     switch (payment_result->get_id()) {
       case telegram_api::payments_paymentResult::ID: {
         auto result = telegram_api::move_object_as<telegram_api::payments_paymentResult>(payment_result);
+        td_->updates_manager_->process_updates_users_and_chats(result->updates_.get());
         promise_.set_value(Unit());
         break;
       }
@@ -1162,6 +1163,10 @@ Result<InputMessageContent> BusinessConnectionManager::process_input_message_con
   auto message_content_id = input_message_content->get_id();
   if (message_content_id == td_api::inputMessageForwarded::ID) {
     return Status::Error(400, "Can't forward messages as business");
+  }
+  if (message_content_id == td_api::inputMessageWidget::ID ||
+      message_content_id == td_api::inputMessageSharedWidget::ID) {
+    return Status::Error(400, "Can't send widgets as business");
   }
   return get_input_message_content(td_->dialog_manager_->get_my_dialog_id(), std::move(input_message_content), td_,
                                    true);
@@ -1708,10 +1713,9 @@ void BusinessConnectionManager::finish_upload_message_internal_media(int64 reque
 }
 
 void BusinessConnectionManager::on_fail_send_message(unique_ptr<PendingMessage> &&message, const Status &error) {
-  int32 error_code = error.code();
-  string error_message = error.message().str();
-  MessagesManager::process_send_message_fail_error(error_code, error_message, message->dialog_id_,
-                                                   td_->auth_manager_->is_bot(), message->content_->get_type());
+  auto processed_error = MessageQueryManager::process_send_message_fail_error(
+      error.clone(), message->dialog_id_, td_->auth_manager_->is_bot(), false, message->content_->get_type());
+  auto error_code = processed_error.code();
   if (error_code != 403 && !(error_code == 500 && G()->close_flag())) {
     LOG(WARNING) << "Failed to send business message by "
                  << get_business_connection_user_id(message->business_connection_id_) << " in " << message->dialog_id_
@@ -1801,7 +1805,7 @@ void BusinessConnectionManager::edit_business_message_media(
                      get_input_message_content(DialogId(), std::move(input_message_content), td_, true));
   auto content_type = content.content->get_type();
   if (!is_editable_media_message_content(content_type)) {
-    return promise.set_error(400, "Unsupported input message content type");
+    return promise.set_error(400, "Unallowed message content specified");
   }
   if (!content.ttl.is_empty()) {
     return promise.set_error(400, "Can't enable self-destruction for media");

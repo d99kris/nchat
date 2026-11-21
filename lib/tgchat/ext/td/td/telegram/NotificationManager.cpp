@@ -357,7 +357,7 @@ td_api::object_ptr<td_api::updateActiveNotifications> NotificationManager::get_u
       }
     }
     if (!notifications.empty()) {
-      std::reverse(notifications.begin(), notifications.end());
+      td::reverse(notifications);
       groups.push_back(td_api::make_object<td_api::notificationGroup>(
           group.first.group_id.get(), get_notification_group_type_object(group.second.type),
           td_->dialog_manager_->get_chat_id_object(group.first.dialog_id, "updateActiveNotifications"),
@@ -1855,7 +1855,7 @@ void NotificationManager::remove_added_notifications_from_pending_updates(
       auto update_ptr = static_cast<td_api::updateNotification *>(update.get());
       if (is_removed(update_ptr->notification_)) {
         CHECK(update_ptr->notification_->id_ != 0);
-        removed_notification_ids.insert(update_ptr->notification_->id_);
+        // An edit doesn't make a notification new. Keep its later removal unless an addition was cancelled too.
         VLOG(notifications) << "Remove " << NotificationId(update_ptr->notification_->id_) << " in " << group_id;
         update = nullptr;
       }
@@ -2238,7 +2238,7 @@ void NotificationManager::remove_temporary_notifications(NotificationGroupId gro
         max_notification_group_size_ > group.notifications.size()) {
       load_notifications_from_database(group_it->first, group, keep_notification_group_size_);
     }
-    std::reverse(added_notifications.begin(), added_notifications.end());
+    td::reverse(added_notifications);
   }
   CHECK(get_temporary_notification_total_count(group_it->second) == 0);
 
@@ -2936,7 +2936,7 @@ void NotificationManager::add_push_notification_user(
   auto user = telegram_api::make_object<telegram_api::user>(
       flags, false, false, false, false, false, false, false, false, false, true /*min*/, false, false, false, false,
       false, false, false, false, 0, false, false, false, false, false, false, false, false, false, false, false, false,
-      sender_user_id.get(), sender_access_hash, user_name, string(), string(), string(), std::move(sender_photo),
+      false, sender_user_id.get(), sender_access_hash, user_name, string(), string(), string(), std::move(sender_photo),
       nullptr, 0, Auto(), string(), string(), nullptr, vector<telegram_api::object_ptr<telegram_api::username>>(),
       nullptr, nullptr, nullptr, 0, 0, 0, 0);
   td_->user_manager_->on_get_user(std::move(user), "add_push_notification_user");

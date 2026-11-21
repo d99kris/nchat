@@ -6,6 +6,7 @@
 //
 #pragma once
 
+#include "td/telegram/CommunityId.h"
 #include "td/telegram/DialogFilterDialogInfo.h"
 #include "td/telegram/DialogFilterId.h"
 #include "td/telegram/DialogId.h"
@@ -53,7 +54,7 @@ class DialogFilterManager final : public Actor {
 
   bool is_dialog_pinned(DialogFilterId dialog_filter_id, DialogId dialog_id) const;
 
-  const vector<InputDialogId> &get_pinned_input_dialog_ids(DialogFilterId dialog_filter_id) const;
+  vector<InputDialogId> get_pinned_input_dialog_ids(DialogFilterId dialog_filter_id) const;
 
   vector<DialogId> get_pinned_dialog_ids(DialogFilterId dialog_filter_id) const;
 
@@ -63,6 +64,8 @@ class DialogFilterManager final : public Actor {
                                bool need_synchronize);
 
   Status add_dialog(DialogFilterId dialog_filter_id, InputDialogId input_dialog_id);
+
+  void remove_community_from_dialog_filters(CommunityId community_id);
 
   void get_dialog_filter(DialogFilterId dialog_filter_id, Promise<td_api::object_ptr<td_api::chatFolder>> &&promise);
 

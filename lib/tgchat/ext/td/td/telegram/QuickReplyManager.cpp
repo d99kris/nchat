@@ -40,6 +40,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
 #include "td/telegram/Version.h"
 
@@ -226,7 +227,9 @@ class DeleteQuickReplyMessagesQuery final : public Td::ResultHandler {
       return on_error(result_ptr.move_as_error());
     }
 
-    promise_.set_value(Unit());
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for DeleteQuickReplyMessagesQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
   }
 
   void on_error(Status status) final {
@@ -853,7 +856,7 @@ bool QuickReplyManager::is_shortcut_name_letter(uint32 code) {
   }
 }
 
-Status QuickReplyManager::check_shortcut_name(CSlice name) {
+Status QuickReplyManager::check_shortcut_name(Slice name) {
   if (!check_utf8(name)) {
     return Status::Error("Strings must be encoded in UTF-8");
   }
@@ -1032,7 +1035,7 @@ td_api::object_ptr<td_api::MessageSendingState> QuickReplyManager::get_message_s
     auto can_retry = can_resend_quick_reply_message(m);
     auto error_code = m->send_error_code > 0 ? m->send_error_code : 400;
     auto need_another_reply_quote =
-        can_retry && error_code == 400 && m->send_error_message == CSlice("QUOTE_TEXT_INVALID");
+        can_retry && error_code == 400 && m->send_error_message == Slice("QUOTE_TEXT_INVALID");
     return td_api::make_object<td_api::messageSendingStateFailed>(
         td_api::make_object<td_api::error>(error_code, m->send_error_message), can_retry, false,
         need_another_reply_quote, false, 0, max(m->try_resend_at - Time::now(), 0.0));

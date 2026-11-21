@@ -95,11 +95,11 @@ static bool is_valid_game_name(Slice name) {
   return name.size() >= 3 && is_valid_username(name);
 }
 
-static bool is_valid_text_composition_style_name(CSlice name) {
+static bool is_valid_text_composition_style_name(Slice name) {
   return name.size() >= 8u && is_base64url_characters(name);
 }
 
-static bool is_valid_theme_name(CSlice name) {
+static bool is_valid_theme_name(Slice name) {
   return !name.empty() && check_utf8(name);
 }
 
@@ -115,7 +115,7 @@ static bool is_valid_language_pack_id(Slice language_pack_id) {
   return !language_pack_id.empty() && LanguagePackManager::check_language_code_name(language_pack_id);
 }
 
-static bool is_valid_upgraded_gift_name(CSlice name) {
+static bool is_valid_upgraded_gift_name(Slice name) {
   if (name.empty()) {
     return false;
   }
@@ -125,43 +125,43 @@ static bool is_valid_upgraded_gift_name(CSlice name) {
   return true;
 }
 
-static bool is_valid_user_token(CSlice token) {
+static bool is_valid_user_token(Slice token) {
   return !token.empty() && check_utf8(token);
 }
 
-static bool is_valid_login_code(CSlice code) {
+static bool is_valid_login_code(Slice code) {
   return !code.empty() && check_utf8(code);
 }
 
-static bool is_valid_premium_referrer(CSlice referrer) {
+static bool is_valid_premium_referrer(Slice referrer) {
   return check_utf8(referrer);
 }
 
-static bool is_valid_proxy_server(CSlice server) {
+static bool is_valid_proxy_server(Slice server) {
   return !server.empty() && server.size() <= 255u && check_utf8(server);
 }
 
-static bool is_valid_proxy_username(CSlice username) {
+static bool is_valid_proxy_username(Slice username) {
   return check_utf8(username);
 }
 
-static bool is_valid_proxy_password(CSlice password) {
+static bool is_valid_proxy_password(Slice password) {
   return check_utf8(password);
 }
 
-static bool is_valid_invoice_name(CSlice invoice_name) {
+static bool is_valid_invoice_name(Slice invoice_name) {
   return !invoice_name.empty() && check_utf8(invoice_name);
 }
 
-static bool is_valid_gift_code(CSlice gift_code) {
+static bool is_valid_gift_code(Slice gift_code) {
   return !gift_code.empty() && check_utf8(gift_code);
 }
 
-static bool is_valid_business_link_name(CSlice link_name) {
+static bool is_valid_business_link_name(Slice link_name) {
   return !link_name.empty() && check_utf8(link_name);
 }
 
-static bool is_valid_star_top_up_purpose(CSlice purpose) {
+static bool is_valid_star_top_up_purpose(Slice purpose) {
   return check_utf8(purpose);
 }
 
@@ -1866,17 +1866,17 @@ class RequestUrlAuthQuery final : public Td::ResultHandler {
 
   void send(string url, MessageFullId message_full_id, int32 button_id) {
     url_ = std::move(url);
-    int32 flags = 0;
     tl_object_ptr<telegram_api::InputPeer> input_peer;
+    string input_url;
     if (message_full_id.get_dialog_id().is_valid()) {
       dialog_id_ = message_full_id.get_dialog_id();
       input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
       CHECK(input_peer != nullptr);
     } else {
-      flags |= telegram_api::messages_requestUrlAuth::URL_MASK;
+      input_url = url_;
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_requestUrlAuth(
-        flags, std::move(input_peer), message_full_id.get_message_id().get_server_message_id().get(), button_id, url_,
+        0, std::move(input_peer), message_full_id.get_message_id().get_server_message_id().get(), button_id, input_url,
         string())));
   }
 
@@ -1941,12 +1941,8 @@ class RequestUrlOauthQuery final : public Td::ResultHandler {
 
   void send(string url, const string &in_app_origin) {
     url_ = std::move(url);
-    int32 flags = telegram_api::messages_requestUrlAuth::URL_MASK;
-    if (!in_app_origin.empty()) {
-      flags |= telegram_api::messages_requestUrlAuth::IN_APP_ORIGIN_MASK;
-    }
-    send_query(G()->net_query_creator().create(
-        telegram_api::messages_requestUrlAuth(flags, nullptr, 0, 0, url_, in_app_origin)));
+    send_query(
+        G()->net_query_creator().create(telegram_api::messages_requestUrlAuth(0, nullptr, 0, 0, url_, in_app_origin)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -2037,22 +2033,19 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
             bool allow_phone_number_access, const string &match_code,
             telegram_api::object_ptr<telegram_api::inputTonConnectOauthSession> session) {
     url_ = std::move(url);
-    int32 flags = 0;
     telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
+    string input_url;
     if (message_full_id.get_dialog_id().is_valid()) {
       dialog_id_ = message_full_id.get_dialog_id();
       input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
       CHECK(input_peer != nullptr);
     } else {
-      flags |= telegram_api::messages_acceptUrlAuth::URL_MASK;
+      input_url = url_;
     }
-    if (!match_code.empty()) {
-      flags |= telegram_api::messages_acceptUrlAuth::MATCH_CODE_MASK;
-    }
-    send_query(G()->net_query_creator().create(telegram_api::messages_acceptUrlAuth(
-        flags, allow_write_access, allow_phone_number_access, std::move(input_peer),
-        message_full_id.get_message_id().get_server_message_id().get(), button_id, url_, match_code,
-        std::move(session))));
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_acceptUrlAuth(0, allow_write_access, allow_phone_number_access, std::move(input_peer),
+                                             message_full_id.get_message_id().get_server_message_id().get(), button_id,
+                                             input_url, match_code, std::move(session))));
   }
 
   void on_result(BufferSlice packet) final {
@@ -2144,7 +2137,7 @@ static bool tolower_begins_with(Slice str, Slice prefix) {
   return true;
 }
 
-Result<string> LinkManager::check_link(CSlice link, bool http_only, bool https_only) {
+Result<string> LinkManager::check_link(Slice link, bool http_only, bool https_only) {
   auto result = check_link_impl(link, http_only, https_only);
   if (result.is_ok()) {
     return result;
@@ -3300,10 +3293,10 @@ unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_passport(
   auto get_arg = [&args](Slice key) {
     for (auto &arg : args) {
       if (arg.first == key) {
-        return CSlice(arg.second);
+        return Slice(arg.second);
       }
     }
-    return CSlice();
+    return Slice();
   };
 
   UserId bot_user_id(to_integer<int64>(get_arg("bot_id")));
@@ -4675,6 +4668,9 @@ void LinkManager::get_login_url(MessageFullId message_full_id, int64 button_id, 
 }
 
 void LinkManager::get_link_login_url(const string &url, bool allow_write_access, Promise<string> &&promise) {
+  if (url.empty()) {
+    return promise.set_error(400, "URL must be non-empty");
+  }
   td_->create_handler<AcceptUrlAuthQuery>(std::move(promise))
       ->send(url, MessageFullId(), 0, allow_write_access, false, string(), nullptr);
 }
@@ -4688,6 +4684,9 @@ void LinkManager::accept_oauth_request(const string &url, const string &match_co
                                        td_api::object_ptr<td_api::tonConnectConnectData> &&connect_data,
                                        Promise<string> &&promise) {
   telegram_api::object_ptr<telegram_api::inputTonConnectOauthSession> session;
+  if (url.empty()) {
+    return promise.set_error(400, "URL must be non-empty");
+  }
   if (connect_data != nullptr) {
     TRY_RESULT_PROMISE(promise, proof,
                        TonWalletOwnershipProof::get_ton_wallet_ownership_proof(std::move(connect_data->proof_)));

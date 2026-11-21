@@ -33,6 +33,7 @@ namespace td {
 class AccountManager;
 class AnimationsManager;
 class AttachMenuManager;
+class AudiosManager;
 class AuthManager;
 class AutosaveManager;
 class BackgroundManager;
@@ -101,6 +102,7 @@ class WebBrowserManager;
 class WebPagesManager;
 class WebProxyManager;
 class WelcomeMessageManager;
+class WidgetManager;
 
 class Global final : public ActorContext {
  public:
@@ -226,6 +228,13 @@ class Global final : public ActorContext {
   }
   void set_attach_menu_manager(ActorId<AttachMenuManager> attach_menu_manager) {
     attach_menu_manager_ = attach_menu_manager;
+  }
+
+  ActorId<AudiosManager> audios_manager() const {
+    return audios_manager_;
+  }
+  void set_audios_manager(ActorId<AudiosManager> audios_manager) {
+    audios_manager_ = audios_manager;
   }
 
   ActorId<AuthManager> auth_manager() const {
@@ -653,6 +662,13 @@ class Global final : public ActorContext {
     welcome_message_manager_ = welcome_message_manager;
   }
 
+  ActorId<WidgetManager> widget_manager() const {
+    return widget_manager_;
+  }
+  void set_widget_manager(ActorId<WidgetManager> widget_manager) {
+    widget_manager_ = widget_manager;
+  }
+
   ActorId<ConnectionCreator> connection_creator() const;
   void set_connection_creator(ActorOwn<ConnectionCreator> connection_creator);
 
@@ -785,6 +801,7 @@ class Global final : public ActorContext {
   ActorId<AccountManager> account_manager_;
   ActorId<AnimationsManager> animations_manager_;
   ActorId<AttachMenuManager> attach_menu_manager_;
+  ActorId<AudiosManager> audios_manager_;
   ActorId<AuthManager> auth_manager_;
   ActorId<AutosaveManager> autosave_manager_;
   ActorId<BackgroundManager> background_manager_;
@@ -845,6 +862,7 @@ class Global final : public ActorContext {
   ActorId<WebPagesManager> web_pages_manager_;
   ActorId<WebProxyManager> web_proxy_manager_;
   ActorId<WelcomeMessageManager> welcome_message_manager_;
+  ActorId<WidgetManager> widget_manager_;
   ActorOwn<ConnectionCreator> connection_creator_;
   ActorOwn<TempAuthKeyWatchdog> temp_auth_key_watchdog_;
 

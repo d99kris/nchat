@@ -766,7 +766,7 @@ bool DialogFilterManager::is_dialog_pinned(DialogFilterId dialog_filter_id, Dial
   return dialog_filter != nullptr && dialog_filter->is_dialog_pinned(dialog_id);
 }
 
-const vector<InputDialogId> &DialogFilterManager::get_pinned_input_dialog_ids(DialogFilterId dialog_filter_id) const {
+vector<InputDialogId> DialogFilterManager::get_pinned_input_dialog_ids(DialogFilterId dialog_filter_id) const {
   auto *dialog_filter = get_dialog_filter(dialog_filter_id);
   CHECK(dialog_filter != nullptr);
   return dialog_filter->get_pinned_input_dialog_ids();
@@ -972,7 +972,8 @@ void DialogFilterManager::load_dialog_filter(const DialogFilter *dialog_filter, 
   CHECK(!td_->auth_manager_->is_bot());
   vector<InputDialogId> needed_dialog_ids;
   dialog_filter->for_each_dialog([&](const InputDialogId &input_dialog_id) {
-    if (!td_->messages_manager_->have_dialog(input_dialog_id.get_dialog_id())) {
+    auto dialog_id = input_dialog_id.get_dialog_id();
+    if (!td_->messages_manager_->have_dialog(dialog_id) && !DialogFilter::is_community_dialog_id(dialog_id)) {
       needed_dialog_ids.push_back(input_dialog_id);
     }
   });
@@ -1051,6 +1052,40 @@ void DialogFilterManager::on_load_dialog_filter_dialogs(DialogFilterId dialog_fi
 
 void DialogFilterManager::load_input_dialog(const InputDialogId &input_dialog_id, Promise<Unit> &&promise) {
   td_->create_handler<GetDialogsQuery>(std::move(promise))->send({input_dialog_id});
+}
+
+void DialogFilterManager::remove_community_from_dialog_filters(CommunityId community_id) {
+  if (td_->auth_manager_->is_bot() || !is_update_chat_folders_sent_) {
+    return;
+  }
+
+  auto dialog_id = community_id.get_fake_dialog_id();
+  bool is_server_changed = false;
+  for (auto &dialog_filter : server_dialog_filters_) {
+    // the community must have been removed on the server too
+    if (dialog_filter->is_dialog_included(dialog_id)) {
+      dialog_filter->remove_dialog_id(dialog_id);
+      is_server_changed = true;
+    }
+  }
+
+  vector<DialogFilterId> dialog_filter_ids;
+  for (const auto &dialog_filter : dialog_filters_) {
+    if (dialog_filter->is_dialog_included(dialog_id)) {
+      dialog_filter_ids.push_back(dialog_filter->get_dialog_filter_id());
+    }
+  }
+  for (auto dialog_filter_id : dialog_filter_ids) {
+    auto dialog_filter = get_dialog_filter(dialog_filter_id);
+    CHECK(dialog_filter != nullptr);
+    delete_dialogs_from_filter(dialog_filter, {dialog_id}, "remove_community_from_dialog_filters");
+  }
+  if (is_server_changed && dialog_filter_ids.empty()) {
+    save_dialog_filters();
+    if (need_synchronize_dialog_filters()) {
+      synchronize_dialog_filters();
+    }
+  }
 }
 
 void DialogFilterManager::delete_dialogs_from_filter(const DialogFilter *dialog_filter, vector<DialogId> &&dialog_ids,
