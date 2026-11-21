@@ -1125,6 +1125,10 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 	case *events.JoinedGroup:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 
+	case *events.NewsletterJoin:
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		AddNewsletterContact(handler.connId, &evt.NewsletterMetadata, NotifyDirect)
+
 	case *events.OfflineSyncCompleted:
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		handler.HandleSyncContacts()
@@ -1693,6 +1697,21 @@ func (handler *WmEventHandler) HandleSyncContacts() {
 	GetContacts(handler.connId)
 }
 
+func AddNewsletterContact(connId int, newsletter *types.NewsletterMetadata, notify int) {
+	newsletterId := StrFromJid(newsletter.ID)
+	newsletterName := SanitizeName(newsletter.ThreadMeta.Name.Text)
+	if len(newsletterName) == 0 {
+		return
+	}
+
+	newsletterPhone := ""
+	isSelf := BoolToInt(false)
+	isAlias := BoolToInt(false)
+	LOG_TRACE(fmt.Sprintf("Call CWmNewContactsNotify %s %s", newsletterId, newsletterName))
+	CWmNewContactsNotify(connId, newsletterId, newsletterName, newsletterPhone, isSelf, isAlias, notify)
+	AddContactName(connId, newsletterId, newsletterName)
+}
+
 func GetContacts(connId int) {
 	LOG_TRACE(fmt.Sprintf("GetContacts"))
 	CWmSetStatus(connId, FlagFetching)
@@ -1939,6 +1958,20 @@ func GetContacts(connId int) {
 			AddContactName(connId, groupId, groupName)
 
 			SetExpiration(connId, groupId, group.GroupEphemeral.DisappearingTimer)
+		}
+	}
+
+	// channels
+	newsletters, newsletterErr := client.GetSubscribedNewsletters(ctx)
+	if newsletterErr != nil {
+		LOG_WARNING(fmt.Sprintf("get subscribed newsletters failed %#v", newsletterErr))
+	} else {
+		for _, newsletter := range newsletters {
+			if newsletter == nil {
+				continue
+			}
+
+			AddNewsletterContact(connId, newsletter, notify)
 		}
 	}
 
