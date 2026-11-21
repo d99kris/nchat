@@ -456,7 +456,7 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           FileInfo fileInfo =
             ProtocolUtil::FileInfoFromHex(sendMessageRequest->chatMessage.fileInfo);
           filePath = fileInfo.filePath;
-          fileType = fileInfo.fileType;
+          fileType = FileUtil::GetMimeType(filePath);
         }
 
         std::string mentionsJson = ProtocolUtil::MentionsToJson(sendMessageRequest->chatMessage.mentions);
@@ -497,7 +497,7 @@ void SgChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           FileInfo fileInfo =
             ProtocolUtil::FileInfoFromHex(editMessageRequest->chatMessage.fileInfo);
           filePath = fileInfo.filePath;
-          fileType = fileInfo.fileType;
+          fileType = FileUtil::GetMimeType(filePath);
         }
 
         std::string editMentionsJson = ProtocolUtil::MentionsToJson(editMessageRequest->chatMessage.mentions);

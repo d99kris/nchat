@@ -976,6 +976,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           static const int attachmentSendType = AppConfig::GetNum("attachment_send_type");
           FileInfo fileInfo =
             ProtocolUtil::FileInfoFromHex(sendMessageRequest->chatMessage.fileInfo);
+          fileInfo.fileType = FileUtil::GetMimeType(fileInfo.filePath);
           std::vector<std::string> mimeParts = StrUtil::Split(fileInfo.fileType, '/');
           std::string mimeType = mimeParts.at(0);
           std::string mimeSubType = (mimeParts.size() > 1) ? mimeParts.at(1) : "";

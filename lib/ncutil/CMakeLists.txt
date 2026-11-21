@@ -97,6 +97,48 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/buildinfo.h.in"
                "${CMAKE_CURRENT_BINARY_DIR}/generated/buildinfo.h" @ONLY)
 target_include_directories(ncutil PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
+# Bundled libmagic database. libmagic compiles in its default db path from its
+# install prefix, which for static dist builds refers to the build host (e.g.
+# /opt/nchat-deps/share/misc/magic.mgc) and does not exist on user systems, so
+# mime detection fails and images get sent as documents. Static builds thus
+# embed the db (gzip-compressed, ~0.45 MB vs ~10 MB raw) and load it with
+# magic_load_buffers(). The db format is tied to the libmagic version, so it is
+# taken from the same prefix as the magic.h being built against.
+if(HAS_STATIC_EXTLIBS)
+  if(CMAKE_VERSION VERSION_LESS 3.19)
+    message(FATAL_ERROR "Static build requires CMake >= 3.19 to bundle magic.mgc")
+  endif()
+  if(NOT MAGIC_DEP_LIBRARY_z)
+    message(FATAL_ERROR "Static build requires zlib to bundle magic.mgc")
+  endif()
+  get_filename_component(MAGIC_PREFIX "${MAGIC_INCLUDE_DIR}" DIRECTORY)
+  find_file(MAGIC_DB_FILE magic.mgc PATHS "${MAGIC_PREFIX}/share/misc" NO_DEFAULT_PATH)
+  if(NOT MAGIC_DB_FILE)
+    message(FATAL_ERROR "Static build requires magic.mgc in ${MAGIC_PREFIX}/share/misc")
+  endif()
+  find_path(ZLIB_INCLUDE_DIR zlib.h)
+  set(MAGIC_DB_GZ "${CMAKE_CURRENT_BINARY_DIR}/generated/magic.mgc.gz")
+  set(MAGIC_DB_SRC "${CMAKE_CURRENT_BINARY_DIR}/generated/magicdb.c")
+  file(ARCHIVE_CREATE OUTPUT "${MAGIC_DB_GZ}" PATHS "${MAGIC_DB_FILE}"
+       FORMAT raw COMPRESSION GZip COMPRESSION_LEVEL 9)
+  file(SIZE "${MAGIC_DB_FILE}" MAGIC_DB_SIZE)
+  file(SIZE "${MAGIC_DB_GZ}" MAGIC_DB_GZ_SIZE)
+  file(READ "${MAGIC_DB_GZ}" MAGIC_DB_HEX HEX)
+  string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," MAGIC_DB_HEX "${MAGIC_DB_HEX}")
+  file(WRITE "${MAGIC_DB_SRC}"
+       "// Generated from ${MAGIC_DB_FILE}, do not edit.\n"
+       "#include <stddef.h>\n"
+       "const size_t g_MagicDbSize = ${MAGIC_DB_SIZE};\n"
+       "const size_t g_MagicDbGzSize = ${MAGIC_DB_GZ_SIZE};\n"
+       "const unsigned char g_MagicDbGz[] = {${MAGIC_DB_HEX}};\n")
+  unset(MAGIC_DB_HEX)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MAGIC_DB_FILE}")
+  target_sources(ncutil PRIVATE "${MAGIC_DB_SRC}")
+  target_include_directories(ncutil PRIVATE ${ZLIB_INCLUDE_DIR})
+  target_compile_definitions(ncutil PRIVATE HAS_BUNDLED_MAGIC=1)
+  message(STATUS "Bundled magic db: ${MAGIC_DB_FILE} (${MAGIC_DB_GZ_SIZE} bytes compressed)")
+endif()
+
 # Optional dependencies
 check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)
 if(FOUND_EXECINFO_H)

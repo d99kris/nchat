@@ -29,10 +29,42 @@
 #include <libgen.h>
 #include <magic.h>
 
+#if defined(HAS_BUNDLED_MAGIC)
+#include <vector>
+#define ZLIB_CONST
+#include <zlib.h>
+#endif
+
 #include <path.hpp>
 
 #include "log.h"
 #include "strutil.h"
+
+#if defined(HAS_BUNDLED_MAGIC)
+// Generated at configure time by lib/ncutil/CMakeLists.txt: gzip-compressed
+// magic.mgc from the libmagic prefix the binary is statically linked against.
+extern "C" const unsigned char g_MagicDbGz[];
+extern "C" const size_t g_MagicDbGzSize;
+extern "C" const size_t g_MagicDbSize;
+
+static std::vector<unsigned char> InflateMagicDb()
+{
+  std::vector<unsigned char> db(g_MagicDbSize);
+  z_stream zs = {};
+  if (inflateInit2(&zs, 16 + MAX_WBITS) != Z_OK) return std::vector<unsigned char>();
+
+  zs.next_in = g_MagicDbGz;
+  zs.avail_in = static_cast<uInt>(g_MagicDbGzSize);
+  zs.next_out = db.data();
+  zs.avail_out = static_cast<uInt>(db.size());
+  int rv = inflate(&zs, Z_FINISH);
+  uLong totalOut = zs.total_out;
+  inflateEnd(&zs);
+  if ((rv != Z_STREAM_END) || (totalOut != db.size())) return std::vector<unsigned char>();
+
+  return db;
+}
+#endif
 
 std::string FileUtil::m_ApplicationDir;
 std::string FileUtil::m_DownloadsDir;
@@ -213,20 +245,39 @@ std::string FileUtil::GetFileExt(const std::string& p_Path)
   return p_Path.substr(lastPeriod);
 }
 
+// Avoid calling from the ui thread: static builds inflate the bundled ~10 MB
+// magic db on each call (~10 ms). Protocols call it from their worker threads.
 std::string FileUtil::GetMimeType(const std::string& p_Path)
 {
   int flags = MAGIC_MIME_TYPE;
   magic_t cookie = magic_open(flags);
   if (cookie == NULL) return "";
 
+#if defined(HAS_BUNDLED_MAGIC)
+  // Static builds use the embedded db, as libmagic's compiled-in default db
+  // path refers to the build host and does not exist on user systems. The
+  // buffer must outlive the cookie, as libmagic references it in place.
+  std::vector<unsigned char> db = InflateMagicDb();
+  void* dbBufs[1] = { db.data() };
+  size_t dbSizes[1] = { db.size() };
+  bool loaded = !db.empty() && (magic_load_buffers(cookie, dbBufs, dbSizes, 1) == 0);
+#else
+  bool loaded = (magic_load(cookie, NULL) == 0);
+#endif
+
   std::string mime;
-  if (magic_load(cookie, NULL) == 0)
+  if (loaded)
   {
     const char* rv = magic_file(cookie, p_Path.c_str());
     if (rv != NULL)
     {
       mime = std::string(rv);
     }
+  }
+  else
+  {
+    const char* err = magic_error(cookie);
+    LOG_WARNING("magic load failed: %s", (err != NULL) ? err : "unknown error");
   }
 
   magic_close(cookie);
