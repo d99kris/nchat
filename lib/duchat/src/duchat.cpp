@@ -14,8 +14,10 @@
 #include <sys/stat.h>
 
 #include "log.h"
+#include "protocolutil.h"
 #include "status.h"
 #include "strutil.h"
+#include "timeutil.h"
 
 static const std::string s_GroupId = "The Office_0";
 
@@ -406,6 +408,31 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         sendMessageNotify->chatId = sendMessageRequest->chatId;
         sendMessageNotify->chatMessage = sendMessageRequest->chatMessage;
         m_MessageHandler(sendMessageNotify);
+
+        // echo sent message, kept in memory only for the current session
+        const int64_t timeSent = TimeUtil::GetCurrentTimeMSec();
+        ChatMessage chatMessage = sendMessageRequest->chatMessage;
+        chatMessage.id = "Stanley_0_" + std::to_string(timeSent);
+        chatMessage.senderId = "Stanley_0";
+        chatMessage.timeSent = timeSent;
+        chatMessage.isOutgoing = true;
+        chatMessage.isRead = true;
+        if (!chatMessage.fileInfo.empty())
+        {
+          FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(chatMessage.fileInfo);
+          fileInfo.fileStatus = FileStatusDownloaded;
+          chatMessage.fileInfo = ProtocolUtil::FileInfoToHex(fileInfo);
+        }
+
+        std::vector<ChatMessage>& chatMessages = s_Messages[sendMessageRequest->chatId];
+        chatMessages.insert(chatMessages.begin(), chatMessage);
+
+        std::shared_ptr<NewMessagesNotify> newMessagesNotify =
+          std::make_shared<NewMessagesNotify>(m_ProfileId);
+        newMessagesNotify->success = true;
+        newMessagesNotify->chatId = sendMessageRequest->chatId;
+        newMessagesNotify->chatMessages.push_back(chatMessage);
+        m_MessageHandler(newMessagesNotify);
       }
       break;
 
