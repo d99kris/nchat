@@ -31,7 +31,7 @@ package main
 // extern void WmClearStatus(int p_ConnId, int p_Flags);
 // extern int WmAppConfigGetNum(char* p_Param);
 // extern void WmAppConfigSetNum(char* p_Param, int p_Value);
-// extern int WmPromptAuthMethod();
+// extern int WmPromptAuthMethod(int p_ConnId);
 // extern int WmIsUpgradeSupported();
 // extern char* WmGetQrPath();
 // extern void WmShowImage(char* p_Path);
@@ -232,8 +232,8 @@ func CWmAppConfigSetNum(param string, value int) {
 	C.WmAppConfigSetNum(C.CString(param), C.int(value))
 }
 
-func CWmPromptAuthMethod() int {
-	return int(C.WmPromptAuthMethod())
+func CWmPromptAuthMethod(connId int) int {
+	return int(C.WmPromptAuthMethod(C.int(connId)))
 }
 
 func CWmIsUpgradeSupported() bool {

@@ -56,6 +56,7 @@ public:
   void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
 
   void SetProtocolUiControl(bool p_IsTakeControl);
+  void PrintReauthNotice();
   void SetStatus(int p_Flags);
   void ClearStatus(int p_Flags);
 
@@ -151,7 +152,7 @@ void WmSetStatus(int p_ConnId, int p_Flags);
 void WmClearStatus(int p_ConnId, int p_Flags);
 int WmAppConfigGetNum(char* p_Param);
 void WmAppConfigSetNum(char* p_Param, int p_Value);
-int WmPromptAuthMethod();
+int WmPromptAuthMethod(int p_ConnId);
 int WmIsUpgradeSupported();
 char* WmGetQrPath();
 void WmShowImage(char* p_Path);

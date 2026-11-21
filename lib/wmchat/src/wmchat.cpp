@@ -724,6 +724,16 @@ std::string WmChat::GetProxyUrl() const
   return "";
 }
 
+void WmChat::PrintReauthNotice()
+{
+  if (m_IsSetup) return;
+
+  // profile id is WhatsAppMd_<phone>
+  const std::string phoneNumber = m_ProfileId.substr(m_ProfileId.find('_') + 1);
+  LOG_INFO("reauthentication for %s required", phoneNumber.c_str());
+  std::cout << "\nWhatsApp reauthentication for " << phoneNumber << " required\n";
+}
+
 void WmChat::SetProtocolUiControl(bool p_IsTakeControl)
 {
   if (m_IsSetup)
@@ -1369,8 +1379,14 @@ void WmAppConfigSetNum(char* p_Param, int p_Value)
   free(p_Param);
 }
 
-int WmPromptAuthMethod()
+int WmPromptAuthMethod(int p_ConnId)
 {
+  WmChat* instance = WmChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    instance->PrintReauthNotice();
+  }
+
   // terminal qr size (cols x rows) of a whatsapp link code
   static const int qrCols = 69;
   static const int qrRows = 35;

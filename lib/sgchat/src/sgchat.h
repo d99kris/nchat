@@ -55,6 +55,7 @@ public:
   void SetMessageHandler(const std::function<void(std::shared_ptr<ServiceMessage>)>& p_MessageHandler);
 
   void SetProtocolUiControl(bool p_IsTakeControl);
+  void PrintReauthNotice();
   void SetStatus(int p_Flags);
   void ClearStatus(int p_Flags);
 
@@ -148,7 +149,7 @@ void SgSetStatus(int p_ConnId, int p_Flags);
 void SgClearStatus(int p_ConnId, int p_Flags);
 int SgAppConfigGetNum(char* p_Param);
 void SgAppConfigSetNum(char* p_Param, int p_Value);
-int SgPromptAuthMethod();
+int SgPromptAuthMethod(int p_ConnId);
 char* SgGetQrPath();
 void SgShowImage(char* p_Path);
 void SgLogTrace(char* p_Filename, int p_LineNo, char* p_Message);

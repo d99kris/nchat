@@ -2589,7 +2589,7 @@ void TgChat::Impl::OnAuthStateUpdate()
       {
         m_IsReinit = true;
         SetProtocolUiControl(true);
-        std::cout << "Telegram reauthentication for " << GetProfilePhoneNumber() << " required\n\n";
+        std::cout << "\nTelegram reauthentication for " << GetProfilePhoneNumber() << " required\n\n";
       }
     }
 
@@ -2745,7 +2745,7 @@ int TgChat::Impl::GetAuthMethod()
     {
       m_IsReinit = true;
       SetProtocolUiControl(true);
-      std::cout << "Telegram reauthentication for " << GetProfilePhoneNumber() << " required\n";
+      std::cout << "\nTelegram reauthentication for " << GetProfilePhoneNumber() << " required\n";
     }
 
     // terminal qr size (cols x rows) of a telegram login link

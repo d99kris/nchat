@@ -33,7 +33,7 @@ package main
 // extern void SgClearStatus(int p_ConnId, int p_Flags);
 // extern int SgAppConfigGetNum(char* p_Param);
 // extern void SgAppConfigSetNum(char* p_Param, int p_Value);
-// extern int SgPromptAuthMethod();
+// extern int SgPromptAuthMethod(int p_ConnId);
 // extern char* SgGetQrPath();
 // extern void SgShowImage(char* p_Path);
 // extern void SgLogTrace(char* p_Filename, int p_LineNo, char* p_Message);
@@ -232,8 +232,8 @@ func CSgAppConfigSetNum(param string, value int) {
 	C.SgAppConfigSetNum(C.CString(param), C.int(value))
 }
 
-func CSgPromptAuthMethod() int {
-	return int(C.SgPromptAuthMethod())
+func CSgPromptAuthMethod(connId int) int {
+	return int(C.SgPromptAuthMethod(C.int(connId)))
 }
 
 func CSgShowImage(path string) {

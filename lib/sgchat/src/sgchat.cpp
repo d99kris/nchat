@@ -784,6 +784,16 @@ std::string SgChat::GetProxyUrl() const
   return "";
 }
 
+void SgChat::PrintReauthNotice()
+{
+  if (m_IsSetup) return;
+
+  // profile id is Signal_<phone>
+  const std::string phoneNumber = m_ProfileId.substr(m_ProfileId.find('_') + 1);
+  LOG_INFO("reauthentication for %s required", phoneNumber.c_str());
+  std::cout << "\nSignal reauthentication for " << phoneNumber << " required\n";
+}
+
 void SgChat::SetProtocolUiControl(bool p_IsTakeControl)
 {
   if (m_IsSetup)
@@ -1552,8 +1562,14 @@ void SgAppConfigSetNum(char* p_Param, int p_Value)
   free(p_Param);
 }
 
-int SgPromptAuthMethod()
+int SgPromptAuthMethod(int p_ConnId)
 {
+  SgChat* instance = SgChat::GetInstance(p_ConnId);
+  if (instance != nullptr)
+  {
+    instance->PrintReauthNotice();
+  }
+
   // terminal qr size (cols x rows) of a signal provisioning url
   static const int qrCols = 49;
   static const int qrRows = 25;
