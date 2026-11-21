@@ -601,6 +601,11 @@ func DownloadFromFileId(connId int, fileId string) (string, int) {
 
 func DownloadFromFileInfo(client *whatsmeow.Client, info DownloadInfo) ([]byte, error) {
 	ctx := context.TODO()
+	if len(info.FileEncSha256) == 0 && len(info.MediaKey) > 0 {
+		// unencrypted media (e.g. channels), same check as whatsmeow Download()
+		LOG_TRACE("download unencrypted media, ignore media key")
+		info.MediaKey = nil
+	}
 	var err error = whatsmeow.ErrNoURLPresent
 	if len(info.Url) > 0 {
 		LOG_TRACE(fmt.Sprintf("download url: %s", info.Url))
