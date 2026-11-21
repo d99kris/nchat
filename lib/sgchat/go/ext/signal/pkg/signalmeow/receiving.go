@@ -378,6 +378,19 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
 		Msg("Received envelope")
 
+	if envelope.GetType() == signalpb.Envelope_SERVER_DELIVERY_RECEIPT {
+		if sourceServiceID.Type == libsignalgo.ServiceIDTypeACI && sourceServiceID.UUID != uuid.Nil && !cli.handleEvent(&events.Receipt{
+			Sender: sourceServiceID.UUID,
+			Content: &signalpb.ReceiptMessage{
+				Type:      signalpb.ReceiptMessage_DELIVERY.Enum(),
+				Timestamp: []uint64{envelope.GetClientTimestamp()},
+			},
+		}) {
+			return nil, ErrHandlerFailed
+		}
+		return &web.SimpleResponse{Status: 200}, nil
+	}
+
 	result := cli.decryptEnvelope(ctx, envelope, sourceServiceID, destinationServiceID)
 
 	err = cli.handleDecryptedResult(ctx, result, envelope, destinationServiceID)
@@ -533,6 +546,13 @@ func (cli *Client) handleDecryptedResult(
 		logEvt = logEvt.Hex("ciphertext_hash", result.CiphertextHash[:])
 	}
 	logEvt.Bool("unencrypted", result.Unencrypted).Msg("Decrypted message")
+
+	if theirServiceID == cli.Store.ACIServiceID() && deviceID == 1 &&
+		time.Since(time.UnixMilli(int64(envelope.GetServerTimestamp()))) < 24*time.Hour &&
+		cli.AuthedWS.ClearPrimaryDeviceIdle() {
+		log.Info().Msg("Received message from primary device, clearing idle primary device warning")
+		cli.handleEvent(&events.PrimaryDeviceSeen{})
+	}
 
 	// Handle unencrypted types early and refuse any other unencrypted message
 	if rawContent.GetDecryptionErrorMessage() != nil {
@@ -909,7 +929,7 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 			Stringer("aci", sender.UUID).
 			Stringer("pni", pni).
 			Msg("Fetching PNI identity for signature verification as it wasn't found in store")
-		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 0)
+		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 1)
 		if err != nil {
 			return fmt.Errorf("failed to fetch prekey for PNI %s after identity wasn't found in store: %w", pni, err)
 		} else if pniIdentity, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, pniServiceID); err != nil {

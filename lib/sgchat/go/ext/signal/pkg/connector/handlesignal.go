@@ -34,6 +34,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/simplevent"
+	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -72,10 +73,14 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		s.handleSignalACIFound(evt)
 	case *events.QueueEmpty:
 		s.queueEmptyWaiter.Set()
+	case *events.PrimaryDeviceSeen:
+		if s.UserLogin.BridgeState.GetPrevUnsent().Error == "signal-idle-primary-device" {
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+		}
 	case *events.LoggedOut:
 		s.sendLoggedOutState(evt.Error)
 	case *events.IdentityChange:
-		// TODO send notice
+		s.handleSignalIdentityChange(evt)
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}
@@ -161,6 +166,44 @@ func convertDecryptionError(_ context.Context, _ *bridgev2.Portal, _ bridgev2.Ma
 	}, nil
 }
 
+func (s *SignalClient) handleSignalIdentityChange(evt *events.IdentityChange) {
+	if !s.Main.Config.IdentityChangeNotices || evt.ServiceID.Type != libsignalgo.ServiceIDTypeACI || evt.ServiceID.UUID == s.Client.Store.ACI {
+		return
+	}
+	s.UserLogin.QueueRemoteEvent(&simplevent.Message[*events.IdentityChange]{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventMessage,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.Stringer("sender_id", evt.ServiceID)
+			},
+			PortalKey: s.makeDMPortalKey(evt.ServiceID),
+			Sender:    s.makeEventSender(evt.ServiceID.UUID),
+		},
+		Data:               evt,
+		ID:                 "idchange|" + signalid.MakeMessageID(evt.ServiceID.UUID, uint64(time.Now().UnixMilli())),
+		ConvertMessageFunc: convertIdentityChange,
+	})
+}
+
+func convertIdentityChange(ctx context.Context, portal *bridgev2.Portal, _ bridgev2.MatrixAPI, evt *events.IdentityChange) (*bridgev2.ConvertedMessage, error) {
+	name := evt.ServiceID.UUID.String()
+	ghost, err := portal.Bridge.GetGhostByID(ctx, signalid.MakeUserID(evt.ServiceID.UUID))
+	if err != nil {
+		return nil, err
+	} else if ghost.Name != "" {
+		name = ghost.Name
+	}
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    fmt.Sprintf("Your safety number with %s has changed.", name),
+			},
+		}},
+	}, nil
+}
+
 type Bv2ChatEvent struct {
 	*events.ChatEvent
 	s *SignalClient
@@ -185,6 +228,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 		switch {
 		case innerEvt.GetIsViewOnce(), innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
 			innerEvt.Payment != nil, innerEvt.GiftBadge != nil, innerEvt.PollCreate != nil, innerEvt.PollVote != nil,
+			innerEvt.PinMessage != nil, innerEvt.UnpinMessage != nil,
 			innerEvt.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT),
 			innerEvt.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
 			return bridgev2.RemoteEventMessage

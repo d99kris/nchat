@@ -119,7 +119,7 @@ func DownloadAttachment(
 		} else if len(body) < 1024 {
 			zerolog.Ctx(ctx).Debug().Bytes("response_data", body).Msg("Failed download response data")
 		}
-		if resp.StatusCode == http.StatusNotFound {
+		if resp.StatusCode == http.StatusNotFound || (resp.StatusCode == http.StatusForbidden && cdnNumber <= 1) {
 			return nil, ErrAttachmentNotFound
 		}
 		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)

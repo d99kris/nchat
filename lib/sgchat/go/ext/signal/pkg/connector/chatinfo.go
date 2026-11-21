@@ -125,9 +125,10 @@ func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Rec
 	}
 	name := s.Main.Config.FormatDisplayname(contact, username)
 	ui.Name = &name
-	if s.Main.Config.UseContactAvatars && contact.ContactAvatar.Hash != "" {
+	contactAvatarID := networkid.AvatarID("hash:" + contact.ContactAvatar.Hash)
+	if s.Main.Config.UseContactAvatars && contact.ContactAvatar.Hash != "" && s.canUseContactAvatar(ctx, contact, contactAvatarID) {
 		ui.Avatar = &bridgev2.Avatar{
-			ID: networkid.AvatarID("hash:" + contact.ContactAvatar.Hash),
+			ID: contactAvatarID,
 			Get: func(ctx context.Context) ([]byte, error) {
 				if contact.ContactAvatar.Image == nil {
 					return nil, fmt.Errorf("contact avatar not available")
@@ -170,6 +171,20 @@ func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Rec
 		}
 	}
 	return ui, nil
+}
+
+func (s *SignalClient) canUseContactAvatar(ctx context.Context, contact *types.Recipient, avatarID networkid.AvatarID) bool {
+	if contact.ContactAvatar.Image != nil {
+		return true
+	} else if contact.ACI == uuid.Nil {
+		return false
+	}
+	ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, signalid.MakeUserID(contact.ACI))
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get ghost to check contact avatar")
+		return true
+	}
+	return ghost != nil && ghost.AvatarID == avatarID && ghost.AvatarMXC != "" && ghost.AvatarSet
 }
 
 func (s *SignalConnector) ValidateUserID(id networkid.UserID) bool {

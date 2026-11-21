@@ -22,8 +22,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -60,6 +62,8 @@ type SignalWebsocket struct {
 	closeCalled   atomic.Bool
 	cancel        atomic.Pointer[context.CancelFunc]
 	cancelConn    atomic.Pointer[context.CancelCauseFunc]
+
+	primaryDeviceIdle atomic.Bool
 }
 
 func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
@@ -108,6 +112,14 @@ func (s *SignalWebsocket) IsConnected() bool {
 	return s.ws.Load() != nil
 }
 
+func (s *SignalWebsocket) PrimaryDeviceIdle() bool {
+	return s != nil && s.primaryDeviceIdle.Load()
+}
+
+func (s *SignalWebsocket) ClearPrimaryDeviceIdle() bool {
+	return s != nil && s.primaryDeviceIdle.CompareAndSwap(true, false)
+}
+
 func (s *SignalWebsocket) Close() (err error) {
 	if s == nil {
 		return nil
@@ -116,6 +128,9 @@ func (s *SignalWebsocket) Close() (err error) {
 	s.closeCalled.Store(true)
 	if ws := s.ws.Swap(nil); ws != nil {
 		err = ws.Close(websocket.StatusNormalClosure, "")
+		if errors.Is(err, net.ErrClosed) {
+			err = nil
+		}
 	}
 	if cancelLoop := s.cancel.Swap(nil); cancelLoop != nil {
 		(*cancelLoop)()
@@ -319,6 +334,17 @@ func (s *SignalWebsocket) connectLoop(
 		}
 
 		// Succssfully connected
+		if resp != nil {
+			alerts := resp.Header.Values("X-Signal-Alert")
+			if len(alerts) > 0 {
+				log.Warn().Strs("alerts", alerts).Msg("Signal server sent alerts when opening websocket")
+			}
+			s.primaryDeviceIdle.Store(slices.ContainsFunc(alerts, func(value string) bool {
+				return slices.ContainsFunc(strings.Split(value, ","), func(part string) bool {
+					return strings.TrimSpace(part) == "idle-primary-device"
+				})
+			}))
+		}
 		s.pushStatus(ctx, SignalWebsocketConnectionEventConnected, nil)
 		s.ws.Store(ws)
 		retrying = false

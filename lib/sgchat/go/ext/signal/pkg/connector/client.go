@@ -221,12 +221,18 @@ func (s *SignalClient) Connect(ctx context.Context) {
 	if s.Client == nil {
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Error: "signal-not-logged-in", UserAction: status.UserActionRelogin})
 		return
+	} else if !s.Client.IsLoggedIn() {
+		s.sendLoggedOutState(nil)
+		return
 	}
 	s.updateRemoteProfile(ctx, false)
 	s.tryConnect(ctx, 0, true)
 }
 
 func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.ConnectBackgroundParams) error {
+	if !s.IsLoggedIn() {
+		return bridgev2.ErrNotLoggedIn
+	}
 	s.queueEmptyWaiter.Clear()
 	ch, unauthCh, err := s.Client.StartWebsockets(ctx)
 	if err != nil {

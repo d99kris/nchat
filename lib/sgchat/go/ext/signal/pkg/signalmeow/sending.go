@@ -964,7 +964,7 @@ func (cli *Client) sendContent(
 
 	outgoingMessages := MyMessages{
 		Timestamp: messageTimestamp,
-		Online:    false,
+		Online:    content.GetTypingMessage() != nil,
 		Urgent:    isUrgent(content),
 		Messages:  messages,
 	}

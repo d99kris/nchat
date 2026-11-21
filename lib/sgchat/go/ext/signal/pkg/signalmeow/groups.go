@@ -81,6 +81,7 @@ type Group struct {
 	Members                      []*GroupMember
 	Description                  string
 	AnnouncementsOnly            bool
+	Terminated                   bool
 	Revision                     uint32
 	DisappearingMessagesDuration uint32
 	AccessControl                *GroupAccessControl
@@ -206,6 +207,7 @@ type GroupChange struct {
 	DeleteBannedMembers                []*libsignalgo.ServiceID
 	PromotePendingPniAciMembers        []*PromotePendingPniAciMember
 	ModifyInviteLinkPassword           *types.SerializedInviteLinkPassword
+	TerminateGroup                     bool
 }
 
 func (groupChange *GroupChange) isEmpty() bool {
@@ -226,7 +228,8 @@ func (groupChange *GroupChange) isEmpty() bool {
 		len(groupChange.PromoteRequestingMembers) == 0 &&
 		groupChange.ModifyDescription == nil &&
 		groupChange.ModifyAnnouncementsOnly == nil &&
-		len(groupChange.AddBannedMembers) == 0
+		len(groupChange.AddBannedMembers) == 0 &&
+		!groupChange.TerminateGroup
 }
 
 func (groupChange *GroupChange) resolveConflict(group *Group) {
@@ -497,6 +500,8 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	// These aren't encrypted
 	decryptedGroup.AvatarPath = encryptedGroup.AvatarUrl
 	decryptedGroup.Revision = encryptedGroup.Version
+	decryptedGroup.Terminated = encryptedGroup.Terminated
+	decryptedGroup.AnnouncementsOnly = encryptedGroup.AnnouncementsOnly
 
 	// Decrypt members
 	for _, member := range encryptedGroup.Members {
@@ -1076,6 +1081,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	if encryptedActions.ModifyAnnouncementsOnly != nil {
 		decryptedGroupChange.ModifyAnnouncementsOnly = &encryptedActions.ModifyAnnouncementsOnly.AnnouncementsOnly
 	}
+	decryptedGroupChange.TerminateGroup = encryptedActions.TerminateGroup != nil
 	if encryptedActions.ModifyDisappearingMessageTimer != nil && len(encryptedActions.ModifyDisappearingMessageTimer.Timer) > 0 {
 		timerBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyDisappearingMessageTimer.Timer)
 		if err != nil {
@@ -1801,8 +1807,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 			"Cached-Send-Endorsements": "0",
 		},
 	}
-	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
-	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
+	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 7, includeFirstState)
 	response, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, path, opts)
 	defer web.CloseBody(response)
 	if err != nil {

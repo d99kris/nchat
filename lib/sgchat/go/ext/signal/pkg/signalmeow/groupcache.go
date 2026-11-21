@@ -203,6 +203,7 @@ func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse libsi
 		delete(gc.data, id)
 		return nil
 	}
+	prevMembers := cached.getMemberServiceIDs()
 
 	// Pending member adds, promotes and removes
 	cached.PendingMembers = append(cached.PendingMembers, change.AddPendingMembers...)
@@ -304,6 +305,9 @@ func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse libsi
 	if change.ModifyAnnouncementsOnly != nil {
 		cached.AnnouncementsOnly = *change.ModifyAnnouncementsOnly
 	}
+	if change.TerminateGroup {
+		cached.Terminated = true
+	}
 	if change.ModifyDisappearingMessagesDuration != nil {
 		cached.DisappearingMessagesDuration = *change.ModifyDisappearingMessagesDuration
 	}
@@ -319,6 +323,12 @@ func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse libsi
 
 	cached.UpdatedAt = time.Now()
 	cached.Revision = change.Revision
+	if len(endorsementResponse) == 0 {
+		if !slices.Equal(prevMembers, cached.getMemberServiceIDs()) {
+			delete(gc.data, id)
+		}
+		return nil
+	}
 	endorsement, memberEndorsements, err := endorsementResponse.ReceiveWithServiceIDs(
 		cached.getMemberServiceIDs(),
 		gc.serviceID,

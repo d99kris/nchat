@@ -107,9 +107,6 @@ func (cli *Client) decryptEnvelope(
 			Unencrypted:   true,
 		}
 
-	case signalpb.Envelope_SERVER_DELIVERY_RECEIPT:
-		return DecryptionResult{Err: fmt.Errorf("server delivery receipt envelopes are not yet supported")}
-
 	case signalpb.Envelope_UNKNOWN:
 		return DecryptionResult{Err: fmt.Errorf("unknown envelope type")}
 

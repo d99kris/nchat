@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# cvc v0.30
+# cvc v0.31
 #
 # Copyright (c) 2018-2026 Kristofer Berggren
 # All rights reserved.
@@ -310,7 +310,7 @@ git_diff()
     BRANCH="$(git branch --show-current)"
     echo "Base-Commit: $(git rev-parse HEAD)"
     echo "Base-Branch: ${BRANCH}"
-    git --no-pager diff ${BRANCH}
+    git --no-pager diff ${BRANCH:-HEAD}
   else
     BRANCH="$(git branch --show-current)"
     echo "Base-Commit: $(git rev-parse HEAD)"
@@ -524,7 +524,7 @@ git_sync()
       elif [[ "${ONLYDIR}/" == "${DSTDIR}/"* ]]; then
         DELPATH="${ONLYDIR}/${ONLYNAME}"
 
-        git check-ignore -q "${DELPATH}"
+        git check-ignore -q --no-index "${DELPATH}"
         if [[ "${?}" == "0" ]]; then
           echo "Ignoring: ${ONLYDIR}/${ONLYNAME}"
           continue

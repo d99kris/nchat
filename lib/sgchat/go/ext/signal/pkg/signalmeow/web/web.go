@@ -230,7 +230,7 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32) (*http.Re
 		Uint32("cdn_number", cdnNumber).
 		Logger()
 	var host string
-	if int(cdnNumber) > len(CDNHosts) {
+	if int(cdnNumber) >= len(CDNHosts) {
 		log.Warn().Msg("Invalid CDN index")
 		host = CDN1Hostname
 	} else {

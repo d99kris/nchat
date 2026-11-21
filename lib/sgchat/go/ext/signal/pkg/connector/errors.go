@@ -42,7 +42,20 @@ func init() {
 		"signal-rate-limited":      "Rate limited by Signal, reconnecting",
 		"signal-connect-failed":    "Failed to connect to Signal, retrying",
 		"signal-connection-failed": "Connection to Signal failed",
+		"signal-idle-primary-device": "Signal hasn't seen your phone in a long time. The bridge is still connected, " +
+			"but Signal will unlink it if you don't open Signal on your phone soon.",
 	})
+}
+
+var _ status.BridgeStateFiller = (*SignalClient)(nil)
+
+func (s *SignalClient) FillBridgeState(state status.BridgeState) status.BridgeState {
+	if state.StateEvent == status.StateConnected && s.Client != nil && s.Client.AuthedWS.PrimaryDeviceIdle() {
+		state.StateEvent = status.StateTransientDisconnect
+		state.Error = "signal-idle-primary-device"
+		state.UserAction = status.UserActionOpenNative
+	}
+	return state
 }
 
 var (
@@ -53,6 +66,12 @@ var (
 				WithIsCertain(true).
 				WithSendNotice(true)
 	errDeleteOthersMessage = bridgev2.WrapErrorInStatus(errors.New("you can only delete your own messages")).
+				WithErrorAsMessage().
+				WithErrorReason(event.MessageStatusNoPermission).
+				WithStatus(event.MessageStatusFail).
+				WithIsCertain(true).
+				WithSendNotice(true)
+	errAnnouncementsOnly = bridgev2.WrapErrorInStatus(errors.New("only admins can send messages in this group")).
 				WithErrorAsMessage().
 				WithErrorReason(event.MessageStatusNoPermission).
 				WithStatus(event.MessageStatusFail).

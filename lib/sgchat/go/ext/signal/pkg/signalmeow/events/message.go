@@ -28,19 +28,20 @@ type SignalEvent interface {
 	isSignalEvent()
 }
 
-func (*ChatEvent) isSignalEvent()              {}
-func (*DecryptionError) isSignalEvent()        {}
-func (*Receipt) isSignalEvent()                {}
-func (*ViewOnceOpen) isSignalEvent()           {}
-func (*ReadSelf) isSignalEvent()               {}
-func (*Call) isSignalEvent()                   {}
-func (*ContactList) isSignalEvent()            {}
-func (*ACIFound) isSignalEvent()               {}
-func (*DeleteForMe) isSignalEvent()            {}
-func (*MessageRequestResponse) isSignalEvent() {}
-func (*QueueEmpty) isSignalEvent()             {}
-func (*LoggedOut) isSignalEvent()              {}
-func (*IdentityChange) isSignalEvent()         {}
+func (*ChatEvent) isSignalEvent()                  {}
+func (*DecryptionError) isSignalEvent()            {}
+func (*Receipt) isSignalEvent()                    {}
+func (*ViewOnceOpen) isSignalEvent()               {}
+func (*ReadSelf) isSignalEvent()                   {}
+func (*Call) isSignalEvent()                       {}
+func (*ContactList) isSignalEvent()                {}
+func (*ACIFound) isSignalEvent()                   {}
+func (*DeleteForMe) isSignalEvent()                {}
+func (*MessageRequestResponse) isSignalEvent()     {}
+func (*QueueEmpty) isSignalEvent()                 {}
+func (*PrimaryDeviceSeen) isSignalEvent()          {}
+func (*LoggedOut) isSignalEvent()                  {}
+func (*IdentityChange) isSignalEvent()             {}
 func (*PinnedConversationsChanged) isSignalEvent() {}
 func (*ChatMuteChanged) isSignalEvent()            {}
 func (*ChatArchivedChanged) isSignalEvent()        {}
@@ -110,6 +111,8 @@ type MessageRequestResponse struct {
 }
 
 type QueueEmpty struct{}
+
+type PrimaryDeviceSeen struct{}
 
 type LoggedOut struct{ Error error }
 

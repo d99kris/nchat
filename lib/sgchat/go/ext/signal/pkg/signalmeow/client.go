@@ -72,6 +72,8 @@ type Client struct {
 
 	storageSyncLock   sync.Mutex
 	storageSyncQueued atomic.Bool
+	storageVersion    uint64
+	storageRecords    []string
 
 	writeCallbackCounter chan time.Time
 }

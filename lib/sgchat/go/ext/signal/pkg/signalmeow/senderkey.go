@@ -221,8 +221,8 @@ func (cli *Client) sendToGroupWithSenderKey(
 		header.Set("Unidentified-Access-Key", xak.String())
 	}
 	path := fmt.Sprintf(
-		"/v1/messages/multi_recipient?ts=%d&urgent=%t&online=false",
-		messageTimestamp, isUrgent(content),
+		"/v1/messages/multi_recipient?ts=%d&urgent=%t&online=%t",
+		messageTimestamp, isUrgent(content), content.GetTypingMessage() != nil,
 	)
 	log.Debug().
 		Any("recipients", ski.SharedWith).

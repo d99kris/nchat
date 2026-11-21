@@ -25,3 +25,5 @@ note_to_self_avatar: mxc://maunium.net/REBIVrqjZwmaWpssCZpBlmlL
 location_format: 'https://www.google.com/maps/place/%[1]s,%[2]s'
 # Should polls be sent using unstable MSC3381 event types?
 extev_polls: false
+# Should another user's safety number changing send a message to Matrix?
+identity_change_notices: false

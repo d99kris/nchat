@@ -153,6 +153,12 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Parts = append(cm.Parts, mc.convertPollTerminateToMatrix(ctx, sender, dm.PollTerminate))
 		return cm
 	}
+	if dm.PinMessage != nil || dm.UnpinMessage != nil {
+		var part *bridgev2.ConvertedMessagePart
+		part, cm.ReplyTo = mc.convertPinToMatrix(dm)
+		cm.Parts = append(cm.Parts, part)
+		return cm
+	}
 	if dm.GetIsViewOnce() {
 		if !mc.Bridge.Config.ViewLimitedMedia && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > 5*time.Minute) {
 			cm.Disappear = database.DisappearingSetting{
@@ -502,6 +508,11 @@ func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index
 
 func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker *signalpb.DataMessage_Sticker, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
 	converted, err := mc.reuploadAttachment(ctx, sticker.GetData(), attMap)
+	hasPack := len(sticker.GetPackId()) == PackIDLength && len(sticker.GetPackKey()) == PackKeyLength && !bytes.Equal(sticker.GetPackId(), zeroPackID)
+	if err != nil && hasPack && (errors.Is(err, signalmeow.ErrAttachmentNotFound) || errors.Is(err, ErrAttachmentNotInBackup) || errors.Is(err, ErrBackupNotSupported)) {
+		zerolog.Ctx(ctx).Debug().Err(err).Msg("Sticker attachment is unavailable, downloading it from the sticker pack")
+		converted, err = mc.reuploadStickerFromPack(ctx, sticker)
+	}
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to handle sticker")
 		return &bridgev2.ConvertedMessagePart{
@@ -519,7 +530,7 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 		converted.Content.Info.Height = 200
 	}
 	converted.Content.Body = sticker.GetEmoji()
-	if len(sticker.GetPackId()) == PackIDLength && len(sticker.GetPackKey()) == PackKeyLength && !bytes.Equal(sticker.GetPackId(), zeroPackID) {
+	if hasPack {
 		converted.Content.Info.BridgedSticker = &event.BridgedSticker{
 			Network: StickerSourceID,
 			ID:      strconv.FormatUint(uint64(sticker.GetStickerId()), 10),
@@ -530,6 +541,49 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 	converted.Type = event.EventSticker
 	converted.Content.MsgType = ""
 	return converted
+}
+
+func (mc *MessageConverter) reuploadStickerFromPack(ctx context.Context, sticker *signalpb.DataMessage_Sticker) (*bridgev2.ConvertedMessagePart, error) {
+	att := sticker.GetData()
+	content := &event.MessageEventContent{
+		Body: att.GetFileName(),
+		Info: &event.FileInfo{
+			MimeType: att.GetContentType(),
+			Width:    int(att.GetWidth()),
+			Height:   int(att.GetHeight()),
+		},
+	}
+	if mc.DirectMedia {
+		mediaID, err := signalid.DirectMediaSticker{
+			PackID:    sticker.GetPackId(),
+			PackKey:   sticker.GetPackKey(),
+			StickerID: sticker.GetStickerId(),
+		}.AsMediaID()
+		if err != nil {
+			return nil, err
+		}
+		content.URL, content.File, err = mc.Bridge.GenerateContentURI(ctx, getPortal(ctx).MXID, mediaID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		data, err := signalmeow.DownloadStickerPackItem(ctx, sticker.GetPackId(), sticker.GetPackKey(), sticker.GetStickerId())
+		if err != nil {
+			return nil, fmt.Errorf("failed to download sticker from pack: %w", err)
+		}
+		if content.Info.MimeType == "" {
+			content.Info.MimeType = http.DetectContentType(data)
+		}
+		content.Info.Size = len(data)
+		content.URL, content.File, err = getIntent(ctx).UploadMedia(ctx, getPortal(ctx).MXID, data, content.Body, content.Info.MimeType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload sticker from pack: %w", err)
+		}
+	}
+	return &bridgev2.ConvertedMessagePart{
+		Type:    event.EventMessage,
+		Content: content,
+	}, nil
 }
 
 func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*string, error) {
@@ -791,6 +845,28 @@ func (mc *MessageConverter) convertPollTerminateToMatrix(ctx context.Context, se
 			"org.matrix.msc3381.poll.end": map[string]any{},
 		},
 	}
+}
+
+func (mc *MessageConverter) convertPinToMatrix(dm *signalpb.DataMessage) (*bridgev2.ConvertedMessagePart, *networkid.MessageOptionalPartID) {
+	body := "Pinned a message"
+	targetAuthor, targetTS := dm.GetPinMessage().GetTargetAuthorAciBinary(), dm.GetPinMessage().GetTargetSentTimestamp()
+	if dm.PinMessage == nil {
+		body = "Unpinned a message"
+		targetAuthor, targetTS = dm.GetUnpinMessage().GetTargetAuthorAciBinary(), dm.GetUnpinMessage().GetTargetSentTimestamp()
+	}
+	var replyTo *networkid.MessageOptionalPartID
+	if len(targetAuthor) == 16 {
+		replyTo = &networkid.MessageOptionalPartID{
+			MessageID: signalid.MakeMessageID(uuid.UUID(targetAuthor), targetTS),
+		}
+	}
+	return &bridgev2.ConvertedMessagePart{
+		Type: event.EventMessage,
+		Content: &event.MessageEventContent{
+			MsgType: event.MsgNotice,
+			Body:    body,
+		},
+	}, replyTo
 }
 
 var invalidPollVote = &bridgev2.ConvertedMessagePart{
