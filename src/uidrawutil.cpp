@@ -9,7 +9,7 @@
 
 #include <cstring>
 
-#include "emojiwidthutil.h"
+#include "termutil.h"
 #include "log.h"
 #include "strutil.h"
 
@@ -23,14 +23,14 @@
 // as nchat's layout.
 extern "C" int wcwidth(wchar_t p_Wc)
 {
-  return EmojiWidthUtil::CharWidth(p_Wc);
+  return TermUtil::CharWidth(p_Wc);
 }
 #endif
 
 int UiDrawUtil::AddWStr(WINDOW* p_Win, int p_Y, int p_X, const std::wstring& p_Str, int p_MaxWidth)
 {
   wmove(p_Win, p_Y, p_X);
-  if (!EmojiWidthUtil::GetProfile().enabled)
+  if (!TermUtil::GetProfile().enabled)
   {
     std::wstring str = (p_MaxWidth >= 0) ? StrUtil::TrimWString(p_Str, p_MaxWidth) : p_Str;
     waddnwstr(p_Win, str.c_str(), str.size());
@@ -46,7 +46,7 @@ int UiDrawUtil::AddWStr(WINDOW* p_Win, int p_Y, int p_X, const std::wstring& p_S
   while (pos < p_Str.size())
   {
     const size_t end = StrUtil::GetClusterEnd(p_Str, pos);
-    const EmojiWidthUtil::Cluster cluster = EmojiWidthUtil::GetCluster(p_Str, pos, end);
+    const TermUtil::Cluster cluster = TermUtil::GetCluster(p_Str, pos, end);
     pos = end;
     if ((p_MaxWidth >= 0) && ((width + cluster.width) > p_MaxWidth)) break;
 
@@ -81,7 +81,7 @@ int UiDrawUtil::AddWStr(WINDOW* p_Win, int p_Y, int p_X, const std::wstring& p_S
 
 void UiDrawUtil::SelfCheck()
 {
-  if (!EmojiWidthUtil::GetProfile().enabled) return;
+  if (!TermUtil::GetProfile().enabled) return;
 
   // a heart with vs16 must take the probed width in curses
   WINDOW* pad = newpad(1, 8);
@@ -93,7 +93,7 @@ void UiDrawUtil::SelfCheck()
   if ((curx != expected) || (drawn != expected))
   {
     LOG_WARNING("emoji width self check failed (%d %d %d), disabled", curx, drawn, expected);
-    EmojiWidthUtil::Disable();
+    TermUtil::Disable();
   }
   else
   {

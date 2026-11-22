@@ -15,7 +15,7 @@
 
 #include "apputil.h"
 #include "emojilist.h"
-#include "emojiwidthutil.h"
+#include "termutil.h"
 #include "log.h"
 #include "messagecache.h"
 #include "timeutil.h"
@@ -55,7 +55,7 @@ void Ui::Init()
 
   setlocale(LC_ALL, "");
 #ifdef HAS_EMOJIWIDTH
-  EmojiWidthUtil::Probe(UiConfig::GetStr("emoji_width") != "off");
+  TermUtil::Probe(UiConfig::GetStr("emoji_width") != "off");
 #endif
   initscr();
   UiDrawUtil::SelfCheck();

@@ -1,4 +1,4 @@
-// emojiwidthutil.h
+// termutil.h
 //
 // Copyright (c) 2026 Kristofer Berggren
 // All rights reserved.
@@ -12,7 +12,7 @@
 // Terminal-specific display width of emoji. The terminal is probed at startup, and the
 // resulting profile decides both the widths (also given to ncurses through an own
 // wcwidth) and how character clusters are drawn.
-class EmojiWidthUtil
+class TermUtil
 {
 public:
   struct Profile
@@ -45,7 +45,6 @@ public:
   static int CharWidth(wchar_t p_Wc);
   static Cluster GetCluster(const std::wstring& p_Str, size_t p_Pos, size_t p_End);
   static int StringWidth(const std::wstring& p_Str);
-  static std::string ProfileStr();
 
   static const size_t s_MaxCellChars = 5; // ncurses CCHARW_MAX default
 };

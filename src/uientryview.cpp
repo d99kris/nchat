@@ -9,7 +9,7 @@
 
 #include <algorithm>
 
-#include "emojiwidthutil.h"
+#include "termutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uidrawutil.h"
@@ -65,7 +65,7 @@ void UiEntryView::Draw()
   wattroff(m_Win, attribute | colorPair);
 
   m_CursX = cx;
-  if (EmojiWidthUtil::GetProfile().enabled && (cy < (int)lines.size()))
+  if (TermUtil::GetProfile().enabled && (cy < (int)lines.size()))
   {
     // cursor column is the display width of the text before it
     std::wstring prefix = lines.at(cy).substr(0, cx);

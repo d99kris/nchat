@@ -1,5 +1,18 @@
 Base-Commit: 662ad1dc6900ffe1b1a2a6bc0fca01cba488d747
 Base-Branch: 
+diff --git a/connectionevents.go b/connectionevents.go
+index 126a0de..b668b00 100644
+--- a/connectionevents.go
++++ b/connectionevents.go
+@@ -160,7 +160,7 @@ func (cli *Client) handleConnectSuccess(ctx context.Context, node *waBinary.Node
+ 		cli.Log.Warnf("Received connect success without pairing, ignoring")
+ 		return
+ 	}
+-	cli.Log.Infof("Successfully authenticated")
++	cli.Log.Debugf("Successfully authenticated")
+ 	cli.LastSuccessfulConnect = time.Now()
+ 	cli.AutoReconnectErrors = 0
+ 	cli.isLoggedIn.Store(true)
 diff --git a/download.go b/download.go
 index 0777de8..4f31c30 100644
 --- a/download.go

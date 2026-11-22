@@ -22,7 +22,7 @@
 #include <unistd.h>
 
 #include "emojiutil.h"
-#include "emojiwidthutil.h"
+#include "termutil.h"
 #include "log.h"
 
 void StrUtil::DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
@@ -626,7 +626,7 @@ int StrUtil::NextCursorPos(const std::wstring& p_Str, int p_Pos)
   const int size = (int)p_Str.size();
   if (p_Pos >= size) return size;
 
-  if (EmojiWidthUtil::GetProfile().enabled) return (int)GetClusterEnd(p_Str, std::max(p_Pos, 0));
+  if (TermUtil::GetProfile().enabled) return (int)GetClusterEnd(p_Str, std::max(p_Pos, 0));
 
   int pos = std::min(p_Pos + 1, size);
   if ((pos < size) && (p_Str.at(pos) == (wchar_t)EMOJI_PAD))
@@ -640,7 +640,7 @@ int StrUtil::PrevCursorPos(const std::wstring& p_Str, int p_Pos)
 {
   if (p_Pos <= 0) return 0;
 
-  if (EmojiWidthUtil::GetProfile().enabled) return (int)GetClusterStart(p_Str, std::min(p_Pos, (int)p_Str.size()) - 1);
+  if (TermUtil::GetProfile().enabled) return (int)GetClusterStart(p_Str, std::min(p_Pos, (int)p_Str.size()) - 1);
 
   int pos = std::min(p_Pos, (int)p_Str.size()) - 1;
   if ((pos > 0) && (p_Str.at(pos) == (wchar_t)EMOJI_PAD))
@@ -656,7 +656,7 @@ int StrUtil::SnapCursorPos(const std::wstring& p_Str, int p_Pos)
 {
   if ((p_Pos <= 0) || (p_Pos >= (int)p_Str.size())) return std::max(0, std::min(p_Pos, (int)p_Str.size()));
 
-  if (EmojiWidthUtil::GetProfile().enabled) return (int)GetClusterStart(p_Str, p_Pos);
+  if (TermUtil::GetProfile().enabled) return (int)GetClusterStart(p_Str, p_Pos);
 
   return (p_Str.at(p_Pos) == (wchar_t)EMOJI_PAD) ? (p_Pos - 1) : p_Pos;
 }
@@ -671,7 +671,7 @@ std::wstring StrUtil::TrimWString(const std::wstring& p_Str, int p_Len)
   while (pos < p_Str.size())
   {
     const size_t end = GetClusterEnd(p_Str, pos);
-    width += EmojiWidthUtil::GetCluster(p_Str, pos, end).width;
+    width += TermUtil::GetCluster(p_Str, pos, end).width;
     if (width > p_Len) break;
 
     pos = end;
@@ -861,7 +861,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
         }
 
         // with emoji width enabled, a cluster's width is on its first char
-        const bool emojiWidth = EmojiWidthUtil::GetProfile().enabled;
+        const bool emojiWidth = TermUtil::GetProfile().enabled;
         size_t clusterEnd = 0;
         for (size_t i = 0; i < linePart.size(); ++i)
         {
@@ -872,7 +872,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
             if (i >= clusterEnd)
             {
               clusterEnd = GetClusterEnd(linePart, i);
-              char_width = EmojiWidthUtil::GetCluster(linePart, i, clusterEnd).width;
+              char_width = TermUtil::GetCluster(linePart, i, clusterEnd).width;
             }
             else
             {
@@ -952,7 +952,7 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
 
 int StrUtil::WStringWidth(const std::wstring& p_WStr)
 {
-  if (EmojiWidthUtil::GetProfile().enabled) return EmojiWidthUtil::StringWidth(p_WStr);
+  if (TermUtil::GetProfile().enabled) return TermUtil::StringWidth(p_WStr);
 
   int width = wcswidth(p_WStr.c_str(), p_WStr.size());
   return (width != -1) ? width : p_WStr.size();

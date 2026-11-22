@@ -160,7 +160,7 @@ func (cli *Client) handleConnectSuccess(ctx context.Context, node *waBinary.Node
 		cli.Log.Warnf("Received connect success without pairing, ignoring")
 		return
 	}
-	cli.Log.Infof("Successfully authenticated")
+	cli.Log.Debugf("Successfully authenticated")
 	cli.LastSuccessfulConnect = time.Now()
 	cli.AutoReconnectErrors = 0
 	cli.isLoggedIn.Store(true)

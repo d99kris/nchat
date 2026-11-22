@@ -54,8 +54,6 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/emojiutil.h
   src/emojiutil_map.h
   src/emojiutil_view.h
-  src/emojiwidthutil.cpp
-  src/emojiwidthutil.h
   src/fileutil.cpp
   src/fileutil.h
   src/setuputil.cpp
@@ -85,6 +83,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/strutil.h
   src/sysutil.cpp
   src/sysutil.h
+  src/termutil.cpp
+  src/termutil.h
   src/timeutil.cpp
   src/timeutil.h
 )

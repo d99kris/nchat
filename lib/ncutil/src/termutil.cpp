@@ -1,11 +1,11 @@
-// emojiwidthutil.cpp
+// termutil.cpp
 //
 // Copyright (c) 2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
-#include "emojiwidthutil.h"
+#include "termutil.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -22,11 +22,11 @@
 #include "log.h"
 #include "strutil.h"
 
-static EmojiWidthUtil::Profile s_Profile;
+static TermUtil::Profile s_Profile;
 
 static const wchar_t s_Vs16Bases[] =
 {
-#include "emojiwidthutil_vs16.inc"
+#include "termutil_vs16.inc"
 };
 
 static bool IsVs16Base(wchar_t p_Wc)
@@ -52,7 +52,7 @@ struct WidthRange
   wchar_t last;
 };
 
-#include "emojiwidthutil_table.inc"
+#include "termutil_table.inc"
 
 static bool InRanges(const WidthRange* p_Begin, const WidthRange* p_End, wchar_t p_Wc)
 {
@@ -109,7 +109,7 @@ static int LibcWidth(wchar_t p_Wc)
   return width;
 }
 
-int EmojiWidthUtil::CharWidth(wchar_t p_Wc)
+int TermUtil::CharWidth(wchar_t p_Wc)
 {
   if (!s_Profile.enabled) return LibcWidth(p_Wc);
 
@@ -125,7 +125,7 @@ int EmojiWidthUtil::CharWidth(wchar_t p_Wc)
   return width;
 }
 
-EmojiWidthUtil::Cluster EmojiWidthUtil::GetCluster(const std::wstring& p_Str, size_t p_Pos, size_t p_End)
+TermUtil::Cluster TermUtil::GetCluster(const std::wstring& p_Str, size_t p_Pos, size_t p_End)
 {
   Cluster cluster;
   cluster.chars = p_Str.substr(p_Pos, p_End - p_Pos);
@@ -213,7 +213,7 @@ EmojiWidthUtil::Cluster EmojiWidthUtil::GetCluster(const std::wstring& p_Str, si
   return cluster;
 }
 
-int EmojiWidthUtil::StringWidth(const std::wstring& p_Str)
+int TermUtil::StringWidth(const std::wstring& p_Str)
 {
   int width = 0;
   size_t pos = 0;
@@ -226,29 +226,19 @@ int EmojiWidthUtil::StringWidth(const std::wstring& p_Str)
   return width;
 }
 
-const EmojiWidthUtil::Profile& EmojiWidthUtil::GetProfile()
+const TermUtil::Profile& TermUtil::GetProfile()
 {
   return s_Profile;
 }
 
-void EmojiWidthUtil::Disable()
+void TermUtil::Disable()
 {
   s_Profile.enabled = false;
 }
 
-void EmojiWidthUtil::SetProfile(const Profile& p_Profile)
+void TermUtil::SetProfile(const Profile& p_Profile)
 {
   s_Profile = p_Profile;
-}
-
-std::string EmojiWidthUtil::ProfileStr()
-{
-  const Profile& p = s_Profile;
-  return "enabled=" + std::to_string(p.enabled) + " vs16=" + std::to_string(p.vs16Width) +
-         " clusters=" + std::to_string(p.clusters) + " flag=" + std::to_string(p.flagWidth) +
-         " keycapstrip=" + std::to_string(p.keycapStrip) + " vs16pad=" + std::to_string(p.vs16Pad) +
-         " strip=" + std::to_string(p.strip) + " flagpad=" + std::to_string(p.flagPad) +
-         " terminal='" + p.terminal + "'";
 }
 
 // Derives the profile from the probe: the cursor advance of a heart with VS16, a thumbs up
@@ -263,9 +253,9 @@ std::string EmojiWidthUtil::ProfileStr()
 // TERM is xterm-256color when its own terminfo is not installed (e.g. on macOS).
 // - TERM_PROGRAM is only used for logging: ssh does not forward it, and terminals
 // started from Terminal.app inherit it.
-EmojiWidthUtil::Profile EmojiWidthUtil::ProfileFromProbe(int p_Heart, int p_Thumb, int p_Flag, int p_Keycap,
-                                                         const std::string& p_XtVersion, const std::string& p_Term,
-                                                         const std::string& p_TermProgram, bool p_AlacrittyEnv)
+TermUtil::Profile TermUtil::ProfileFromProbe(int p_Heart, int p_Thumb, int p_Flag, int p_Keycap,
+                                             const std::string& p_XtVersion, const std::string& p_Term,
+                                             const std::string& p_TermProgram, bool p_AlacrittyEnv)
 {
   Profile profile;
   profile.enabled = true;
@@ -285,7 +275,7 @@ EmojiWidthUtil::Profile EmojiWidthUtil::ProfileFromProbe(int p_Heart, int p_Thum
 
 // Measures the terminal's cursor advance for a few samples (one round trip: all
 // samples and cursor position requests are written at once), before curses starts.
-void EmojiWidthUtil::Probe(bool p_Enabled)
+void TermUtil::Probe(bool p_Enabled)
 {
   s_Profile = Profile();
   if (!p_Enabled) return;
@@ -362,10 +352,11 @@ void EmojiWidthUtil::Probe(bool p_Enabled)
   std::string xtversion = std::regex_search(reply, match, xtRegex) ? match[1].str() : "";
   const char* termProgram = getenv("TERM_PROGRAM");
   s_Profile.terminal = !xtversion.empty() ? xtversion : ((termProgram != nullptr) ? termProgram : "");
+  LOG_INFO("term %s", !s_Profile.terminal.empty() ? s_Profile.terminal.c_str() : "(empty)");
 
   if (cols.size() != samples.size())
   {
-    LOG_WARNING("emoji width probe failed, got %d of %d replies", (int)cols.size(), (int)samples.size());
+    LOG_WARNING("emoji miss %d/%d", (int)cols.size(), (int)samples.size());
     return;
   }
 
@@ -375,7 +366,7 @@ void EmojiWidthUtil::Probe(bool p_Enabled)
   const int keycap = cols[3];
   if ((heart < 1) || (heart > 2) || (flag < 1) || (flag > 2))
   {
-    LOG_WARNING("emoji width probe unexpected %d %d %d %d", heart, thumb, flag, keycap);
+    LOG_WARNING("emoji fail %d%d%d%d", heart, thumb, flag, keycap);
     return;
   }
 
@@ -384,5 +375,7 @@ void EmojiWidthUtil::Probe(bool p_Enabled)
   s_Profile = ProfileFromProbe(heart, thumb, flag, keycap, xtversion, (term != nullptr) ? term : "",
                                (termProgram != nullptr) ? termProgram : "", alacrittyEnv);
 
-  LOG_INFO("emoji width probe %d %d %d %d: %s", heart, thumb, flag, keycap, ProfileStr().c_str());
+  // log the probe widths (heart, thumb, flag, keycap) and the pads, as the rest of the
+  // profile follows from the widths alone
+  LOG_INFO("emoji pass %d%d%d%d pad %d%d", heart, thumb, flag, keycap, s_Profile.vs16Pad, s_Profile.flagPad);
 }

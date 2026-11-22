@@ -14,7 +14,7 @@
 class UiDrawUtil
 {
 public:
-  // Draws p_Str at y, x, cluster by cluster as given by EmojiWidthUtil, up to p_MaxWidth
+  // Draws p_Str at y, x, cluster by cluster as given by TermUtil, up to p_MaxWidth
   // columns (-1 = no limit). Returns the width drawn.
   static int AddWStr(WINDOW* p_Win, int p_Y, int p_X, const std::wstring& p_Str, int p_MaxWidth = -1);
 

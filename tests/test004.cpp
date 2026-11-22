@@ -12,7 +12,7 @@
 
 #include <wchar.h>
 
-#include "emojiwidthutil.h"
+#include "termutil.h"
 #include "strutil.h"
 
 #include "unittest.h"
@@ -28,15 +28,15 @@ static const std::wstring s_Flag = L"\U0001F1F8\U0001F1EA";
 static const std::wstring s_Keycap = L"1️⃣";
 static const std::wstring s_TradeMark = L"™️";
 
-static EmojiWidthUtil::Cluster Cluster(const std::wstring& p_Str)
+static TermUtil::Cluster Cluster(const std::wstring& p_Str)
 {
-  return EmojiWidthUtil::GetCluster(p_Str, 0, StrUtil::GetClusterEnd(p_Str, 0));
+  return TermUtil::GetCluster(p_Str, 0, StrUtil::GetClusterEnd(p_Str, 0));
 }
 
 // profile measured on kitty, foot, tmux 3.8 (clusters, VS16 wide)
-static EmojiWidthUtil::Profile ClusterProfile()
+static TermUtil::Profile ClusterProfile()
 {
-  EmojiWidthUtil::Profile profile;
+  TermUtil::Profile profile;
   profile.enabled = true;
   profile.vs16Width = 2;
   profile.clusters = true;
@@ -46,9 +46,9 @@ static EmojiWidthUtil::Profile ClusterProfile()
 }
 
 // profile measured on Terminal.app (no clusters, VS16 narrow, wide glyphs)
-static EmojiWidthUtil::Profile AppleTerminalProfile()
+static TermUtil::Profile AppleTerminalProfile()
 {
-  EmojiWidthUtil::Profile profile;
+  TermUtil::Profile profile;
   profile.enabled = true;
   profile.vs16Width = 1;
   profile.clusters = false;
@@ -60,9 +60,9 @@ static EmojiWidthUtil::Profile AppleTerminalProfile()
 
 static void TestDisabled()
 {
-  EmojiWidthUtil::SetProfile(EmojiWidthUtil::Profile());
+  TermUtil::SetProfile(TermUtil::Profile());
   unittest::ExpectEqual(int, StrUtil::WStringWidth(s_Heart), wcswidth(s_Heart.c_str(), s_Heart.size()));
-  unittest::ExpectEqual(int, EmojiWidthUtil::CharWidth(0x2764), wcwidth(0x2764));
+  unittest::ExpectEqual(int, TermUtil::CharWidth(0x2764), wcwidth(0x2764));
   unittest::ExpectEqual(std::wstring, Cluster(s_Biker).chars, s_Biker);
   unittest::ExpectFalse(Cluster(s_Biker).cell);
   unittest::ExpectFalse(Cluster(s_Heart).pad);
@@ -70,13 +70,13 @@ static void TestDisabled()
 
 static void TestClusterProfile()
 {
-  EmojiWidthUtil::SetProfile(ClusterProfile());
+  TermUtil::SetProfile(ClusterProfile());
 
   // curses gets the same widths through wcwidth
-  unittest::ExpectEqual(int, EmojiWidthUtil::CharWidth(0x2764), 2);
-  unittest::ExpectEqual(int, EmojiWidthUtil::CharWidth(0x2122), 1); // text-first base
-  unittest::ExpectEqual(int, EmojiWidthUtil::CharWidth(0xFE0F), 0);
-  unittest::ExpectEqual(int, EmojiWidthUtil::CharWidth(0x200D), 0);
+  unittest::ExpectEqual(int, TermUtil::CharWidth(0x2764), 2);
+  unittest::ExpectEqual(int, TermUtil::CharWidth(0x2122), 1); // text-first base
+  unittest::ExpectEqual(int, TermUtil::CharWidth(0xFE0F), 0);
+  unittest::ExpectEqual(int, TermUtil::CharWidth(0x200D), 0);
 
   unittest::ExpectEqual(int, Cluster(s_Heart).width, 2);
   unittest::ExpectEqual(std::wstring, Cluster(s_HeartBare).chars, s_Heart); // always emoji
@@ -101,9 +101,9 @@ static void TestClusterProfile()
 
 static void TestAppleTerminalProfile()
 {
-  EmojiWidthUtil::SetProfile(AppleTerminalProfile());
+  TermUtil::SetProfile(AppleTerminalProfile());
 
-  unittest::ExpectEqual(int, EmojiWidthUtil::CharWidth(0x2764), 1);
+  unittest::ExpectEqual(int, TermUtil::CharWidth(0x2764), 1);
   unittest::ExpectTrue(Cluster(s_Heart).pad);
   unittest::ExpectEqual(int, Cluster(s_Heart).width, 2);
   unittest::ExpectEqual(std::wstring, Cluster(s_Thumb).chars, std::wstring(L"\U0001F44D")); // stripped
@@ -120,7 +120,7 @@ static void TestCursor()
   const std::wstring pad(1, (wchar_t)EMOJI_PAD);
 
   // disabled: by character, skipping entry emoji padding (as before)
-  EmojiWidthUtil::SetProfile(EmojiWidthUtil::Profile());
+  TermUtil::SetProfile(TermUtil::Profile());
   const std::wstring padded = L"a\U0001F600" + pad + L"b";
   unittest::ExpectEqual(int, StrUtil::NextCursorPos(padded, 1), 3);
   unittest::ExpectEqual(int, StrUtil::PrevCursorPos(padded, 3), 1);
@@ -128,7 +128,7 @@ static void TestCursor()
   unittest::ExpectEqual(int, StrUtil::NextCursorPos(L"a" + s_Heart, 1), 2); // inside the cluster
 
   // enabled: by character cluster
-  EmojiWidthUtil::SetProfile(ClusterProfile());
+  TermUtil::SetProfile(ClusterProfile());
   const std::wstring text = L"a" + s_Biker + s_Heart + pad + L"b";
   const int bikerEnd = 1 + (int)s_Biker.size();
   const int heartEnd = bikerEnd + (int)s_Heart.size() + 1;
@@ -174,9 +174,9 @@ static void TestProfileFromProbe()
 {
   for (const ProbeCase& c : s_ProbeCases)
   {
-    const EmojiWidthUtil::Profile profile =
-      EmojiWidthUtil::ProfileFromProbe(c.heart, c.thumb, c.flag, c.keycap, c.xtversion, c.term, c.termProgram,
-                                       c.alacrittyEnv);
+    const TermUtil::Profile profile =
+      TermUtil::ProfileFromProbe(c.heart, c.thumb, c.flag, c.keycap, c.xtversion, c.term, c.termProgram,
+                                 c.alacrittyEnv);
     const std::string name = c.name;
     unittest::ExpectEqual(std::string, name + (profile.clusters ? " clusters" : ""),
                           name + (c.clusters ? " clusters" : ""));
@@ -218,6 +218,6 @@ int main()
     rv = 1;
   }
 
-  EmojiWidthUtil::SetProfile(EmojiWidthUtil::Profile());
+  TermUtil::SetProfile(TermUtil::Profile());
   return rv;
 }

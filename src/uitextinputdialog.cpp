@@ -10,7 +10,7 @@
 #include <algorithm>
 
 #include "apputil.h"
-#include "emojiwidthutil.h"
+#include "termutil.h"
 #include "numutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
@@ -142,7 +142,7 @@ void UiTextInputDialog::Draw()
 
   UiDrawUtil::AddWStr(m_Win, 1, 1, wdisp, m_W - 2);
   int cursX = promptWidth + m_EntryPos - offset;
-  if (EmojiWidthUtil::GetProfile().enabled)
+  if (TermUtil::GetProfile().enabled)
   {
     // cursor column is the display width of the text before it
     std::wstring prefix = m_EntryStr.substr(offset, std::max(m_EntryPos - offset, 0));

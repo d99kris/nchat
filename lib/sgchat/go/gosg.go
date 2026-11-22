@@ -1398,7 +1398,7 @@ func (d *dbLogger) DoUpgrade(from, to int, message string, txn dbutil.TxnMode) {
 }
 
 func (d *dbLogger) PrepareUpgrade(current, compat, latest int) {
-	LOG_INFO(fmt.Sprintf("db prepare upgrade current=%d compat=%d latest=%d", current, compat, latest))
+	LOG_DEBUG(fmt.Sprintf("db ver %d compat %d latest %d", current, compat, latest))
 }
 
 func (d *dbLogger) Warn(msg string, args ...any) {
