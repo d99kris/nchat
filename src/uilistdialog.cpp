@@ -14,6 +14,7 @@
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uicontroller.h"
+#include "uidrawutil.h"
 #include "uikeyconfig.h"
 #include "uimodel.h"
 #include "uiview.h"
@@ -214,7 +215,7 @@ void UiListDialog::Draw()
       }
     }
 
-    mvwaddnwstr(m_Win, (i - offset), 0, wdisp.c_str(), std::min((int)wdisp.size(), m_W));
+    UiDrawUtil::AddWStr(m_Win, (i - offset), 0, wdisp, m_W);
 
     if (i == m_Index)
     {

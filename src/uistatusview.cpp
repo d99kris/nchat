@@ -11,6 +11,7 @@
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
+#include "uidrawutil.h"
 #include "uimodel.h"
 
 UiStatusView::UiStatusView(const UiViewParams& p_Params)
@@ -90,7 +91,7 @@ void UiStatusView::Draw()
     wstatus = StrUtil::TrimPadWString(wstatus, m_W);
   }
 
-  mvwaddnwstr(m_Win, 0, 0, wstatus.c_str(), wstatus.size());
+  UiDrawUtil::AddWStr(m_Win, 0, 0, wstatus, m_W);
 
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);

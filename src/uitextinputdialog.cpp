@@ -7,11 +7,15 @@
 
 #include "uitextinputdialog.h"
 
+#include <algorithm>
+
 #include "apputil.h"
+#include "emojiwidthutil.h"
 #include "numutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uicontroller.h"
+#include "uidrawutil.h"
 #include "uikeyconfig.h"
 #include "uimodel.h"
 #include "uiview.h"
@@ -136,9 +140,17 @@ void UiTextInputDialog::Draw()
     wdisp += m_EntryStr.substr(offset, maxEntryDisplay + 0);
   }
 
-  int w = std::min((int)wdisp.size(), m_W - 2);
-  mvwaddnwstr(m_Win, 1, 1, wdisp.c_str(), w);
-  wmove(m_Win, 1, promptWidth + m_EntryPos - offset);
+  UiDrawUtil::AddWStr(m_Win, 1, 1, wdisp, m_W - 2);
+  int cursX = promptWidth + m_EntryPos - offset;
+  if (EmojiWidthUtil::GetProfile().enabled)
+  {
+    // cursor column is the display width of the text before it
+    std::wstring prefix = m_EntryStr.substr(offset, std::max(m_EntryPos - offset, 0));
+    prefix.erase(std::remove(prefix.begin(), prefix.end(), EMOJI_PAD), prefix.end());
+    cursX = promptWidth + StrUtil::WStringWidth(prefix);
+  }
+
+  wmove(m_Win, 1, cursX);
 
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);
@@ -159,41 +171,27 @@ void UiTextInputDialog::EntryKeyHandler(wint_t p_Key)
 
   if (p_Key == keyLeft)
   {
-    entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
-    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-    {
-      entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
-    }
+    entryPos = StrUtil::PrevCursorPos(entryStr, entryPos);
   }
   else if (p_Key == keyRight)
   {
-    entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
-    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-    {
-      entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
-    }
+    entryPos = StrUtil::NextCursorPos(entryStr, entryPos);
   }
   else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
   {
     if (entryPos > 0)
     {
-      bool wasPad = (entryStr.at(entryPos - 1) == (wchar_t)EMOJI_PAD);
-      entryStr.erase(--entryPos, 1);
-      if (wasPad)
-      {
-        entryStr.erase(--entryPos, 1);
-      }
+      const int prevPos = StrUtil::PrevCursorPos(entryStr, entryPos);
+      entryStr.erase(prevPos, entryPos - prevPos);
+      entryPos = prevPos;
     }
   }
   else if (p_Key == keyDelete)
   {
     if (entryPos < (int)entryStr.size())
     {
-      entryStr.erase(entryPos, 1);
-      if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-      {
-        entryStr.erase(entryPos, 1);
-      }
+      const int nextPos = StrUtil::NextCursorPos(entryStr, entryPos);
+      entryStr.erase(entryPos, nextPos - entryPos);
     }
   }
   else if (StrUtil::IsValidTextKey(p_Key))

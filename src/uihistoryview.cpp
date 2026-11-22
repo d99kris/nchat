@@ -1,6 +1,6 @@
 // uihistoryview.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -16,6 +16,7 @@
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
+#include "uidrawutil.h"
 #include "uimodel.h"
 
 UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
@@ -349,7 +350,7 @@ void UiHistoryView::Draw()
       }
 
       const std::wstring wdisp = isReaction ? *wline : StrUtil::TrimPadWString(*wline, m_PaddedW);
-      mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+      UiDrawUtil::AddWStr(m_PaddedWin, y, 0, wdisp, m_PaddedW);
 
       if (isAttachment)
       {
@@ -439,7 +440,7 @@ void UiHistoryView::Draw()
     }
 
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
-    mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+    UiDrawUtil::AddWStr(m_PaddedWin, y, 0, wdisp, m_PaddedW);
 
     wattroff(m_PaddedWin, attributeName | colorPairName);
 

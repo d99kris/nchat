@@ -283,11 +283,7 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
 
           stepsBack = std::min(stepsBack, width);
           entryPos = NumUtil::Bound(0, entryPos - stepsBack, (int)entryStr.size());
-
-          if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-          {
-            entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
-          }
+          entryPos = StrUtil::SnapCursorPos(entryStr, entryPos);
         }
         else
         {
@@ -336,11 +332,7 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
 
         stepsForward = std::min(stepsForward, width);
         entryPos = NumUtil::Bound(0, entryPos + stepsForward, (int)entryStr.size());
-
-        if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-        {
-          entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
-        }
+        entryPos = StrUtil::SnapCursorPos(entryStr, entryPos);
       }
     }
 
@@ -348,30 +340,19 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   }
   else if (p_Key == keyLeft)
   {
-    entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
-    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-    {
-      entryPos = NumUtil::Bound(0, entryPos - 1, (int)entryStr.size());
-    }
+    entryPos = StrUtil::PrevCursorPos(entryStr, entryPos);
   }
   else if (p_Key == keyRight)
   {
-    entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
-    if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-    {
-      entryPos = NumUtil::Bound(0, entryPos + 1, (int)entryStr.size());
-    }
+    entryPos = StrUtil::NextCursorPos(entryStr, entryPos);
   }
   else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
   {
     if (entryPos > 0)
     {
-      bool wasPad = (entryStr.at(entryPos - 1) == (wchar_t)EMOJI_PAD);
-      entryStr.erase(--entryPos, 1);
-      if (wasPad)
-      {
-        entryStr.erase(--entryPos, 1);
-      }
+      const int prevPos = StrUtil::PrevCursorPos(entryStr, entryPos);
+      entryStr.erase(prevPos, entryPos - prevPos);
+      entryPos = prevPos;
       SetTyping(profileId, chatId, true);
     }
   }
@@ -379,11 +360,8 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   {
     if (entryPos < (int)entryStr.size())
     {
-      entryStr.erase(entryPos, 1);
-      if ((entryPos < (int)entryStr.size()) && (entryStr.at(entryPos) == (wchar_t)EMOJI_PAD))
-      {
-        entryStr.erase(entryPos, 1);
-      }
+      const int nextPos = StrUtil::NextCursorPos(entryStr, entryPos);
+      entryStr.erase(entryPos, nextPos - entryPos);
       SetTyping(profileId, chatId, true);
     }
   }

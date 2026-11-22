@@ -39,6 +39,7 @@ void UiConfig::Init()
     { "downloadable_indicator", "+" },
     { "edited_indicator", "\xe2\x9c\x8e" },
     { "emoji_enabled", "1" },
+    { "emoji_width", "auto" },
     { "entry_height", "4" },
     { "failed_indicator", "\xe2\x9c\x97" },
     { "file_picker_command", "" },

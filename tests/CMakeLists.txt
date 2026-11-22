@@ -33,6 +33,7 @@ endmacro()
 # Unit tests
 add_unit_test(test001)
 add_unit_test(test002)
+add_unit_test(test004)
 
 # Unit tests for telegram
 if(HAS_TELEGRAM)

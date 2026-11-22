@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include "emojiutil.h"
+#include "emojiwidthutil.h"
 #include "log.h"
 
 void StrUtil::DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
@@ -574,6 +575,7 @@ size_t StrUtil::GetClusterEnd(const std::wstring& p_Str, size_t p_Pos)
     const wchar_t wc = p_Str[pos];
     const wchar_t prev = p_Str[pos - 1];
     const bool isExtend =
+      (wc == EMOJI_PAD) || // nchat entry padding after an inserted emoji
       (prev == 0x200D) || // any code point following a zero width joiner
       (wc == 0x200D) || // zero width joiner
       ((wc >= 0xFE00) && (wc <= 0xFE0F)) || // variation selectors
@@ -600,6 +602,65 @@ size_t StrUtil::GetClusterEnd(const std::wstring& p_Str, size_t p_Pos)
   return pos;
 }
 
+// Returns the start of the character cluster containing p_Pos.
+size_t StrUtil::GetClusterStart(const std::wstring& p_Str, size_t p_Pos)
+{
+  if (p_Pos >= p_Str.size()) return p_Str.size();
+
+  const size_t lineStart = (p_Pos > 0) ? p_Str.rfind(L'\n', p_Pos - 1) : std::wstring::npos;
+  size_t pos = (lineStart != std::wstring::npos) ? (lineStart + 1) : 0;
+  while (true)
+  {
+    const size_t end = GetClusterEnd(p_Str, pos);
+    if (end > p_Pos) return pos;
+
+    pos = end;
+  }
+}
+
+// Cursor movement in text entry. With emoji width handling enabled the cursor moves by
+// character clusters (base, variation selector, modifiers, entry emoji padding),
+// otherwise by character, skipping entry emoji padding.
+int StrUtil::NextCursorPos(const std::wstring& p_Str, int p_Pos)
+{
+  const int size = (int)p_Str.size();
+  if (p_Pos >= size) return size;
+
+  if (EmojiWidthUtil::GetProfile().enabled) return (int)GetClusterEnd(p_Str, std::max(p_Pos, 0));
+
+  int pos = std::min(p_Pos + 1, size);
+  if ((pos < size) && (p_Str.at(pos) == (wchar_t)EMOJI_PAD))
+  {
+    pos = std::min(pos + 1, size);
+  }
+  return pos;
+}
+
+int StrUtil::PrevCursorPos(const std::wstring& p_Str, int p_Pos)
+{
+  if (p_Pos <= 0) return 0;
+
+  if (EmojiWidthUtil::GetProfile().enabled) return (int)GetClusterStart(p_Str, std::min(p_Pos, (int)p_Str.size()) - 1);
+
+  int pos = std::min(p_Pos, (int)p_Str.size()) - 1;
+  if ((pos > 0) && (p_Str.at(pos) == (wchar_t)EMOJI_PAD))
+  {
+    pos = pos - 1;
+  }
+  return pos;
+}
+
+// Moves a cursor position that is inside a character cluster (or on entry emoji
+// padding) to its start.
+int StrUtil::SnapCursorPos(const std::wstring& p_Str, int p_Pos)
+{
+  if ((p_Pos <= 0) || (p_Pos >= (int)p_Str.size())) return std::max(0, std::min(p_Pos, (int)p_Str.size()));
+
+  if (EmojiWidthUtil::GetProfile().enabled) return (int)GetClusterStart(p_Str, p_Pos);
+
+  return (p_Str.at(p_Pos) == (wchar_t)EMOJI_PAD) ? (p_Pos - 1) : p_Pos;
+}
+
 // Returns the longest prefix of p_Str with a width of at most p_Len, never
 // splitting a character cluster.
 std::wstring StrUtil::TrimWString(const std::wstring& p_Str, int p_Len)
@@ -610,8 +671,7 @@ std::wstring StrUtil::TrimWString(const std::wstring& p_Str, int p_Len)
   while (pos < p_Str.size())
   {
     const size_t end = GetClusterEnd(p_Str, pos);
-    const int clusterWidth = wcswidth(p_Str.c_str() + pos, end - pos);
-    width += (clusterWidth != -1) ? clusterWidth : (end - pos);
+    width += EmojiWidthUtil::GetCluster(p_Str, pos, end).width;
     if (width > p_Len) break;
 
     pos = end;
@@ -800,10 +860,25 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
           linePart = quotePrefix + linePart;
         }
 
+        // with emoji width enabled, a cluster's width is on its first char
+        const bool emojiWidth = EmojiWidthUtil::GetProfile().enabled;
+        size_t clusterEnd = 0;
         for (size_t i = 0; i < linePart.size(); ++i)
         {
           wchar_t wc = linePart[i];
           unsigned char_width = std::max(wcwidth(wc), 1);
+          if (emojiWidth)
+          {
+            if (i >= clusterEnd)
+            {
+              clusterEnd = GetClusterEnd(linePart, i);
+              char_width = EmojiWidthUtil::GetCluster(linePart, i, clusterEnd).width;
+            }
+            else
+            {
+              char_width = 0;
+            }
+          }
 
           // Track the most recent space for wrapping, ignoring spaces in the quote prefix
           if ((wc == L' ') && (i >= quotePrefixLen))
@@ -824,7 +899,8 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
             {
               // No space found, hard wrap after current character (single width char) or
               // before it (double width char). At least one char, to ensure progress.
-              const size_t splitPos = std::max<size_t>(((char_width == 1) ? (i + 1) : i), 1);
+              const size_t splitPos = std::max<size_t>(((char_width == 1) ? (emojiWidth ? clusterEnd : (i + 1)) : i),
+                                                       1);
               lines.push_back(linePart.substr(0, splitPos));
               linePart = linePart.substr(splitPos);
             }
@@ -876,6 +952,8 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
 
 int StrUtil::WStringWidth(const std::wstring& p_WStr)
 {
+  if (EmojiWidthUtil::GetProfile().enabled) return EmojiWidthUtil::StringWidth(p_WStr);
+
   int width = wcswidth(p_WStr.c_str(), p_WStr.size());
   return (width != -1) ? width : p_WStr.size();
 }

@@ -1,6 +1,6 @@
 // uitopview.cpp
 //
-// Copyright (c) 2019-2024 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -13,6 +13,7 @@
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
+#include "uidrawutil.h"
 #include "uimodel.h"
 
 UiTopView::UiTopView(const UiViewParams& p_Params)
@@ -73,7 +74,7 @@ void UiTopView::Draw()
   int topStrRightWidth = StrUtil::WStringWidth(topWStrRight);
 
   std::wstring topWStr = topWStrLeft + std::wstring(m_W - topStrLeftWidth - topStrRightWidth, ' ') + topWStrRight;
-  mvwaddnwstr(m_Win, 0, 0, topWStr.c_str(), topWStr.size());
+  UiDrawUtil::AddWStr(m_Win, 0, 0, topWStr, m_W);
 
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);

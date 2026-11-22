@@ -51,6 +51,10 @@ public:
   static std::wstring ToWString(const std::string& p_Str);
   static void Trim(std::string& p_Str);
   static size_t GetClusterEnd(const std::wstring& p_Str, size_t p_Pos);
+  static size_t GetClusterStart(const std::wstring& p_Str, size_t p_Pos);
+  static int NextCursorPos(const std::wstring& p_Str, int p_Pos);
+  static int PrevCursorPos(const std::wstring& p_Str, int p_Pos);
+  static int SnapCursorPos(const std::wstring& p_Str, int p_Pos);
   static std::wstring TrimWString(const std::wstring& p_Str, int p_Len);
   static std::wstring TrimPadWString(const std::wstring& p_Str, int p_Len);
   static std::vector<std::wstring> WordWrap(std::wstring p_Text, unsigned p_LineLength, bool p_ProcessFormatFlowed,

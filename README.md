@@ -532,6 +532,7 @@ This configuration file holds general user interface settings. Default content:
     downloadable_indicator=+
     edited_indicator=✎
     emoji_enabled=1
+    emoji_width=auto
     entry_height=4
     failed_indicator=✗
     file_picker_command=
@@ -713,6 +714,14 @@ been edited.
 ### emoji_enabled
 
 Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
+
+### emoji_width
+
+Specifies how the display width of emojis is determined. With `auto` nchat
+measures at startup how the terminal draws a few emoji sequences, and lays out
+emojis accordingly (for example emojis with variation selector, skin tones and
+flags). With `off` the system's character widths are used, which may misalign
+some emojis on some terminals.
 
 ### entry_height
 

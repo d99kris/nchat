@@ -10,6 +10,7 @@
 #include "strutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
+#include "uidrawutil.h"
 #include "uimodel.h"
 
 UiListView::UiListView(const UiViewParams& p_Params)
@@ -110,13 +111,13 @@ void UiListView::Draw()
         wattron(m_PaddedWin, colorPairUnread);
       }
 
-      mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
+      UiDrawUtil::AddWStr(m_PaddedWin, y, 0, wname);
 
       if (unreads[i])
       {
         static const std::string unreadIndicator = " " + UiConfig::GetStr("unread_indicator");
         static const std::wstring wunread = StrUtil::ToWString(unreadIndicator);
-        mvwaddnwstr(m_PaddedWin, y, (m_PaddedW - StrUtil::WStringWidth(wunread)), wunread.c_str(), wunread.size());
+        UiDrawUtil::AddWStr(m_PaddedWin, y, (m_PaddedW - StrUtil::WStringWidth(wunread)), wunread);
       }
 
       if (useUnreadColor)

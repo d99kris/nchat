@@ -13,6 +13,7 @@
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uicontroller.h"
+#include "uidrawutil.h"
 #include "uikeyconfig.h"
 #include "uimodel.h"
 #include "uiview.h"
@@ -120,9 +121,9 @@ void UiMessageDialog::Draw()
   for (int i = 0; i < std::min(m_H - 1, (int)wlines.size()); ++i)
   {
     const std::wstring& wdisp = wlines.at(i);
-    int w = std::min((int)wdisp.size(), m_W);
+    int w = std::min(StrUtil::WStringWidth(wdisp), m_W);
     int x = std::max(0, ((m_W - w) / 2));
-    mvwaddnwstr(m_Win, i + 1, x, wdisp.c_str(), w);
+    UiDrawUtil::AddWStr(m_Win, i + 1, x, wdisp, m_W);
   }
 
   wattroff(m_Win, attribute | colorPair);

@@ -215,6 +215,16 @@ message(STATUS "Shared Libs: ${HAS_SHARED_LIBS}")
 option(HAS_ASAN "ASAN" OFF)
 message(STATUS "ASAN: ${HAS_ASAN}")
 
+# Optional component - Emoji width handling (own wcwidth for ncurses). Off by default
+# on FreeBSD, where wcwidth is an inline function, so ncurses cannot use nchat's own.
+if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(HAS_EMOJIWIDTH_DEFAULT OFF)
+else()
+  set(HAS_EMOJIWIDTH_DEFAULT ON)
+endif()
+option(HAS_EMOJIWIDTH "Emoji Width" ${HAS_EMOJIWIDTH_DEFAULT})
+message(STATUS "Emoji Width: ${HAS_EMOJIWIDTH}")
+
 # Optional component - Dummy Protocol
 option(HAS_DUMMY "Dummy" ON)
 message(STATUS "Dummy: ${HAS_DUMMY}")
@@ -451,6 +461,8 @@ add_executable(nchat
   src/uicontroller.h
   src/uidialog.cpp
   src/uidialog.h
+  src/uidrawutil.cpp
+  src/uidrawutil.h
   src/uiemojilistdialog.cpp
   src/uiemojilistdialog.h
   src/uientryview.cpp
@@ -546,6 +558,22 @@ else()
   endif()
   include_directories(${CURSES_INCLUDE_DIR})
   target_compile_options(nchat PUBLIC ${NCURSES_CFLAGS})
+  if (HAS_EMOJIWIDTH AND ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # static ncurses on macOS, so that it uses nchat's own wcwidth (see uidrawutil.cpp),
+    # as dylib calls cannot be interposed; on Linux the shared library's wcwidth calls
+    # are interposed instead. Dylibs with a static sibling are replaced by it.
+    set(CURSES_STATIC_LIBRARIES "")
+    foreach(CURSES_LIB ${CURSES_LIBRARIES})
+      string(REGEX REPLACE "(\\.[0-9]+)*\\.dylib$" ".a" CURSES_LIB_STATIC "${CURSES_LIB}")
+      if ((NOT "${CURSES_LIB_STATIC}" STREQUAL "${CURSES_LIB}") AND EXISTS "${CURSES_LIB_STATIC}")
+        list(APPEND CURSES_STATIC_LIBRARIES "${CURSES_LIB_STATIC}")
+      else()
+        list(APPEND CURSES_STATIC_LIBRARIES "${CURSES_LIB}")
+      endif()
+    endforeach()
+    set(CURSES_LIBRARIES ${CURSES_STATIC_LIBRARIES})
+    message(STATUS "Ncurses libraries: ${CURSES_LIBRARIES}")
+  endif()
 endif()
 
 # Linking
@@ -591,6 +619,10 @@ endif()
 
 if(HAS_DYNAMICLOAD)
   target_compile_definitions(nchat PRIVATE HAS_DYNAMICLOAD="${HAS_DYNAMICLOAD}")
+endif()
+
+if(HAS_EMOJIWIDTH)
+  target_compile_definitions(nchat PRIVATE HAS_EMOJIWIDTH="${HAS_EMOJIWIDTH}")
 endif()
 
 if(HAS_COREDUMP)

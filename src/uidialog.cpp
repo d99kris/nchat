@@ -1,6 +1,6 @@
 // uidialog.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -9,6 +9,7 @@
 
 #include "strutil.h"
 #include "uicolorconfig.h"
+#include "uidrawutil.h"
 #include "uimodel.h"
 #include "uiview.h"
 
@@ -73,19 +74,15 @@ void UiDialog::DrawBorder()
   wborder(m_BorderWin, 0, 0, 0, 0, 0, 0, 0, 0);
   const int maxTextWidth = m_W - 2;
 
-  std::string title = " " + m_Title.substr(0, maxTextWidth) + " ";
-  std::wstring wtitle = StrUtil::ToWString(title);
-  int titlex = std::max(0, (m_W - (int)wtitle.size()) / 2) + 2;
-  int titlew = std::min((int)wtitle.size(), m_W);
-  mvwaddnwstr(m_BorderWin, 0, titlex, wtitle.c_str(), titlew);
+  std::wstring wtitle = L" " + StrUtil::TrimWString(StrUtil::ToWString(m_Title), maxTextWidth) + L" ";
+  int titlex = std::max(0, (m_W - StrUtil::WStringWidth(wtitle)) / 2) + 2;
+  UiDrawUtil::AddWStr(m_BorderWin, 0, titlex, wtitle, m_W);
 
   if (!m_Footer.empty())
   {
-    std::string footer = " " + m_Footer.substr(0, maxTextWidth) + " ";
-    std::wstring wfooter = StrUtil::ToWString(footer);
-    int footerx = std::max(0, (m_W - (int)wfooter.size()) / 2) + 2;
-    int footerw = std::min((int)wfooter.size(), m_W);
-    mvwaddnwstr(m_BorderWin, m_H + 1, footerx, wfooter.c_str(), footerw);
+    std::wstring wfooter = L" " + StrUtil::TrimWString(StrUtil::ToWString(m_Footer), maxTextWidth) + L" ";
+    int footerx = std::max(0, (m_W - StrUtil::WStringWidth(wfooter)) / 2) + 2;
+    UiDrawUtil::AddWStr(m_BorderWin, m_H + 1, footerx, wfooter, m_W);
   }
 
   wattroff(m_BorderWin, attribute | colorPair);

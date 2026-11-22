@@ -1,6 +1,6 @@
 // uientryview.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -9,8 +9,10 @@
 
 #include <algorithm>
 
+#include "emojiwidthutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
+#include "uidrawutil.h"
 #include "uimodel.h"
 
 UiEntryView::UiEntryView(const UiViewParams& p_Params)
@@ -56,13 +58,21 @@ void UiEntryView::Draw()
     {
       line = lines.at(i + yoffs).c_str();
       line.erase(std::remove(line.begin(), line.end(), EMOJI_PAD), line.end());
-      mvwaddwstr(m_Win, i, 0, line.c_str());
+      UiDrawUtil::AddWStr(m_Win, i, 0, line);
     }
   }
 
   wattroff(m_Win, attribute | colorPair);
 
   m_CursX = cx;
+  if (EmojiWidthUtil::GetProfile().enabled && (cy < (int)lines.size()))
+  {
+    // cursor column is the display width of the text before it
+    std::wstring prefix = lines.at(cy).substr(0, cx);
+    prefix.erase(std::remove(prefix.begin(), prefix.end(), EMOJI_PAD), prefix.end());
+    m_CursX = StrUtil::WStringWidth(prefix);
+  }
+
   m_CursY = (cy - yoffs);
 
   wmove(m_Win, m_CursY, m_CursX);

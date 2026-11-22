@@ -54,6 +54,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/emojiutil.h
   src/emojiutil_map.h
   src/emojiutil_view.h
+  src/emojiwidthutil.cpp
+  src/emojiwidthutil.h
   src/fileutil.cpp
   src/fileutil.h
   src/setuputil.cpp
@@ -203,4 +205,4 @@ set_target_properties(ncutil PROPERTIES COMPILE_FLAGS
                        -Wcast-align")
 
 # Linking
-target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} ${SQLite3_LIBRARIES} clip qrcodegen stb ${WORDEXP_LIBRARY} Threads::Threads)
+target_link_libraries(ncutil PUBLIC ${MAGIC_LIBRARY} ${SQLite3_LIBRARIES} clip qrcodegen stb ${WORDEXP_LIBRARY} Threads::Threads ${CMAKE_DL_LIBS})

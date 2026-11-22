@@ -15,12 +15,14 @@
 
 #include "apputil.h"
 #include "emojilist.h"
+#include "emojiwidthutil.h"
 #include "log.h"
 #include "messagecache.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uicontroller.h"
+#include "uidrawutil.h"
 #include "uikeyconfig.h"
 #include "uikeydump.h"
 #include "uimodel.h"
@@ -52,7 +54,11 @@ void Ui::Init()
   printf("\033[?1004h"); // enable terminal focus in/out event
 
   setlocale(LC_ALL, "");
+#ifdef HAS_EMOJIWIDTH
+  EmojiWidthUtil::Probe(UiConfig::GetStr("emoji_width") != "off");
+#endif
   initscr();
+  UiDrawUtil::SelfCheck();
   noecho();
   cbreak();
   UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
