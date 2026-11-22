@@ -1,0 +1,9 @@
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the feature, and the problem or use case it would solve.
+    validations:
+      required: true

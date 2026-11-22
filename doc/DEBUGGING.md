@@ -1,10 +1,25 @@
 Debugging
 =========
-If any issues are observed, try running nchat with verbose logging
+When reporting a bug, please attach the regular log file:
+
+    ~/.config/nchat/log.txt
+
+The log is rotated when nchat starts, so if nchat has been restarted since
+the problem occurred, attach `~/.config/nchat/log.txt.1` instead.
+
+The regular log contains no message content, but may include chat ids (which
+for WhatsApp / Signal can contain phone numbers), so skim it and redact
+anything you don't want to share publicly.
+
+Verbose Logging
+---------------
+If requested by a maintainer, reproduce the issue with verbose logging:
 
     nchat --verbose
 
-and provide a copy of `~/.config/nchat/log.txt` when reporting a bug.
+and provide a copy of `~/.config/nchat/log.txt`. Verbose logs contain much
+more detail (including message content), so review them carefully before
+sharing, or share them privately with a maintainer.
 
 If nchat **crashes** it's very useful to obtain a core dump and extract
 information from it (such as the callstacks). See details below.

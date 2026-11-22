@@ -1,0 +1,19 @@
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (optional)
+      description: |
+        If your question is about something not working as expected, drag and
+        drop your regular (non-verbose) log `~/.config/nchat/log.txt` here.
+        Skim it first and redact anything you don't want public.
+    validations:
+      required: false
