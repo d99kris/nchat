@@ -1,6 +1,6 @@
 // uistatusview.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -52,7 +52,7 @@ void UiStatusView::Draw()
 
     std::string chatStatus = m_Model->GetChatStatusLocked(currentChat.first, currentChat.second);
     wstatus = std::wstring(statusVPad, ' ') +
-      StrUtil::ToWString(name).substr(0, m_W / 2) +
+      StrUtil::TrimWString(StrUtil::ToWString(name), m_W / 2) +
       StrUtil::ToWString(profileDisplayName) +
       StrUtil::ToWString(chatStatus);
 

@@ -1,6 +1,6 @@
 // uilistview.cpp
 //
-// Copyright (c) 2019-2025 Kristofer Berggren
+// Copyright (c) 2019-2026 Kristofer Berggren
 // All rights reserved.
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
@@ -100,8 +100,7 @@ void UiListView::Draw()
         name = StrUtil::Textize(name);
       }
 
-      std::wstring wname = StrUtil::ToWString(name).substr(0, m_PaddedW);
-      wname = StrUtil::TrimPadWString(wname, m_PaddedW);
+      std::wstring wname = StrUtil::TrimPadWString(StrUtil::ToWString(name), m_PaddedW);
 
       // selected color takes precedence over unread color for the highlighted row
       const bool useUnreadColor = unreads[i] && !((i == index) && hasColorSelected);

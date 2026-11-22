@@ -1,4 +1,4 @@
-// test001.cpp - word wrap and quote prefix handling
+// test001.cpp - word wrap, quote prefix and trim/pad handling
 //
 // Copyright (c) 2026 Kristofer Berggren
 // All rights reserved.
@@ -142,6 +142,34 @@ static void TestWordWrapWide()
                                           false, false, true, 2), wideQuoted);
 }
 
+static void TestClusters()
+{
+  // emoji sequences are kept whole: base + variation selector, skin tone,
+  // zero width joiner sequence, keycap and flag (regional indicator pair)
+  const std::wstring heart = L"\u2764\uFE0F";
+  const std::wstring biker = L"\U0001F6B4\U0001F3FF\u200D\u2642\uFE0F";
+  const std::wstring keycap = L"1\uFE0F\u20E3";
+  const std::wstring flag = L"\U0001F1F8\U0001F1EA";
+  unittest::ExpectEqual(size_t, StrUtil::GetClusterEnd(heart + L"x", 0), heart.size());
+  unittest::ExpectEqual(size_t, StrUtil::GetClusterEnd(biker + L"x", 0), biker.size());
+  unittest::ExpectEqual(size_t, StrUtil::GetClusterEnd(keycap + L"x", 0), keycap.size());
+  unittest::ExpectEqual(size_t, StrUtil::GetClusterEnd(flag + flag, 0), flag.size());
+  unittest::ExpectEqual(size_t, StrUtil::GetClusterEnd(L"ab", 0), (size_t)1);
+  unittest::ExpectEqual(size_t, StrUtil::GetClusterEnd(L"ab", 2), (size_t)2);
+
+  // trimming never leaves a base character without its variation selector
+  const int heartWidth = StrUtil::WStringWidth(heart);
+  unittest::ExpectEqual(std::wstring, StrUtil::TrimWString(L"Bob" + heart, 3 + heartWidth), L"Bob" + heart);
+  unittest::ExpectEqual(std::wstring, StrUtil::TrimWString(L"Bob" + heart, 3), L"Bob");
+  unittest::ExpectEqual(std::wstring, StrUtil::TrimWString(biker + L" Bike", 1), L"");
+
+  // trim/pad always returns the requested width
+  unittest::ExpectEqual(std::wstring, StrUtil::TrimPadWString(L"Bob", 5), L"Bob  ");
+  unittest::ExpectEqual(std::wstring, StrUtil::TrimPadWString(L"Bob" + heart, 3), L"Bob");
+  unittest::ExpectEqual(int, StrUtil::WStringWidth(StrUtil::TrimPadWString(biker + L" Bike Group", 6)), 6);
+  unittest::ExpectEqual(int, StrUtil::WStringWidth(StrUtil::TrimPadWString(L"\u4F60\u597D", 3)), 3);
+}
+
 int main()
 {
   int rv = 0;
@@ -159,6 +187,7 @@ int main()
     if (wcwidth(L'你') == 2)
     {
       TestWordWrapWide();
+      TestClusters();
     }
     else
     {

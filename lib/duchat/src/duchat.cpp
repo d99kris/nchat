@@ -268,6 +268,10 @@ void DuChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
           { "Emoji 🌍",
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃. "
             "📃📃📃📃📃 📃📃📃📃📃. 📃📃📃📃📃 📃📃📃📃📃." },
+          { "♥️♾️", "two emojis with variation selector-16" },
+          { "Plain Name", "no emoji, drawn right after the row above" },
+          { "Bob❤️", "one emoji with variation selector-16" },
+          { "🚴🏿‍♂️ Bike Group", "zwj sequence with skin tone modifier" },
           { "Emoji ❤️",
             "👍😊😘😄😅😔😂🎉🙂❤💪🙏🔔🤗👌😮🤔😱👼😍😻😢😬😋🍺😁😛🤞🤣😴😎🍻🖤😇"
             "🤓😝😜😓🪥🎂🥣🎄🥶🌍💚🥪⛈📘🚙💼👏🔐😰🥟😳🍔🎧🗾🍋📝👱🛟😆🐍💬☎📞❌ "

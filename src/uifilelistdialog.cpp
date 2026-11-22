@@ -96,7 +96,7 @@ void UiFileListDialog::UpdateList()
   for (auto& dirEntry : m_CurrentDirEntrys)
   {
     std::wstring name = StrUtil::ToWString(dirEntry.name);
-    name = StrUtil::TrimPadWString(name.substr(0, maxNameLen), maxNameLen);
+    name = StrUtil::TrimPadWString(name, maxNameLen);
 
     // add 9 chars for dir / filesize
     if (dirEntry.IsDir())

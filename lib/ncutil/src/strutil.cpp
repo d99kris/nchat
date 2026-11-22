@@ -556,22 +556,78 @@ void StrUtil::Trim(std::string& p_Str)
   }
 }
 
+// Returns the end of the character cluster starting at p_Pos, i.e. the base character
+// followed by any code points modifying or joined to it, which must not be separated.
+// This is a simplified subset of Unicode grapheme cluster rules (UAX #29), covering
+// combining marks, variation selectors, emoji modifiers, keycaps, tags, zero width
+// joiner sequences and regional indicator (flag) pairs.
+size_t StrUtil::GetClusterEnd(const std::wstring& p_Str, size_t p_Pos)
+{
+  const size_t size = p_Str.size();
+  if (p_Pos >= size) return size;
+
+  auto isRegionalIndicator = [](wchar_t p_Wc) { return (p_Wc >= 0x1F1E6) && (p_Wc <= 0x1F1FF); };
+  int regionalIndicators = isRegionalIndicator(p_Str[p_Pos]) ? 1 : 0;
+  size_t pos = p_Pos + 1;
+  while (pos < size)
+  {
+    const wchar_t wc = p_Str[pos];
+    const wchar_t prev = p_Str[pos - 1];
+    const bool isExtend =
+      (prev == 0x200D) || // any code point following a zero width joiner
+      (wc == 0x200D) || // zero width joiner
+      ((wc >= 0xFE00) && (wc <= 0xFE0F)) || // variation selectors
+      ((wc >= 0x1F3FB) && (wc <= 0x1F3FF)) || // emoji skin tone modifiers
+      (wc == 0x20E3) || // combining enclosing keycap
+      ((wc >= 0xE0020) && (wc <= 0xE007F)) || // tags
+      (wcwidth(wc) == 0); // combining marks
+    if (isExtend)
+    {
+      ++pos;
+      continue;
+    }
+
+    if (isRegionalIndicator(wc) && (regionalIndicators == 1))
+    {
+      regionalIndicators = 2; // second regional indicator completes the flag
+      ++pos;
+      continue;
+    }
+
+    break;
+  }
+
+  return pos;
+}
+
+// Returns the longest prefix of p_Str with a width of at most p_Len, never
+// splitting a character cluster.
+std::wstring StrUtil::TrimWString(const std::wstring& p_Str, int p_Len)
+{
+  p_Len = std::max(p_Len, 0);
+  int width = 0;
+  size_t pos = 0;
+  while (pos < p_Str.size())
+  {
+    const size_t end = GetClusterEnd(p_Str, pos);
+    const int clusterWidth = wcswidth(p_Str.c_str() + pos, end - pos);
+    width += (clusterWidth != -1) ? clusterWidth : (end - pos);
+    if (width > p_Len) break;
+
+    pos = end;
+  }
+
+  return p_Str.substr(0, pos);
+}
+
 std::wstring StrUtil::TrimPadWString(const std::wstring& p_Str, int p_Len)
 {
   p_Len = std::max(p_Len, 0);
-  std::wstring str = p_Str;
-  if (WStringWidth(str) > p_Len)
+  std::wstring str = TrimWString(p_Str, p_Len);
+  const int width = WStringWidth(str);
+  if (width < p_Len)
   {
-    str = str.substr(0, p_Len);
-    int subLen = p_Len;
-    while (WStringWidth(str) > p_Len)
-    {
-      str = str.substr(0, --subLen);
-    }
-  }
-  else if (WStringWidth(str) < p_Len)
-  {
-    str = str + std::wstring(p_Len - WStringWidth(str), ' ');
+    str += std::wstring(p_Len - width, ' ');
   }
   return str;
 }
