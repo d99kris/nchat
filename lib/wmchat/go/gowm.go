@@ -570,6 +570,7 @@ func DownloadFromFileId(connId int, fileId string) (string, int) {
 		data, err := DownloadFromFileInfo(client, info)
 		if err != nil {
 			LOG_WARNING(fmt.Sprintf("download error %#v", err))
+			mediaDownloadErrors.Store(fileId, err) // for TryMediaRetry (mediaretry.go)
 			fileStatus = FileStatusDownloadFailed
 		} else {
 			file, err := os.Create(targetPath)
@@ -1078,6 +1079,11 @@ func (handler *WmEventHandler) HandleEvent(rawEvt interface{}) {
 		// disconnected
 		LOG_TRACE(fmt.Sprintf("%#v", evt))
 		CWmClearStatus(handler.connId, FlagOnline)
+
+	case *events.MediaRetry:
+		// phone answered a media re-upload request (mediaretry.go)
+		LOG_TRACE(fmt.Sprintf("%#v", evt))
+		go HandleMediaRetry(handler.connId, evt)
 
 	case *events.StreamReplaced:
 		// TODO: find out when exactly this happens and how to handle it
@@ -4181,7 +4187,7 @@ func WmSendStatus(connId int, isOnline int) int {
 	return 0
 }
 
-func WmDownloadFile(connId int, chatId string, msgId string, fileId string, action int) int {
+func WmDownloadFile(connId int, chatId string, msgId string, fileId string, senderId string, fromMe int, action int) int {
 
 	LOG_TRACE("download file " + strconv.Itoa(connId) + ", " + chatId + ", " + msgId + ", " + fileId)
 
@@ -4193,6 +4199,13 @@ func WmDownloadFile(connId int, chatId string, msgId string, fileId string, acti
 
 	// download file
 	filePath, fileStatus := DownloadFromFileId(connId, fileId)
+
+	// media gone from the server (e.g. from history sync): ask the phone to re-upload it,
+	// the result is notified when it arrives (mediaretry.go)
+	if fileStatus == FileStatusDownloadFailed &&
+		TryMediaRetry(connId, chatId, msgId, fileId, senderId, fromMe != 0, action) {
+		fileStatus = FileStatusDownloading
+	}
 
 	// notify result (pass fileId back so the attachment stays re-downloadable if its file is
 	// later removed, ex: when the profile tmp dir is cleared between sessions)

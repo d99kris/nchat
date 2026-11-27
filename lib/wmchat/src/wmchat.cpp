@@ -611,10 +611,22 @@ void WmChat::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessage)
         std::string fileId = downloadFileRequest->fileId;
         DownloadFileAction downloadFileAction = downloadFileRequest->downloadFileAction;
 
+        // sender and direction, needed to ask the phone to re-upload expired media
+        std::string senderId;
+        int fromMe = 0;
+        std::vector<ChatMessage> chatMessages;
+        if (MessageCache::GetOneMessage(m_ProfileId, chatId, msgId, chatMessages))
+        {
+          senderId = chatMessages.front().senderId;
+          fromMe = chatMessages.front().isOutgoing ? 1 : 0;
+        }
+
         CWmDownloadFile(m_ConnId,
                         const_cast<char*>(chatId.c_str()),
                         const_cast<char*>(msgId.c_str()),
                         const_cast<char*>(fileId.c_str()),
+                        const_cast<char*>(senderId.c_str()),
+                        fromMe,
                         downloadFileAction
                         );
       }
