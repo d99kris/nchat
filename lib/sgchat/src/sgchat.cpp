@@ -298,6 +298,8 @@ bool SgChat::Login()
 
 bool SgChat::Logout()
 {
+  LOG_INFO("close signal profile");
+
   int rv = 0;
   if (m_Running)
   {

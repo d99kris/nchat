@@ -497,6 +497,8 @@ bool TgChat::Impl::Login()
 
 bool TgChat::Impl::Logout()
 {
+  LOG_INFO("close telegram profile");
+
   Status::Clear(m_ProfileId, Status::FlagOnline);
   Status::Clear(m_ProfileId, Status::FlagConnecting);
 
@@ -516,7 +518,7 @@ bool TgChat::Impl::Logout()
     const int64_t elapsedMs = TimeUtil::GetCurrentTimeMSec() - startTimeMs;
     if (m_IsClosed)
     {
-      LOG_INFO("tdlib closed after %lld ms", elapsedMs);
+      LOG_DEBUG("tdlib closed after %lld ms", elapsedMs);
     }
     else
     {

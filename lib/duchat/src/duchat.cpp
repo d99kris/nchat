@@ -114,6 +114,8 @@ bool DuChat::Login()
 
 bool DuChat::Logout()
 {
+  LOG_INFO("close dummy profile");
+
   Status::Clear(m_ProfileId, Status::FlagOnline);
 
   if (m_Running)

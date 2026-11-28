@@ -254,6 +254,8 @@ bool WmChat::Login()
 
 bool WmChat::Logout()
 {
+  LOG_INFO("close whatsapp profile");
+
   int rv = 0;
   if (m_Running)
   {
