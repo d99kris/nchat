@@ -189,7 +189,7 @@ struct Reactions
 
   bool operator!=(const Reactions& p_Other) const
   {
-    return (*this == p_Other);
+    return !(*this == p_Other);
   }
 };
 

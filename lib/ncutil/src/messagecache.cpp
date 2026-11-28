@@ -44,6 +44,20 @@ static const std::string s_TableContacts = "contacts2";
 static const std::string s_TableChats = "chats2";
 static const std::string s_TableMessages = "messages";
 
+// Ends a transaction that failed midway, as later writes would otherwise be performed within it and
+// never be committed.
+static void RollbackTransaction(sqlite::database& p_Db)
+{
+  try
+  {
+    p_Db << "ROLLBACK;";
+  }
+  catch (const sqlite::sqlite_exception&)
+  {
+    // no transaction active
+  }
+}
+
 void MessageCache::Init()
 {
   m_CacheEnabled = AppConfig::GetBool("cache_enabled");
@@ -758,7 +772,7 @@ bool MessageCache::FetchOneMessage(const std::string& p_ProfileId, const std::st
   std::unique_lock<std::mutex> lock(m_DbMutex);
   if (!m_Dbs[p_ProfileId]) return false;
 
-  LOG_TRACE("get cached message %d in %s", p_MsgId.c_str(), p_ChatId.c_str());
+  LOG_TRACE("get cached message %s in %s", p_MsgId.c_str(), p_ChatId.c_str());
 
   int count = 0;
   try
@@ -1431,6 +1445,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           }
         };
 
+        std::vector<std::shared_ptr<NewMessageReactionsNotify>> reactionsNotifies;
         for (const auto& msg : addMessagesRequest->chatMessages)
         {
           // Fetch already cached message reactions
@@ -1488,15 +1503,22 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
             writeMessage(msg, reactionsBytes);
 
             {
-              // Send consolidated info to ui
+              // Consolidated info to send to ui
               std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
                 std::make_shared<NewMessageReactionsNotify>(profileId);
               newMessageReactionsNotify->chatId = chatId;
               newMessageReactionsNotify->msgId = msg.id;
               newMessageReactionsNotify->reactions = reactions;
-              CallMessageHandler(newMessageReactionsNotify);
+              reactionsNotifies.push_back(newMessageReactionsNotify);
             }
           }
+        }
+
+        // Call message handler without holding db mutex, as the handler may acquire other locks
+        lock.unlock();
+        for (const auto& reactionsNotify : reactionsNotifies)
+        {
+          CallMessageHandler(reactionsNotify);
         }
       }
       break;
@@ -1529,6 +1551,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         catch (const sqlite::sqlite_exception& ex)
         {
           HANDLE_SQLITE_EXCEPTION(ex);
+          RollbackTransaction(*m_Dbs[profileId]);
         }
       }
       break;
@@ -1567,6 +1590,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         catch (const sqlite::sqlite_exception& ex)
         {
           HANDLE_SQLITE_EXCEPTION(ex);
+          RollbackTransaction(*m_Dbs[profileId]);
         }
       }
       break;
@@ -2035,6 +2059,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         catch (const sqlite::sqlite_exception& ex)
         {
           HANDLE_SQLITE_EXCEPTION(ex);
+          RollbackTransaction(*m_Dbs[profileId]);
         }
 
         LOG_DEBUG("cache move chat %s to %s", chatId.c_str(), newChatId.c_str());
@@ -2115,7 +2140,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           HANDLE_SQLITE_EXCEPTION(ex);
         }
 
-        LOG_DEBUG("cache update fileInfo %s %s %s %d", chatId.c_str(), msgId.c_str(), fileInfo.c_str());
+        LOG_DEBUG("cache update fileInfo %s %s %s", chatId.c_str(), msgId.c_str(), fileInfo.c_str());
       }
       break;
 
@@ -2172,17 +2197,18 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           HANDLE_SQLITE_EXCEPTION(ex);
         }
 
+        LOG_DEBUG("cache update reactions %s %s", chatId.c_str(), msgId.c_str());
+
         {
-          // Send consolidated info to ui
+          // Send consolidated info to ui, without holding db mutex as the handler may acquire other locks
           std::shared_ptr<NewMessageReactionsNotify> newMessageReactionsNotify =
             std::make_shared<NewMessageReactionsNotify>(profileId);
           newMessageReactionsNotify->chatId = chatId;
           newMessageReactionsNotify->msgId = msgId;
           newMessageReactionsNotify->reactions = reactions;
+          lock.unlock();
           CallMessageHandler(newMessageReactionsNotify);
         }
-
-        LOG_DEBUG("cache update reactions %s %s", chatId.c_str(), msgId.c_str());
       }
       break;
 
@@ -2313,6 +2339,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         catch (const sqlite::sqlite_exception& ex)
         {
           HANDLE_SQLITE_EXCEPTION(ex);
+          RollbackTransaction(*m_Dbs[profileId]);
         }
 
         LOG_DEBUG("cache add %d group members %s", (int)memberIds.size(), chatId.c_str());
