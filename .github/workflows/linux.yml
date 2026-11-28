@@ -13,10 +13,6 @@ on:
       - 'doc/**'
       - '**/*.md'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   linux-build:
     runs-on: ubuntu-latest
