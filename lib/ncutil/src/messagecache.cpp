@@ -1942,6 +1942,17 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         try
         {
+          if (m_CheckSequence[profileId])
+          {
+            // When deleting a message with isSequence = 0, move the indication to the next older
+            // cached message, to not lose track of messages needing to be fetched from server.
+            *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET isSequence = 0 "
+              "WHERE chatId = ? AND id = "
+              "(SELECT id FROM " + s_TableMessages + " WHERE chatId = ? AND timeSent < "
+              " (SELECT timeSent FROM " + s_TableMessages + " WHERE chatId = ? AND id = ? AND isSequence = 0) "
+              " ORDER BY timeSent DESC LIMIT 1);" << chatId << chatId << chatId << msgId;
+          }
+
           *m_Dbs[profileId] << "DELETE FROM " + s_TableMessages + " WHERE chatId = ? AND id = ?;" << chatId << msgId;
         }
         catch (const sqlite::sqlite_exception& ex)
