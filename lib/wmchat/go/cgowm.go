@@ -139,8 +139,8 @@ func CWmSendStatus(connId int, isOnline int) int {
 }
 
 //export CWmDownloadFile
-func CWmDownloadFile(connId int, chatId *C.char, msgId *C.char, fileId *C.char, action int) int {
-	return WmDownloadFile(connId, C.GoString(chatId), C.GoString(msgId), C.GoString(fileId), action)
+func CWmDownloadFile(connId int, chatId *C.char, msgId *C.char, fileId *C.char, senderId *C.char, fromMe int, action int) int {
+	return WmDownloadFile(connId, C.GoString(chatId), C.GoString(msgId), C.GoString(fileId), C.GoString(senderId), fromMe, action)
 }
 
 //export CWmSendReaction
