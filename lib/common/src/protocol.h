@@ -128,6 +128,7 @@ enum MessageType
   NewGroupMembersNotifyType,
   UpdateArchivedNotifyType,
   MoveChatNotifyType,
+  ResetChatHistoryNotifyType,
 };
 
 struct ContactInfo
@@ -760,4 +761,13 @@ public:
   bool success = false;
   std::string chatId;
   bool isArchived = false;
+};
+
+class ResetChatHistoryNotify : public ServiceMessage
+{
+public:
+  explicit ResetChatHistoryNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return ResetChatHistoryNotifyType; }
+  std::string chatId;
 };

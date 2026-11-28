@@ -242,6 +242,14 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       }
       break;
 
+    case ResetChatHistoryNotifyType:
+      {
+        std::shared_ptr<ResetChatHistoryNotify> resetChatHistoryNotify =
+          std::static_pointer_cast<ResetChatHistoryNotify>(p_ServiceMessage);
+        MessageCache::ResetSequence(p_ProfileId, resetChatHistoryNotify->chatId);
+      }
+      break;
+
     case NewGroupMembersNotifyType:
       {
         std::shared_ptr<NewGroupMembersNotify> newGroupMembersNotify =
@@ -668,6 +676,12 @@ bool MessageCache::FetchMessagesFrom(const std::string& p_ProfileId, const std::
           fromMsgIdTimeSent = timeSent;
         };
       // *INDENT-ON*
+
+      // A from message not (yet) cached has no known position relative to cached messages.
+      if (m_CheckSequence[p_ProfileId] && (fromMsgIdTimeSent == std::numeric_limits<int64_t>::max()))
+      {
+        return false;
+      }
     }
 
     if (m_CheckSequence[p_ProfileId])
@@ -947,6 +961,17 @@ void MessageCache::UpdateArchived(const std::string& p_ProfileId, const std::str
   updateArchivedRequest->chatId = p_ChatId;
   updateArchivedRequest->isArchived = p_IsArchived;
   EnqueueRequest(updateArchivedRequest);
+}
+
+void MessageCache::ResetSequence(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<ResetSequenceRequest> resetSequenceRequest =
+    std::make_shared<ResetSequenceRequest>();
+  resetSequenceRequest->profileId = p_ProfileId;
+  resetSequenceRequest->chatId = p_ChatId;
+  EnqueueRequest(resetSequenceRequest);
 }
 
 void MessageCache::UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
@@ -2229,6 +2254,26 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
         }
 
         LOG_DEBUG("cache update archived %s %d", chatId.c_str(), isArchived);
+      }
+      break;
+
+    case ResetSequenceRequestType:
+      {
+        std::unique_lock<std::mutex> lock(m_DbMutex);
+        std::shared_ptr<ResetSequenceRequest> resetSequenceRequest =
+          std::static_pointer_cast<ResetSequenceRequest>(p_Request);
+        const std::string& profileId = resetSequenceRequest->profileId;
+        if (!m_Dbs[profileId]) return;
+
+        // Messages following a loss of history continuity are not adjacent to cached ones, so
+        // have the next added batch perform sequence check anew, and until then serve no
+        // messages from cache.
+        const std::string& chatId = resetSequenceRequest->chatId;
+        if (m_CheckSequence[profileId] && m_UpdatedSequence[profileId][chatId])
+        {
+          m_UpdatedSequence[profileId][chatId] = false;
+          LOG_DEBUG("cache reset sequence %s", chatId.c_str());
+        }
       }
       break;
 

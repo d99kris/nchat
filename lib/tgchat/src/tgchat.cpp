@@ -2435,9 +2435,19 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   {
     LOG_TRACE("update have pending notifications");
   },
-  [](td::td_api::updateChatLastMessage&)
+  [this](td::td_api::updateChatLastMessage& update_chat_last_message)
   {
     LOG_TRACE("update chat last message");
+
+    // Last message is null when tdlib lost history continuity for the chat (ex. channel
+    // difference too long), thus following new messages are not adjacent to cached messages.
+    if (!update_chat_last_message.last_message_)
+    {
+      std::shared_ptr<ResetChatHistoryNotify> resetChatHistoryNotify =
+        std::make_shared<ResetChatHistoryNotify>(m_ProfileId);
+      resetChatHistoryNotify->chatId = StrUtil::NumToHex(update_chat_last_message.chat_id_);
+      CallMessageHandler(resetChatHistoryNotify);
+    }
   },
   [](td::td_api::updateDiceEmojis&)
   {

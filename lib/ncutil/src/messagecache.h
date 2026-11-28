@@ -49,6 +49,7 @@ private:
     UpdateMuteRequestType,
     UpdatePinRequestType,
     UpdateArchivedRequestType,
+    ResetSequenceRequestType,
     AddGroupMembersRequestType,
     FetchGroupMembersRequestType,
   };
@@ -229,6 +230,14 @@ private:
     int64_t timePinned = -1;
   };
 
+  class ResetSequenceRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return ResetSequenceRequestType; }
+    std::string profileId;
+    std::string chatId;
+  };
+
   class UpdateArchivedRequest : public Request
   {
   public:
@@ -300,6 +309,7 @@ public:
                                      const std::string& p_MsgId, const Reactions& p_Reactions);
   static void UpdateMute(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsMuted);
   static void UpdateArchived(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsArchived);
+  static void ResetSequence(const std::string& p_ProfileId, const std::string& p_ChatId);
   static void UpdatePin(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsPinned,
                         int64_t p_TimePinned);
   static void AddGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId,

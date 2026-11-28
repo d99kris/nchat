@@ -2191,6 +2191,41 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       }
       break;
 
+    case ResetChatHistoryNotifyType:
+      {
+        std::shared_ptr<ResetChatHistoryNotify> resetChatHistoryNotify =
+          std::static_pointer_cast<ResetChatHistoryNotify>(p_ServiceMessage);
+        const std::string& chatId = resetChatHistoryNotify->chatId;
+        if (!m_MessageVec[profileId].count(chatId) || m_MessageVec[profileId][chatId].empty()) break;
+
+        LOG_TRACE("chat history reset %s", chatId.c_str());
+
+        // reset message state, to fetch messages anew as held ones may not be contiguous with
+        // following new messages
+        m_MessageVec[profileId].erase(chatId);
+        m_Messages[profileId].erase(chatId);
+        m_MessageOffset[profileId].erase(chatId);
+        m_MessageOffsetStack[profileId].erase(chatId);
+        m_MsgFromIdsRequested[profileId].erase(chatId);
+        m_FetchedAllCache[profileId].erase(chatId);
+        m_OldestMessageId[profileId].erase(chatId);
+        m_OldestMessageTime[profileId].erase(chatId);
+
+        if ((m_CurrentChat.first == profileId) && (m_CurrentChat.second == chatId))
+        {
+          SetSelectMessageActive(false);
+          UpdateHistory();
+          RequestMessagesCurrentChat();
+        }
+
+        const std::pair<std::string, std::string>& nextChat = GetNextChat();
+        if ((nextChat.first == profileId) && (nextChat.second == chatId))
+        {
+          RequestMessagesNextChat();
+        }
+      }
+      break;
+
     case UpdateMuteNotifyType:
       {
         std::shared_ptr<UpdateMuteNotify> updateMuteNotify = std::static_pointer_cast<UpdateMuteNotify>(
