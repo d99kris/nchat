@@ -8,6 +8,7 @@
 #include "tgchat.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <iostream>
@@ -251,6 +252,8 @@ private:
   int m_AuthMethod = 0;
   bool m_Authorized = false;
   bool m_WasAuthorized = false;
+  std::atomic<bool> m_IsClosing{ false };
+  std::atomic<bool> m_IsClosed{ false };
   std::int64_t m_SelfUserId = 0;
   std::uint64_t m_AuthQueryId = 0;
   std::uint64_t m_CurrentQueryId = 0;
@@ -496,7 +499,31 @@ bool TgChat::Impl::Logout()
   Status::Clear(m_ProfileId, Status::FlagOnline);
   Status::Clear(m_ProfileId, Status::FlagConnecting);
 
-  if (m_Running)
+  // Close tdlib while the service thread still processes updates, so that updates emitted
+  // during shutdown (e.g. while catching up after startup) are handled instead of dropped.
+  if (m_Running && m_ServiceThread.joinable() && !m_IsClosed)
+  {
+    static const int64_t closeTimeoutMs = 5000;
+    const int64_t startTimeMs = TimeUtil::GetCurrentTimeMSec();
+    m_IsClosing = true;
+    SendQuery(td::td_api::make_object<td::td_api::close>(), { });
+    while (!m_IsClosed && m_Running && ((TimeUtil::GetCurrentTimeMSec() - startTimeMs) < closeTimeoutMs))
+    {
+      TimeUtil::Sleep(0.010);
+    }
+
+    const int64_t elapsedMs = TimeUtil::GetCurrentTimeMSec() - startTimeMs;
+    if (m_IsClosed)
+    {
+      LOG_INFO("tdlib closed after %lld ms", elapsedMs);
+    }
+    else
+    {
+      LOG_WARNING("tdlib not closed after %lld ms", elapsedMs);
+    }
+  }
+
+  // Notify unconditionally, as m_Running may already have been cleared by auth state closed.
   {
     std::unique_lock<std::mutex> lock(m_ProcessMutex);
     m_Running = false;
@@ -1781,6 +1808,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
 void TgChat::Impl::Init()
 {
+  m_IsClosing = false;
+  m_IsClosed = false;
+
   {
     static std::mutex ctorMutex;
     std::unique_lock<std::mutex> lock(ctorMutex);
@@ -1865,7 +1895,11 @@ void TgChat::Impl::InitConfig()
 
 void TgChat::Impl::Cleanup()
 {
-  SendQuery(td::td_api::make_object<td::td_api::close>(), { });
+  if (!m_IsClosed)
+  {
+    SendQuery(td::td_api::make_object<td::td_api::close>(), { });
+  }
+
   m_ClientManager.reset();
 }
 
@@ -2567,9 +2601,10 @@ void TgChat::Impl::OnAuthStateUpdate()
   {
     LOG_DEBUG("auth closed");
     m_Authorized = false;
+    m_IsClosed = true; // set before m_Running, which Logout() polls on
     m_Running = false;
 
-    if (m_WasAuthorized)
+    if (m_WasAuthorized && !m_IsClosing)
     {
       LOG_WARNING("session closed by other device");
       StartAuthInput(AuthInputSessionClosed);
