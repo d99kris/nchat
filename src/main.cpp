@@ -5,6 +5,7 @@
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -142,6 +143,31 @@ static std::vector<std::shared_ptr<ProtocolBaseFactory>> GetProtocolFactorys()
   };
 
   return protocolFactorys;
+}
+
+// Returns profile dir names ordered by protocol (as listed in GetProtocolFactorys) and then by profile id
+static std::vector<std::string> GetProfileNamesSorted(const std::string& p_ProfilesDir)
+{
+  const std::vector<std::shared_ptr<ProtocolBaseFactory>> protocolFactorys = GetProtocolFactorys();
+  auto getProtocolIndex = [&](const std::string& p_ProfileId)
+  {
+    const std::string protocolName = p_ProfileId.substr(0, p_ProfileId.find('_'));
+    size_t index = 0;
+    while ((index < protocolFactorys.size()) && (protocolFactorys[index]->GetName() != protocolName))
+    {
+      ++index;
+    }
+
+    return index;
+  };
+
+  std::vector<std::string> profileNames = FileUtil::ListDirNames(p_ProfilesDir);
+  std::sort(profileNames.begin(), profileNames.end(), [&](const std::string& p_Lhs, const std::string& p_Rhs)
+  {
+    return std::make_pair(getProtocolIndex(p_Lhs), p_Lhs) < std::make_pair(getProtocolIndex(p_Rhs), p_Rhs);
+  });
+
+  return profileNames;
 }
 
 
@@ -378,7 +404,7 @@ int main(int argc, char* argv[])
 
   // Load profile(s)
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
-  const std::vector<std::string>& profileNames = FileUtil::ListDirNames(profilesDir);
+  const std::vector<std::string> profileNames = GetProfileNamesSorted(profilesDir);
   std::vector<std::unique_ptr<ScopedDirLock>> profileDirLocks;
   for (auto& profileId : profileNames)
   {
@@ -456,8 +482,16 @@ int main(int argc, char* argv[])
   bool hasProtocols = !protocols.empty();
   if (hasProtocols && exportDir.empty())
   {
-    // Sort protocols
-    std::map<std::string, std::shared_ptr<Protocol>> protocolsSorted(protocols.begin(), protocols.end());
+    // Sort protocols, using same order as at load
+    std::vector<std::pair<std::string, std::shared_ptr<Protocol>>> protocolsSorted;
+    for (auto& profileId : profileNames)
+    {
+      auto it = protocols.find(profileId);
+      if (it != protocols.end())
+      {
+        protocolsSorted.push_back(*it);
+      }
+    }
 
     // Connecting status
     for (auto& protocol : protocolsSorted)
@@ -563,7 +597,7 @@ void RemoveProfile()
 {
   // Show profiles
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
-  const std::vector<std::string>& profileNames = FileUtil::ListDirNames(profilesDir);
+  const std::vector<std::string> profileNames = GetProfileNamesSorted(profilesDir);
   int id = 0;
   std::map<int, std::string> idPath;
   std::cout << "Remove profile:\n";
