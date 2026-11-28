@@ -29,7 +29,7 @@ UiListView::UiListView(const UiViewParams& p_Params)
 
     werase(m_Win);
     wbkgd(m_Win, attribute | colorPair | ' ');
-    wrefresh(m_Win);
+    wnoutrefresh(m_Win);
   }
 }
 
@@ -140,5 +140,5 @@ void UiListView::Draw()
   }
 
   wattroff(m_PaddedWin, attribute | colorPair);
-  wrefresh(m_PaddedWin);
+  wnoutrefresh(m_PaddedWin);
 }

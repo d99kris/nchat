@@ -27,7 +27,7 @@ void UiEntryView::Draw()
   if (!m_Dirty)
   {
     wmove(m_Win, m_CursY, m_CursX);
-    wrefresh(m_Win);
+    wnoutrefresh(m_Win);
     return;
   }
 
@@ -76,5 +76,5 @@ void UiEntryView::Draw()
   m_CursY = (cy - yoffs);
 
   wmove(m_Win, m_CursY, m_CursX);
-  wrefresh(m_Win);
+  wnoutrefresh(m_Win);
 }

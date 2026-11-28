@@ -13,8 +13,9 @@
 
 UiScreen::UiScreen()
 {
-  wclear(stdscr);
-  wrefresh(stdscr);
+  // Erase without flushing; the following view draws then only update changed cells, avoiding a blank-screen flicker
+  werase(stdscr);
+  wnoutrefresh(stdscr);
   getmaxyx(stdscr, m_H, m_W);
   m_H = std::max(m_H, 11);
   m_W = std::max(m_W, 29);

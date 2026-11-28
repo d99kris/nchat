@@ -33,5 +33,5 @@ void UiListBorderView::Draw()
   mvwvline(m_Win, 0, 0, ACS_VLINE, m_H);
 
   wattroff(m_Win, attribute | colorPair);
-  wrefresh(m_Win);
+  wnoutrefresh(m_Win);
 }

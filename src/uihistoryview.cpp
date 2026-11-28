@@ -36,7 +36,7 @@ UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
     static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
     werase(m_Win);
     wbkgd(m_Win, attributeTextNormal | colorPairTextRecv | ' ');
-    wrefresh(m_Win);
+    wnoutrefresh(m_Win);
   }
 }
 
@@ -453,7 +453,7 @@ void UiHistoryView::Draw()
     firstMessage = false;
   }
 
-  wrefresh(m_PaddedWin);
+  wnoutrefresh(m_PaddedWin);
 }
 
 int UiHistoryView::GetHistoryShowCount()

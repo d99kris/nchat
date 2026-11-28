@@ -207,7 +207,7 @@ void UiHelpView::Draw()
   mvwaddnwstr(m_Win, 0, 0, wstr.c_str(), std::min((int)wstr.size(), m_W));
 
   wattroff(m_Win, attribute | colorPair);
-  wrefresh(m_Win);
+  wnoutrefresh(m_Win);
 }
 
 std::vector<std::wstring> UiHelpView::GetHelpViews(const int p_MaxW, const std::vector<std::wstring>& p_HelpItems,

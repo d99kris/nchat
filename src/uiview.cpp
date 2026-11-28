@@ -121,6 +121,9 @@ void UiView::Draw()
   m_UiListBorderView->Draw();
   m_UiHistoryView->Draw();
   m_UiEntryView->Draw();
+
+  // Views only stage their updates (wnoutrefresh), flush all in one go to avoid partially drawn frames
+  doupdate();
   curs_set(1);
 }
 

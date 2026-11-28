@@ -94,5 +94,5 @@ void UiStatusView::Draw()
   UiDrawUtil::AddWStr(m_Win, 0, 0, wstatus, m_W);
 
   wattroff(m_Win, attribute | colorPair);
-  wrefresh(m_Win);
+  wnoutrefresh(m_Win);
 }
