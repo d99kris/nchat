@@ -23,7 +23,44 @@
 
 #include "emojiutil.h"
 #include "termutil.h"
+#include "textwrap.h"
 #include "log.h"
+
+namespace
+{
+  // Display width of character cluster, for text wrap
+  int ClusterWidth(const std::wstring& p_Str, size_t p_Begin, size_t p_End)
+  {
+    // with emoji width enabled, a cluster has a terminal-specific width
+    if (TermUtil::GetProfile().enabled) return TermUtil::GetCluster(p_Str, p_Begin, p_End).width;
+
+    // otherwise each char takes up at least one column
+    int width = 0;
+    for (size_t i = p_Begin; (i < p_End) && (i < p_Str.size()); ++i)
+    {
+      width += std::max(wcwidth(p_Str[i]), 1);
+    }
+
+    return width;
+  }
+
+  // Entry padding after an inserted emoji is kept with the emoji
+  bool ClusterExtend(wchar_t p_Char)
+  {
+    return (p_Char == (wchar_t)EMOJI_PAD);
+  }
+
+  void InitTextWrap()
+  {
+    static const bool inited = []()
+    {
+      TextWrap::SetClusterWidthFunc(ClusterWidth);
+      TextWrap::SetClusterExtendFunc(ClusterExtend);
+      return true;
+    }();
+    (void)inited;
+  }
+}
 
 void StrUtil::DeleteToNextMatch(std::wstring& p_Str, int& p_Pos, int p_Offs, std::wstring p_Chars)
 {
@@ -239,20 +276,7 @@ std::string StrUtil::GetProtocolName(const std::string& p_ProfileId)
 
 bool StrUtil::GetQuotePrefix(const std::wstring& p_String, std::wstring& p_Prefix, std::wstring& p_Line)
 {
-  std::wsmatch sm;
-  std::wregex re(L"^(( *> *)+)");
-  if (std::regex_search(p_String, sm, re))
-  {
-    p_Prefix = sm.str();
-    p_Line = sm.suffix();
-    return true;
-  }
-  else
-  {
-    p_Prefix.clear();
-    p_Line = p_String;
-    return false;
-  }
+  return TextWrap::GetQuotePrefix(p_String, p_Prefix, p_Line);
 }
 
 bool StrUtil::IsInteger(const std::string& p_Str)
@@ -559,47 +583,10 @@ void StrUtil::Trim(std::string& p_Str)
 
 // Returns the end of the character cluster starting at p_Pos, i.e. the base character
 // followed by any code points modifying or joined to it, which must not be separated.
-// This is a simplified subset of Unicode grapheme cluster rules (UAX #29), covering
-// combining marks, variation selectors, emoji modifiers, keycaps, tags, zero width
-// joiner sequences and regional indicator (flag) pairs.
 size_t StrUtil::GetClusterEnd(const std::wstring& p_Str, size_t p_Pos)
 {
-  const size_t size = p_Str.size();
-  if (p_Pos >= size) return size;
-
-  auto isRegionalIndicator = [](wchar_t p_Wc) { return (p_Wc >= 0x1F1E6) && (p_Wc <= 0x1F1FF); };
-  int regionalIndicators = isRegionalIndicator(p_Str[p_Pos]) ? 1 : 0;
-  size_t pos = p_Pos + 1;
-  while (pos < size)
-  {
-    const wchar_t wc = p_Str[pos];
-    const wchar_t prev = p_Str[pos - 1];
-    const bool isExtend =
-      (wc == EMOJI_PAD) || // nchat entry padding after an inserted emoji
-      (prev == 0x200D) || // any code point following a zero width joiner
-      (wc == 0x200D) || // zero width joiner
-      ((wc >= 0xFE00) && (wc <= 0xFE0F)) || // variation selectors
-      ((wc >= 0x1F3FB) && (wc <= 0x1F3FF)) || // emoji skin tone modifiers
-      (wc == 0x20E3) || // combining enclosing keycap
-      ((wc >= 0xE0020) && (wc <= 0xE007F)) || // tags
-      (wcwidth(wc) == 0); // combining marks
-    if (isExtend)
-    {
-      ++pos;
-      continue;
-    }
-
-    if (isRegionalIndicator(wc) && (regionalIndicators == 1))
-    {
-      regionalIndicators = 2; // second regional indicator completes the flag
-      ++pos;
-      continue;
-    }
-
-    break;
-  }
-
-  return pos;
+  InitTextWrap();
+  return TextWrap::GetClusterEnd(p_Str, p_Pos);
 }
 
 // Returns the start of the character cluster containing p_Pos.
@@ -696,258 +683,20 @@ std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_Line
                                             bool p_ProcessFormatFlowed, bool p_OutputFormatFlowed,
                                             bool p_QuoteWrap, int p_ExpandTabSize)
 {
-  int pos = 0;
-  int wrapLine = 0;
-  int wrapPos = 0;
-  return WordWrap(p_Text, p_LineLength, p_ProcessFormatFlowed, p_OutputFormatFlowed, p_QuoteWrap, p_ExpandTabSize, pos,
-                  wrapLine,
-                  wrapPos);
+  InitTextWrap();
+  return TextWrap::WordWrap(p_Text, p_LineLength, p_ProcessFormatFlowed, p_OutputFormatFlowed,
+                            p_QuoteWrap, p_ExpandTabSize);
 }
 
 std::vector<std::wstring> StrUtil::WordWrap(std::wstring p_Text, unsigned p_LineLength,
                                             bool p_ProcessFormatFlowed, bool p_OutputFormatFlowed,
                                             bool p_QuoteWrap, int p_ExpandTabSize,
-                                            int p_Pos, int& p_WrapLine, int& p_WrapPos)
+                                            int p_Pos, int& p_WrapLine, int& p_WrapPos,
+                                            std::vector<int>* p_LineOffsets /*= nullptr*/)
 {
-  std::vector<std::wstring> lines;
-
-  p_WrapLine = 0;
-  p_WrapPos = 0;
-
-  const unsigned wrapLineLength = p_LineLength - 1; // lines with spaces allowed to width - 1
-  const unsigned overflowLineLength = p_LineLength; // overflowing lines allowed to full width
-
-  if (p_ProcessFormatFlowed)
-  {
-    bool prevLineFlowed = false;
-    std::wstring line;
-    std::wstring prevQuotePrefix;
-    std::wstring quotePrefix;
-    std::wstring prevUnquotedLine;
-    std::wstring unquotedLine;
-    std::wistringstream textss(p_Text);
-    std::wostringstream outss;
-    bool reflowUnquoted = true;
-    while (std::getline(textss, line))
-    {
-      line.erase(std::remove(line.begin(), line.end(), L'\r'), line.end());
-
-      if (!GetQuotePrefix(line, quotePrefix, unquotedLine))
-      {
-        if (reflowUnquoted)
-        {
-          if ((quotePrefix != prevQuotePrefix) || !prevLineFlowed)
-          {
-            outss << L"\n" << line;
-          }
-          else
-          {
-            if (!prevLineFlowed)
-            {
-              outss << L" ";
-            }
-            outss << line;
-          }
-
-          size_t unquotedLen = unquotedLine.size();
-          prevLineFlowed = ((unquotedLen > 0) && (unquotedLine[unquotedLen - 1] == L' '));
-        }
-        else
-        {
-          outss << L"\n" << line;
-        }
-      }
-      else
-      {
-        quotePrefix.erase(std::remove(quotePrefix.begin(), quotePrefix.end(), L' '), quotePrefix.end());
-
-        if (quotePrefix != prevQuotePrefix)
-        {
-          outss << L"\n" << quotePrefix << L" " << unquotedLine;
-        }
-        else
-        {
-          if (unquotedLine.empty())
-          {
-            outss << L"\n" << quotePrefix << L" ";
-          }
-          else
-          {
-            if (prevUnquotedLine.empty())
-            {
-              outss << L"\n" << quotePrefix << L" ";
-            }
-            else
-            {
-              size_t prevUnquotedLen = prevUnquotedLine.size();
-              if (prevUnquotedLine[prevUnquotedLen - 1] != L' ')
-              {
-                outss << L" ";
-              }
-            }
-
-            outss << unquotedLine;
-          }
-        }
-      }
-
-      prevQuotePrefix = quotePrefix;
-      prevUnquotedLine = unquotedLine;
-    }
-
-    p_Text = outss.str().substr(1);
-  }
-
-  if (p_ExpandTabSize > 0)
-  {
-    size_t pos = 0;
-    const std::wstring wsearch = L"\t";
-    while ((pos = p_Text.find(wsearch, pos)) != std::wstring::npos)
-    {
-      size_t lineStart = p_Text.rfind(L'\n', pos);
-      if (lineStart == std::wstring::npos)
-      {
-        lineStart = 0;
-      }
-
-      const size_t tabColumn = pos - lineStart - 1;
-      const int tabSpaces = (p_ExpandTabSize - (tabColumn % p_ExpandTabSize));
-      std::wstring replace(tabSpaces, L' ');
-
-      p_Text.replace(pos, wsearch.length(), replace);
-      pos += replace.length();
-    }
-  }
-
-  if (true)
-  {
-    std::wstring line;
-    std::wistringstream textss(p_Text);
-    const std::wstring flowedSuffix = p_OutputFormatFlowed ? L" " : L"";
-    const size_t quotePrefixMaxLen = p_LineLength / 2;
-
-    while (std::getline(textss, line))
-    {
-      std::wstring linePart = line;
-      std::wstring quotePrefix;
-      std::wstring tmpLine;
-      size_t quotePrefixLen = 0;
-      const bool hasQuotePrefix = p_QuoteWrap && GetQuotePrefix(linePart, quotePrefix, tmpLine);
-
-      if (hasQuotePrefix)
-      {
-        quotePrefix.erase(std::remove(quotePrefix.begin(), quotePrefix.end(), L' '), quotePrefix.end());
-        quotePrefix += L' ';
-        quotePrefixLen = quotePrefix.size();
-        if (quotePrefixLen > quotePrefixMaxLen)
-        {
-          quotePrefix = quotePrefix.substr(quotePrefixLen - quotePrefixMaxLen);
-          quotePrefixLen = quotePrefix.size();
-        }
-        linePart = quotePrefix + tmpLine;
-      }
-
-      while (!linePart.empty() || line.empty()) // Ensure we handle empty lines
-      {
-        unsigned current_width = 0;
-        std::wstring tmpline;
-        size_t last_space = std::wstring::npos;
-        bool lineWrapped = false;
-
-        std::wstring tmpPrefix;
-        if (hasQuotePrefix && !GetQuotePrefix(linePart, tmpPrefix, tmpLine))
-        {
-          linePart = quotePrefix + linePart;
-        }
-
-        // with emoji width enabled, a cluster's width is on its first char
-        const bool emojiWidth = TermUtil::GetProfile().enabled;
-        size_t clusterEnd = 0;
-        for (size_t i = 0; i < linePart.size(); ++i)
-        {
-          wchar_t wc = linePart[i];
-          unsigned char_width = std::max(wcwidth(wc), 1);
-          if (emojiWidth)
-          {
-            if (i >= clusterEnd)
-            {
-              clusterEnd = GetClusterEnd(linePart, i);
-              char_width = TermUtil::GetCluster(linePart, i, clusterEnd).width;
-            }
-            else
-            {
-              char_width = 0;
-            }
-          }
-
-          // Track the most recent space for wrapping, ignoring spaces in the quote prefix
-          if ((wc == L' ') && (i >= quotePrefixLen))
-          {
-            last_space = i;
-          }
-
-          // Check if adding this character exceeds the wrap length
-          if (current_width + char_width > wrapLineLength)
-          {
-            if (last_space != std::wstring::npos)
-            {
-              // Wrap at the last space found
-              lines.push_back(linePart.substr(0, last_space) + flowedSuffix);
-              linePart = linePart.substr(last_space + 1);
-            }
-            else
-            {
-              // No space found, hard wrap after current character (single width char) or
-              // before it (double width char). At least one char, to ensure progress.
-              const size_t splitPos = std::max<size_t>(((char_width == 1) ? (emojiWidth ? clusterEnd : (i + 1)) : i),
-                                                       1);
-              lines.push_back(linePart.substr(0, splitPos));
-              linePart = linePart.substr(splitPos);
-            }
-
-            // Reset for the next segment of the same original line
-            lineWrapped = true;
-            break;
-          }
-
-          tmpline += wc;
-          current_width += char_width;
-        }
-
-        if (!lineWrapped)
-        {
-          // Add the final remaining part of the line, if we didn't wrap / split the line
-          lines.push_back(linePart);
-          linePart.clear();
-        }
-
-        if (linePart.empty()) break;
-
-        if (line.empty()) break; // Handle original empty lines
-      }
-    }
-  }
-
-  // Update wrap position metadata
-  for (auto& line : lines)
-  {
-    if (p_Pos > 0)
-    {
-      int lineLength = std::min((unsigned)line.size() + 1, overflowLineLength);
-      if (lineLength <= p_Pos)
-      {
-        p_Pos -= lineLength;
-        ++p_WrapLine;
-      }
-      else
-      {
-        p_WrapPos = p_Pos;
-        p_Pos = 0;
-      }
-    }
-  }
-
-  return lines;
+  InitTextWrap();
+  return TextWrap::WordWrap(p_Text, p_LineLength, p_ProcessFormatFlowed, p_OutputFormatFlowed,
+                            p_QuoteWrap, p_ExpandTabSize, p_Pos, p_WrapLine, p_WrapPos, p_LineOffsets);
 }
 
 int StrUtil::WStringWidth(const std::wstring& p_WStr)

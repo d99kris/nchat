@@ -61,7 +61,8 @@ public:
                                             bool p_OutputFormatFlowed, bool p_QuoteWrap, int p_ExpandTabSize);
   static std::vector<std::wstring> WordWrap(std::wstring p_Text, unsigned p_LineLength, bool p_ProcessFormatFlowed,
                                             bool p_OutputFormatFlowed, bool p_QuoteWrap, int p_ExpandTabSize, int p_Pos,
-                                            int& p_WrapLine, int& p_WrapPos);
+                                            int& p_WrapLine, int& p_WrapPos,
+                                            std::vector<int>* p_LineOffsets = nullptr);
   static int WStringWidth(const std::wstring& p_WStr);
 
 public:

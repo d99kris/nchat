@@ -86,6 +86,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/sysutil.h
   src/termutil.cpp
   src/termutil.h
+  src/textwrap.cpp
+  src/textwrap.h
   src/timeutil.cpp
   src/timeutil.h
 )

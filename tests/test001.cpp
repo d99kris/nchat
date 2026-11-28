@@ -5,6 +5,7 @@
 //
 // nchat is distributed under the MIT license, see LICENSE for details.
 
+#include <algorithm>
 #include <clocale>
 #include <iostream>
 #include <string>
@@ -13,6 +14,7 @@
 #include <wchar.h>
 
 #include "strutil.h"
+#include "textwrap.h"
 
 #include "unittest.h"
 
@@ -128,18 +130,154 @@ static void TestWordWrapPos()
   unittest::ExpectEqual(int, wrapPos, 5);
 }
 
+static void TestWordWrapOffsets()
+{
+  // line offsets are the positions in the text of the start of each line
+  int wrapLine = -1;
+  int wrapPos = -1;
+  std::vector<int> lineOffsets;
+  const std::vector<int> offsets = { 0, 20, 40 };
+  StrUtil::WordWrap(L"the quick brown fox jumps over the lazy dog", 20,
+                 false, false, false, 0, 0, wrapLine, wrapPos, &lineOffsets);
+  unittest::ExpectTrue(lineOffsets == offsets);
+  unittest::ExpectEqual(int, wrapLine, 0);
+  unittest::ExpectEqual(int, wrapPos, 0);
+
+  // position at the space where the line was wrapped is at the end of that line
+  StrUtil::WordWrap(L"the quick brown fox jumps over the lazy dog", 20,
+                 false, false, false, 0, 19, wrapLine, wrapPos);
+  unittest::ExpectEqual(int, wrapLine, 0);
+  unittest::ExpectEqual(int, wrapPos, 19);
+
+  // a line without spaces filling the full width is followed by an empty line, for the
+  // position after its last character
+  const WLines fullWidth = { L"abcdefghij", L"" };
+  const std::vector<int> fullWidthOffsets = { 0, 10 };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abcdefghij", 10, false, false, false, 0, 10,
+                                       wrapLine, wrapPos, &lineOffsets), fullWidth);
+  unittest::ExpectTrue(lineOffsets == fullWidthOffsets);
+  unittest::ExpectEqual(int, wrapLine, 1);
+  unittest::ExpectEqual(int, wrapPos, 0);
+
+  // the empty line is only present when wrapping for an editor, i.e. with position
+  const WLines fullWidthDisplay = { L"abcdefghij" };
+  unittest::ExpectEqual(WLines, StrUtil::WordWrap(L"abcdefghij", 10, false, false, false, 0), fullWidthDisplay);
+  const WLines twoFullWidthDisplay = { L"abcdefghij", L"klmnopqrst" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abcdefghijklmnopqrst", 10, false, false, false, 0), twoFullWidthDisplay);
+  const WLines emptyLinesDisplay = { L"abcdefghij", L"", L"b" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abcdefghij\n\nb", 10, false, false, false, 0), emptyLinesDisplay);
+
+  // carriage return of text with crlf line breaks takes up no column, and is kept with
+  // the line it ends
+  const WLines crlfDisplay = { L"abcdefghij\r", L"\r", L"after" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abcdefghij\r\n\r\nafter", 10, false, false, false, 0), crlfDisplay);
+  const WLines crlfSpaces = { L"abcd efgh", L"ijkl\r", L"after" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abcd efgh ijkl\r\nafter", 10, false, false, false, 0), crlfSpaces);
+  unittest::ExpectEqual(int, TextWrap::GetWidth(L"ab\r"), 2);
+
+  // likewise for a line ending with the space it was wrapped at
+  const WLines trailingSpace = { L"abcd", L"" };
+  const WLines trailingSpaceDisplay = { L"abcd" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abcd ", 5, false, false, false, 0, 5, wrapLine, wrapPos), trailingSpace);
+  unittest::ExpectEqual(int, wrapLine, 1);
+  unittest::ExpectEqual(int, wrapPos, 0);
+  unittest::ExpectEqual(WLines, StrUtil::WordWrap(L"abcd ", 5, false, false, false, 0), trailingSpaceDisplay);
+
+  // position after a trailing line break is on the line after the last
+  const WLines trailing = { L"abc" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"abc\n", 10, false, false, false, 0, 4, wrapLine, wrapPos), trailing);
+  unittest::ExpectEqual(int, wrapLine, 1);
+  unittest::ExpectEqual(int, wrapPos, 0);
+}
+
 static void TestWordWrapWide()
 {
-  // double width characters are wrapped by display width, not char count
-  const WLines wide = { L"你好世界", L"你好世界" };
+  // double width characters are wrapped by display width, not char count. text without
+  // spaces may fill the full width.
+  const WLines wide = { L"你好世界你", L"好世界" };
   unittest::ExpectEqual(WLines,
                         StrUtil::WordWrap(L"你好世界你好世界", 10,
-                                          false, false, false, 2), wide);
+                                       false, false, false, 2), wide);
 
-  const WLines wideQuoted = { L"> 你好世", L"> 界你好" };
+  // text with spaces is wrapped at a space, leaving the last column free
+  const WLines wideSpaces = { L"你好 世界", L"你好 世界" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"你好 世界 你好 世界", 10,
+                                       false, false, false, 2), wideSpaces);
+  const WLines wideMixed = { L"hello 你好", L"world 世界" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"hello 你好 world 世界", 11,
+                                       false, false, false, 2), wideMixed);
+
+  // quote prefix is repeated, and included in the width
+  const WLines wideQuoted = { L"> 你好世界", L"> 你好" };
   unittest::ExpectEqual(WLines,
                         StrUtil::WordWrap(L"> 你好世界你好", 10,
-                                          false, false, true, 2), wideQuoted);
+                                       false, false, true, 2), wideQuoted);
+
+  // a double width character not fitting the last column is moved to the next line
+  const WLines wideOdd = { L"a你好世界", L"你好" };
+  unittest::ExpectEqual(WLines,
+                        StrUtil::WordWrap(L"a你好世界你好", 10,
+                                       false, false, false, 2), wideOdd);
+
+  // position and line offsets refer to chars, also for double width characters
+  int wrapLine = -1;
+  int wrapPos = -1;
+  std::vector<int> lineOffsets;
+  const std::vector<int> offsets = { 0, 5 };
+  StrUtil::WordWrap(L"你好世界你好世界", 10, false, false, false, 0, 4, wrapLine, wrapPos, &lineOffsets);
+  unittest::ExpectTrue(lineOffsets == offsets);
+  unittest::ExpectEqual(int, wrapLine, 0);
+  unittest::ExpectEqual(int, wrapPos, 4);
+  StrUtil::WordWrap(L"你好世界你好世界", 10, false, false, false, 0, 5, wrapLine, wrapPos);
+  unittest::ExpectEqual(int, wrapLine, 1);
+  unittest::ExpectEqual(int, wrapPos, 0);
+  StrUtil::WordWrap(L"你好世界你好世界", 10, false, false, false, 0, 7, wrapLine, wrapPos);
+  unittest::ExpectEqual(int, wrapLine, 1);
+  unittest::ExpectEqual(int, wrapPos, 2);
+
+  // character clusters are never split, whatever their width in the current environment
+  const std::wstring flag = L"\U0001F1F8\U0001F1EA";
+  const std::wstring flags = flag + flag + flag + flag + flag + flag;
+  for (unsigned lineLength = 1; lineLength <= 14; ++lineLength)
+  {
+    std::wstring joined;
+    for (const std::wstring& line : StrUtil::WordWrap(flags, lineLength, false, false, false, 0))
+    {
+      unittest::ExpectEqual(size_t, line.size() % flag.size(), (size_t)0);
+      joined += line;
+    }
+
+    unittest::ExpectEqual(std::wstring, joined, flags);
+  }
+}
+
+static void TestWordWrapNarrow()
+{
+  // a character wider than the line, or than the room after the quote prefix, is put on
+  // a line of its own rather than wrapping forever
+  for (unsigned lineLength = 1; lineLength <= 6; ++lineLength)
+  {
+    for (const bool quoteWrap : { false, true })
+    {
+      size_t count = 0;
+      for (const std::wstring& line : StrUtil::WordWrap(L"> 你好世界 你好", lineLength, false, false, quoteWrap, 0))
+      {
+        count += std::count(line.begin(), line.end(), L'你') + std::count(line.begin(), line.end(), L'好') +
+          std::count(line.begin(), line.end(), L'世') + std::count(line.begin(), line.end(), L'界');
+      }
+
+      unittest::ExpectEqual(size_t, count, (size_t)6);
+    }
+  }
 }
 
 static void TestClusters()
@@ -182,11 +320,13 @@ int main()
     TestWordWrap();
     TestWordWrapQuoted();
     TestWordWrapPos();
+    TestWordWrapOffsets();
 
     // wide character width depends on a utf-8 capable locale being present
     if (wcwidth(L'你') == 2)
     {
       TestWordWrapWide();
+      TestWordWrapNarrow();
       TestClusters();
     }
     else
