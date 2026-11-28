@@ -8,6 +8,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "config.h"
 
@@ -20,13 +21,15 @@ public:
   static int GetKey(const std::string& p_Param);
   static int GetKeyCode(const std::string& p_KeyName);
   static std::string GetKeyName(int p_KeyCode);
+  static std::string GetKeySequence(int p_KeyCode);
+  static std::vector<std::string> SplitKeyList(const std::string& p_KeyList);
   static int GetOffsettedKeyCode(int p_KeyCode, bool p_IsFunctionKey);
   static std::map<std::string, std::string> GetMap();
 
 private:
   static void InitKeyCodes(bool p_MapKeys);
   static int GetOffsettedKeyCode(int p_KeyCode);
-  static int GetVirtualKeyCodeFromOct(const std::string& p_KeyOct);
+  static int GetVirtualKeyCodeFromOct(const std::string& p_KeyOct, int p_KeyCode = -1);
   static int ReserveVirtualKeyCode();
   static int GetFunctionKeyOffset();
   static void DetectConflicts();

@@ -91,6 +91,7 @@ void UiModel::Impl::TerminalControlPause()
   m_TermLines = LINES;
   m_TermCols = COLS;
   printf("\033[?1004l"); // disable terminal focus in/out event
+  UiKeyInput::RestoreMetaSendsEsc();
   fflush(stdout);
   endwin();
 }
@@ -99,6 +100,7 @@ void UiModel::Impl::TerminalControlResume()
 {
   refresh();
   printf("\033[?1004h"); // enable terminal focus in/out event
+  UiKeyInput::EnableMetaSendsEsc();
   fflush(stdout);
   wint_t key = 0;
   while (UiKeyInput::GetWch(&key) != ERR)

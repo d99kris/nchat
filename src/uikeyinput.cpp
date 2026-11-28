@@ -7,6 +7,8 @@
 
 #include "uikeyinput.h"
 
+#include <cstdio>
+
 #include <ncurses.h>
 
 #include "uikeyconfig.h"
@@ -20,4 +22,17 @@ int UiKeyInput::GetWch(wint_t* p_Wch)
   }
 
   return rv;
+}
+
+void UiKeyInput::EnableMetaSendsEsc()
+{
+  // save xterm meta/alt sends escape modes, then enable them, so that alt-key
+  // combinations are sent esc-prefixed (ignored by terminals not supporting it)
+  printf("\033[?1036;1039s\033[?1036;1039h");
+}
+
+void UiKeyInput::RestoreMetaSendsEsc()
+{
+  // restore xterm meta/alt sends escape modes
+  printf("\033[?1036;1039r");
 }

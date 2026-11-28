@@ -13,4 +13,6 @@ class UiKeyInput
 {
 public:
   static int GetWch(wint_t* p_Wch);
+  static void EnableMetaSendsEsc();
+  static void RestoreMetaSendsEsc();
 };

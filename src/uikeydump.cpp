@@ -25,6 +25,7 @@ void UiKeyDump::Run()
 {
   UiConfig::Init();
   printf("\033[?1004h");
+  UiKeyInput::EnableMetaSendsEsc();
   SysUtil::InitLocale();
   initscr();
   noecho();
@@ -100,6 +101,14 @@ void UiKeyDump::Run()
           printw(" %s", keyName.c_str());
         }
 
+        // output terminal key code sequence, which unlike the key code above
+        // is not dependent on terminfo, and thus preferred for use in key.conf
+        std::string keySequence = UiKeyConfig::GetKeySequence(keyOk);
+        if (!keySequence.empty())
+        {
+          printw(" (%s)", keySequence.c_str());
+        }
+
 #ifdef USE_KEY_CONFIG
         std::string keyParam = codeConfig[keyOk];
         if (!keyParam.empty())
@@ -120,4 +129,5 @@ void UiKeyDump::Run()
   wclear(stdscr);
   endwin();
   printf("\033[?1004l");
+  UiKeyInput::RestoreMetaSendsEsc();
 }

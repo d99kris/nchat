@@ -25,6 +25,7 @@
 #include "uidrawutil.h"
 #include "uikeyconfig.h"
 #include "uikeydump.h"
+#include "uikeyinput.h"
 #include "uimodel.h"
 
 Ui::Ui()
@@ -52,6 +53,7 @@ void Ui::Init()
   }
 
   printf("\033[?1004h"); // enable terminal focus in/out event
+  UiKeyInput::EnableMetaSendsEsc();
 
   SysUtil::InitLocale();
 #ifdef HAS_EMOJIWIDTH
@@ -84,6 +86,7 @@ void Ui::Cleanup()
   endwin();
 
   printf("\033[?1004l"); // disable terminal focus in/out event
+  UiKeyInput::RestoreMetaSendsEsc();
 
   if (!m_TerminalTitle.empty())
   {

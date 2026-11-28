@@ -268,7 +268,7 @@ std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
 {
   if (p_Func == "abc") return "abc";
 
-  const std::string keyName = UiKeyConfig::GetStr(p_Func);
+  const std::string keyName = UiKeyConfig::SplitKeyList(UiKeyConfig::GetStr(p_Func)).at(0);
   if ((keyName.size() == 9) && (keyName >= "KEY_CTRLA") && (keyName <= "KEY_CTRLZ"))
   {
     static const std::string helpPrefixCtrl = UiConfig::GetStr("help_prefix_ctrl");

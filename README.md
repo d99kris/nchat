@@ -80,6 +80,7 @@ Interactive Commands:
     Ctrl-x      send message
     Ctrl-y      toggle show emojis
     KeyUp       select message
+    Esc <key>   alternative to Alt-<key>
     Alt-@       insert mention
     Alt-a       archive current chat
     Alt-d       delete/leave current chat
@@ -961,7 +962,7 @@ This configuration file holds user interface key bindings. Default content:
     backspace=KEY_BACKSPACE
     backspace_alt=KEY_ALT_BACKSPACE
     backward_kill_word=\33\177
-    backward_word=
+    backward_word=\33\133\61\73\63\104,\33\142,\33\133\61\73\71\104,\33\33\133\104,\33\33\117\104
     begin_line=KEY_CTRLA
     cancel=KEY_CTRLC
     clear=KEY_CTRLC
@@ -982,13 +983,13 @@ This configuration file holds user interface key bindings. Default content:
     find=\33\57
     find_next=\33\77
     forward_msg=\33\162
-    forward_word=
+    forward_word=\33\133\61\73\63\103,\33\146,\33\133\61\73\71\103,\33\33\133\103,\33\33\117\103
     goto_chat=KEY_CTRLN
     home=KEY_HOME
     increase_list_width=\33\56
     jump_pinned=KEY_CTRLP
     jump_quoted=\33\161
-    kill_word=
+    kill_word=\33\133\63\73\63\176,\33\50,\33\33\133\63\176
     left=KEY_LEFT
     linebreak=KEY_RETURN
     next_chat=KEY_TAB
@@ -1027,12 +1028,18 @@ The key bindings may be specified in the following formats:
 - Ncurses macro (ex: `KEY_CTRLK`)
 - Hex key code (ex: `0x22e`)
 - Octal key code sequence (ex: `\033\177`)
+- Comma-separated list of octal key code sequences, for binding a function to
+  the different sequences sent by different terminals
+  (ex: `\33\133\61\73\63\104,\33\142`)
 - Plain-text single-char ASCII (ex: `r`)
 - Disable key binding (`KEY_NONE`)
 
 To determine the key code sequence for a key, one can run nchat in key code
 dump mode `nchat -k` which will output the octal code, and ncurses macro name
-(if present).
+(if present). For keys recognized by ncurses, the terminal key code sequence
+is also shown in parentheses, ex: `\4001050 (\33\133\61\73\63\104)`. Prefer
+using the sequence in parentheses when present, as the octal code preceding
+it (ex: `\4001050`) varies between terminals and ncurses versions.
 
 ~/.config/nchat/color.conf
 --------------------------
@@ -1262,13 +1269,22 @@ FAQ
 
 ### 1. Alt/Opt-keyboard shortcuts are not working?
 
-For Linux please ensure the terminal is configured with
+All Alt/Opt-keyboard shortcuts can also be entered by pressing (and releasing)
+`Esc` followed by the key, for example `Esc` then `e` for `Alt-e`, or `Esc`
+then `Left` for `Alt-Left`. This works in any terminal, and is useful when
+the Alt/Opt-key is not available, for example when the terminal or window
+manager uses it for its own shortcuts, or for typing special characters.
+
+To use the Alt/Opt-key, the terminal needs to send escape-prefixed keys for
+it. For macOS Terminal ensure that the Terminal profile keyboard setting
+"Use Option as Meta key" is enabled. For iTerm2 set the profile keys setting
+"Left Option key" to "Esc+". For xterm nchat automatically requests this mode.
+For other Linux terminals, if needed, ensure the terminal is configured with
 [meta to send escape](https://askubuntu.com/questions/442644/how-to-make-xterm-to-send-the-alt-key-to-emacs-as-meta).
-For macOS Terminal ensure that the Terminal profile keyboard setting
-"Use Option as Meta key" is enabled.
 
 If issues are still encountered, please use `nchat -k` (keydump mode) to
-determine the key codes and modify `~/.config/nchat/key.conf` accordingly.
+determine the key code sequences and modify `~/.config/nchat/key.conf`
+accordingly.
 
 ### 2. Send messages with Enter key?
 
