@@ -12,7 +12,11 @@
 #endif
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <string>
 
 #include <sys/time.h>
 
@@ -27,9 +31,31 @@ bool Log::m_HadWarnErr = false;
 void Log::Init(const std::string& p_Path)
 {
   m_Path = p_Path;
-  const std::string archivePath = m_Path + ".1";
-  remove(archivePath.c_str());
-  rename(m_Path.c_str(), archivePath.c_str());
+
+  // Number of archived logs (log.txt.1 .. log.txt.N) to keep
+  static const int maxArchiveCount = 10;
+  int archiveCount = 1;
+  const char* envArchiveCount = getenv("NCHAT_LOG_ARCHIVE_COUNT");
+  if (envArchiveCount != nullptr)
+  {
+    archiveCount = std::max(1, std::min(atoi(envArchiveCount), maxArchiveCount));
+  }
+
+  // Remove archives beyond the configured count (e.g. if count was lowered)
+  for (int i = archiveCount; i <= maxArchiveCount; ++i)
+  {
+    const std::string archivePath = m_Path + "." + std::to_string(i);
+    remove(archivePath.c_str());
+  }
+
+  // Rotate log.txt.N-1 -> log.txt.N, ..., log.txt -> log.txt.1
+  for (int i = archiveCount - 1; i >= 0; --i)
+  {
+    const std::string srcPath = (i == 0) ? m_Path : (m_Path + "." + std::to_string(i));
+    const std::string dstPath = m_Path + "." + std::to_string(i + 1);
+    rename(srcPath.c_str(), dstPath.c_str());
+  }
+
   Dump("");
   m_LogFd = open(m_Path.c_str(), O_WRONLY | O_APPEND);
 }
