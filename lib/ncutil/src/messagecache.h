@@ -68,6 +68,7 @@ private:
     std::string chatId;
     std::string fromMsgId;
     std::vector<ChatMessage> chatMessages;
+    bool updateOnly = false;
   };
 
   class AddChatsRequest : public Request
@@ -265,6 +266,8 @@ public:
                          bool p_AllowReadOnly, bool* p_IsRemoved = nullptr);
   static void AddMessages(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::vector<ChatMessage>& p_ChatMessages);
+  static void UpdateMessages(const std::string& p_ProfileId, const std::string& p_ChatId,
+                             const std::vector<ChatMessage>& p_ChatMessages);
   static void AddChats(const std::string& p_ProfileId, const std::vector<ChatInfo>& p_ChatInfos);
   static void AddContacts(const std::string& p_ProfileId, bool p_FullSync,
                           const std::vector<ContactInfo>& p_ContactInfos);

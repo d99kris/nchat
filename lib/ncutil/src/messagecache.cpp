@@ -116,11 +116,19 @@ void MessageCache::AddFromServiceMessage(const std::string& p_ProfileId,
       {
         std::shared_ptr<NewMessagesNotify> newMessagesNotify =
           std::static_pointer_cast<NewMessagesNotify>(p_ServiceMessage);
-        if (newMessagesNotify->success && !newMessagesNotify->cached &&
-            newMessagesNotify->sequence)
+        if (newMessagesNotify->success && !newMessagesNotify->cached)
         {
-          MessageCache::AddMessages(p_ProfileId, newMessagesNotify->chatId,
-                                    newMessagesNotify->fromMsgId, newMessagesNotify->chatMessages);
+          if (newMessagesNotify->sequence)
+          {
+            MessageCache::AddMessages(p_ProfileId, newMessagesNotify->chatId,
+                                      newMessagesNotify->fromMsgId, newMessagesNotify->chatMessages);
+          }
+          else
+          {
+            // Out-of-sequence messages (e.g. refetched after edit) only update already cached messages
+            MessageCache::UpdateMessages(p_ProfileId, newMessagesNotify->chatId,
+                                         newMessagesNotify->chatMessages);
+          }
         }
       }
       break;
@@ -560,6 +568,19 @@ void MessageCache::AddMessages(const std::string& p_ProfileId, const std::string
   addMessagesRequest->chatId = p_ChatId;
   addMessagesRequest->fromMsgId = p_FromMsgId;
   addMessagesRequest->chatMessages = p_ChatMessages;
+  EnqueueRequest(addMessagesRequest);
+}
+
+void MessageCache::UpdateMessages(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                  const std::vector<ChatMessage>& p_ChatMessages)
+{
+  if (!m_CacheEnabled) return;
+
+  std::shared_ptr<AddMessagesRequest> addMessagesRequest = std::make_shared<AddMessagesRequest>();
+  addMessagesRequest->profileId = p_ProfileId;
+  addMessagesRequest->chatId = p_ChatId;
+  addMessagesRequest->chatMessages = p_ChatMessages;
+  addMessagesRequest->updateOnly = true;
   EnqueueRequest(addMessagesRequest);
 }
 
@@ -1286,10 +1307,11 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
 
         const std::string& chatId = addMessagesRequest->chatId;
         const std::string& fromMsgId = addMessagesRequest->fromMsgId;
-        LOG_DEBUG("cache add %s %s %d", chatId.c_str(), fromMsgId.c_str(),
+        const bool updateOnly = addMessagesRequest->updateOnly;
+        LOG_DEBUG("cache %s %s %s %d", (updateOnly ? "update" : "add"), chatId.c_str(), fromMsgId.c_str(),
                   addMessagesRequest->chatMessages.size());
 
-        if (m_CheckSequence[profileId])
+        if (m_CheckSequence[profileId] && !updateOnly)
         {
           if (!m_UpdatedSequence[profileId][chatId])
           {
@@ -1352,9 +1374,42 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           }
         }
 
+        // Insert (replace) message, or for update only, update an already cached message. Update only
+        // keeps isSequence (gap marker) and never inserts, as an out-of-sequence message would
+        // otherwise falsely indicate contiguous history.
+        auto writeMessage = [&](const ChatMessage& p_Msg, const std::vector<char>& p_ReactionsBytes)
+        {
+          try
+          {
+            if (updateOnly)
+            {
+              *m_Dbs[profileId] << "UPDATE " + s_TableMessages + " SET "
+                "senderId = ?, text = ?, quotedId = ?, quotedText = ?, quotedSender = ?, fileInfo = ?, timeSent = ?, "
+                "isOutgoing = ?, isRead = ?, isEdited = ?, isDeleted = ?, isPinned = ?, reactions = ? "
+                "WHERE chatId = ? AND id = ?;" <<
+                p_Msg.senderId << p_Msg.text << p_Msg.quotedId << p_Msg.quotedText << p_Msg.quotedSender <<
+                p_Msg.fileInfo << p_Msg.timeSent << p_Msg.isOutgoing << p_Msg.isRead << p_Msg.isEdited <<
+                p_Msg.isDeleted << p_Msg.isPinned << p_ReactionsBytes << chatId << p_Msg.id;
+            }
+            else
+            {
+              *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
+                "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead, isEdited, isDeleted, isPinned, reactions) VALUES "
+                "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);" <<
+                chatId << p_Msg.id << p_Msg.senderId << p_Msg.text << p_Msg.quotedId << p_Msg.quotedText << p_Msg.quotedSender <<
+                p_Msg.fileInfo << p_Msg.timeSent << p_Msg.isOutgoing << p_Msg.isRead << p_Msg.isEdited << p_Msg.isDeleted << p_Msg.isPinned << p_ReactionsBytes;
+            }
+          }
+          catch (const sqlite::sqlite_exception& ex)
+          {
+            HANDLE_SQLITE_EXCEPTION(ex);
+          }
+        };
+
         for (const auto& msg : addMessagesRequest->chatMessages)
         {
           // Fetch already cached message reactions
+          bool isCached = false;
           Reactions oldReactions;
           try
           {
@@ -1363,6 +1418,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               chatId << msg.id >>
               [&](const std::vector<char>& reactionsBytes)
               {
+                isCached = true;
                 if (!reactionsBytes.empty())
                 {
                   oldReactions = Serialization::FromBytes<Reactions>(reactionsBytes);
@@ -1374,6 +1430,8 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
           {
             HANDLE_SQLITE_EXCEPTION(ex);
           }
+
+          if (updateOnly && !isCached) continue;
 
           Reactions reactions = msg.reactions;
           if (CacheUtil::IsDefaultReactions(oldReactions))
@@ -1388,18 +1446,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               reactionsBytes = Serialization::ToBytes(reactions);
             }
 
-            try
-            {
-              *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
-                "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead, isEdited, isDeleted, isPinned, reactions) VALUES "
-                "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);" <<
-                chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
-                msg.fileInfo << msg.timeSent << msg.isOutgoing << msg.isRead << msg.isEdited << msg.isDeleted << msg.isPinned << reactionsBytes;
-            }
-            catch (const sqlite::sqlite_exception& ex)
-            {
-              HANDLE_SQLITE_EXCEPTION(ex);
-            }
+            writeMessage(msg, reactionsBytes);
           }
           else
           {
@@ -1413,18 +1460,7 @@ void MessageCache::PerformRequest(std::shared_ptr<Request> p_Request)
               reactionsBytes = Serialization::ToBytes(reactions);
             }
 
-            try
-            {
-              *m_Dbs[profileId] << "INSERT INTO " + s_TableMessages + " "
-                "(chatId, id, senderId, text, quotedId, quotedText, quotedSender, fileInfo, timeSent, isOutgoing, isRead, isEdited, isDeleted, isPinned, reactions) VALUES "
-                "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);" <<
-                chatId << msg.id << msg.senderId << msg.text << msg.quotedId << msg.quotedText << msg.quotedSender <<
-                msg.fileInfo << msg.timeSent << msg.isOutgoing << msg.isRead << msg.isEdited << msg.isDeleted << msg.isPinned << reactionsBytes;
-            }
-            catch (const sqlite::sqlite_exception& ex)
-            {
-              HANDLE_SQLITE_EXCEPTION(ex);
-            }
+            writeMessage(msg, reactionsBytes);
 
             {
               // Send consolidated info to ui
