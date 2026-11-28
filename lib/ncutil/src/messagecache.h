@@ -307,6 +307,7 @@ public:
 
 private:
   static void Process();
+  static void ProcessRemaining();
   static void EnqueueRequest(std::shared_ptr<Request> p_Request);
   static void PerformRequest(std::shared_ptr<Request> p_Request);
   static void PerformFetchMessagesFrom(const std::string& p_ProfileId, const std::string& p_ChatId,

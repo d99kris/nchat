@@ -8,6 +8,7 @@
 #include "messagecache.h"
 
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <map>
 #include <sstream>
@@ -1167,10 +1168,6 @@ void MessageCache::Process()
 
       if (!m_Running)
       {
-        if (!m_Queue.empty())
-        {
-          LOG_WARNING("Exiting with non-empty queue %d", m_Queue.size());
-        }
         break;
       }
 
@@ -1182,9 +1179,87 @@ void MessageCache::Process()
     std::this_thread::yield(); // hack for GCC -O2 to enable context switching
   }
 
-  if (!m_Queue.empty())
+  ProcessRemaining();
+}
+
+void MessageCache::ProcessRemaining()
+{
+  // Perform remaining write requests on exit, so already received updates are not lost. Read
+  // requests are skipped, as their results have no receiver after ui and protocol cleanup.
+  auto isReadRequest = [](RequestType p_RequestType)
   {
-    LOG_WARNING("Exiting with non-empty queue %d", m_Queue.size());
+    switch (p_RequestType)
+    {
+      case FetchChatsRequestType:
+      case FetchContactsRequestType:
+      case FetchMessagesFromRequestType:
+      case FetchOneMessageRequestType:
+      case FindCachedMessageRequestType:
+      case FetchGroupMembersRequestType:
+        return true;
+
+      default:
+        return false;
+    }
+  };
+
+  static const int64_t timeoutMs = 5000;
+  static const int64_t notifyMs = 500;
+  const int64_t startTimeMs = TimeUtil::GetCurrentTimeMSec();
+  bool isNotified = false;
+  int performed = 0;
+  int skipped = 0;
+  int remaining = 0;
+
+  while (true)
+  {
+    const int64_t elapsedMs = TimeUtil::GetCurrentTimeMSec() - startTimeMs;
+    std::shared_ptr<Request> request;
+
+    {
+      std::unique_lock<std::mutex> lock(m_QueueMutex);
+      if (m_Queue.empty()) break;
+
+      if (elapsedMs >= timeoutMs)
+      {
+        remaining = static_cast<int>(m_Queue.size());
+        break;
+      }
+
+      request = m_Queue.front();
+      m_Queue.pop_front();
+    }
+
+    if (isReadRequest(request->GetRequestType()))
+    {
+      ++skipped;
+      continue;
+    }
+
+    if (!isNotified && (elapsedMs >= notifyMs))
+    {
+      isNotified = true;
+      std::cout << "Syncing messages to cache (ctrl-c to abort)" << std::endl;
+    }
+
+    PerformRequest(request);
+    ++performed;
+  }
+
+  const int64_t elapsedMs = TimeUtil::GetCurrentTimeMSec() - startTimeMs;
+  // w = writes performed, r = reads skipped, left = requests dropped on timeout
+  static const int64_t logInfoMs = 10;
+  if (remaining > 0)
+  {
+    LOG_WARNING("cache exit %lld ms w%d r%d left %d", elapsedMs, performed, skipped, remaining);
+  }
+  else if ((performed > 0) || (skipped > 0) || (elapsedMs >= logInfoMs))
+  {
+    LOG_INFO("cache exit %lld ms w%d r%d", elapsedMs, performed, skipped);
+  }
+  else
+  {
+    LOG_DEBUG("cache exit %lld ms w%d r%d", elapsedMs, performed, skipped);
   }
 }
 
