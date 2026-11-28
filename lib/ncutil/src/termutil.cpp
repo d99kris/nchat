@@ -130,6 +130,7 @@ TermUtil::Cluster TermUtil::GetCluster(const std::wstring& p_Str, size_t p_Pos, 
   Cluster cluster;
   cluster.chars = p_Str.substr(p_Pos, p_End - p_Pos);
   std::wstring& chars = cluster.chars;
+  chars.erase(std::remove(chars.begin(), chars.end(), (wchar_t)EMOJI_PAD), chars.end()); // entry padding
   if (chars.empty()) return cluster;
 
   if (!s_Profile.enabled)
@@ -229,6 +230,15 @@ int TermUtil::StringWidth(const std::wstring& p_Str)
 const TermUtil::Profile& TermUtil::GetProfile()
 {
   return s_Profile;
+}
+
+// Whether flags can be offered for input (emoji picker). Terminals not drawing character
+// clusters as one glyph either draw flags as two letters (Alacritty, VTE), or draw text
+// following a flag one column left of its cell (Terminal.app). Rendering cannot be
+// probed (cursor position reports the cell grid), so clustering is used as indicator.
+bool TermUtil::CanDrawFlags()
+{
+  return s_Profile.enabled && s_Profile.clusters;
 }
 
 void TermUtil::Disable()
@@ -375,7 +385,8 @@ void TermUtil::Probe(bool p_Enabled)
   s_Profile = ProfileFromProbe(heart, thumb, flag, keycap, xtversion, (term != nullptr) ? term : "",
                                (termProgram != nullptr) ? termProgram : "", alacrittyEnv);
 
-  // log the probe widths (heart, thumb, flag, keycap) and the pads, as the rest of the
-  // profile follows from the widths alone
-  LOG_INFO("emoji pass %d%d%d%d pad %d%d", heart, thumb, flag, keycap, s_Profile.vs16Pad, s_Profile.flagPad);
+  // log the probe widths (heart, thumb, flag, keycap), the pads and flags support, as the
+  // rest of the profile follows from the widths alone
+  LOG_INFO("emoji pass %d%d%d%d pad %d%d %s", heart, thumb, flag, keycap, s_Profile.vs16Pad, s_Profile.flagPad,
+           CanDrawFlags() ? "fl" : "nfl");
 }

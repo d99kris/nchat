@@ -7,9 +7,13 @@
 
 #include "uiemojilistdialog.h"
 
+#include <map>
+
 #include "emojilist.h"
+#include "emojiutil.h"
 #include "log.h"
 #include "strutil.h"
+#include "termutil.h"
 #include "uimodel.h"
 
 static std::pair<std::string, std::string> s_NoneOptionTextEmoji("[none]", "");
@@ -44,9 +48,10 @@ void UiEmojiListDialog::SetSelectedEmoji(const std::string& p_Emoji)
 {
   if (p_Emoji.empty()) return;
 
+  const std::string emoji = EmojiUtil::StripVs16(p_Emoji);
   for (auto it = m_TextEmojis.begin(); it != m_TextEmojis.end(); ++it)
   {
-    if (it->second == p_Emoji)
+    if (EmojiUtil::StripVs16(it->second) == emoji)
     {
       m_Index = std::distance(m_TextEmojis.begin(), it);
       break;
@@ -112,16 +117,36 @@ void UiEmojiListDialog::UpdateList()
     }
   }
 
+  // protocols may list available emojis without vs16 (ex: telegram heart),
+  // so match ignoring it, and use the protocol's form of the emoji
+  std::map<std::string, std::string> availableEmojis;
+  if (m_HasLimitedEmojis)
+  {
+    for (const auto& availableEmoji : m_AvailableEmojis)
+    {
+      availableEmojis[EmojiUtil::StripVs16(availableEmoji)] = availableEmoji;
+    }
+  }
+
+  // only list flags on terminals drawing them properly
+  const bool listFlags = TermUtil::CanDrawFlags();
+  auto isRegionalIndicator = [](wchar_t p_Wc) { return (p_Wc >= 0x1F1E6) && (p_Wc <= 0x1F1FF); };
+
   const bool emojiEnabled = m_Model->GetEmojiEnabled();
   for (auto& textEmoji : textEmojis)
   {
-    if (m_HasLimitedEmojis)
+    if (m_HasLimitedEmojis && !textEmoji.second.empty())
     {
-      if (!m_AvailableEmojis.count(textEmoji.second) && !textEmoji.second.empty()) continue;
+      auto it = availableEmojis.find(EmojiUtil::StripVs16(textEmoji.second));
+      if (it == availableEmojis.end()) continue;
+
+      textEmoji.second = it->second;
     }
 
     std::wstring desc = StrUtil::ToWString(textEmoji.first); // ex: :thumbsup:
     std::wstring item = StrUtil::ToWString(textEmoji.second); // ex: 0xf0 0x9f 0x91 0x8d
+    if (!listFlags && !item.empty() && isRegionalIndicator(item[0])) continue;
+
     if ((StrUtil::WStringWidth(item) <= 0) && (!item.empty())) continue; // mainly for mac
 
     if (emojiEnabled)

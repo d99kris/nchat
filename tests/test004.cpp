@@ -66,6 +66,7 @@ static void TestDisabled()
   unittest::ExpectEqual(std::wstring, Cluster(s_Biker).chars, s_Biker);
   unittest::ExpectFalse(Cluster(s_Biker).cell);
   unittest::ExpectFalse(Cluster(s_Heart).pad);
+  unittest::ExpectFalse(TermUtil::CanDrawFlags());
 }
 
 static void TestClusterProfile()
@@ -87,6 +88,7 @@ static void TestClusterProfile()
   unittest::ExpectEqual(std::wstring, Cluster(s_Family).chars, std::wstring(L"\U0001F468")); // too long for a cell
   unittest::ExpectEqual(int, Cluster(s_Family).width, 2);
   unittest::ExpectEqual(int, Cluster(s_Flag).width, 2);
+  unittest::ExpectTrue(TermUtil::CanDrawFlags());
   unittest::ExpectEqual(std::wstring, Cluster(s_Keycap).chars, std::wstring(L"1"));
   unittest::ExpectEqual(std::wstring, Cluster(s_TradeMark).chars, std::wstring(L"™")); // always text
   unittest::ExpectEqual(int, StrUtil::WStringWidth(L"Bob" + s_Heart), 5);
@@ -112,6 +114,8 @@ static void TestAppleTerminalProfile()
   unittest::ExpectEqual(std::wstring, Cluster(s_Family).chars, std::wstring(L"\U0001F468"));
   unittest::ExpectTrue(Cluster(s_Flag).pad);
   unittest::ExpectEqual(int, Cluster(s_Flag).width, 3);
+  unittest::ExpectEqual(int, Cluster(s_Flag + std::wstring(1, (wchar_t)EMOJI_PAD)).width, 3); // entry padding
+  unittest::ExpectFalse(TermUtil::CanDrawFlags()); // misaligned text after flags
   unittest::ExpectFalse(Cluster(s_Biker).cell);
 }
 

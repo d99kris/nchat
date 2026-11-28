@@ -429,8 +429,8 @@ specified, the default dir is `~/Downloads` if exists, otherwise `~`.
 
 ### emoji_list_all
 
-Specifies whether the emoji dialog should list all emojis, it is otherwise
-restricted to listing emojis that renders properly in common terminals.
+Specifies whether the emoji dialog should list all emoji names, including
+alternative names (aliases). It otherwise lists one name per emoji.
 
 ### link_send_preview
 
@@ -1352,6 +1352,16 @@ capabilities.
 
 If on Linux, try removing any custom default background set up, i.e. set
 `default_color_bg=` in `~/.config/nchat/color.conf`.
+
+### 10. Country flags are not listed in the emoji picker?
+
+Country flags are only listed in the emoji picker (`Ctrl-s`) on terminals that
+draw multi-character emojis as a single glyph, for example kitty, Ghostty,
+iTerm2, WezTerm, Konsole and Windows Terminal. Other terminals either draw
+text following a flag misaligned by one column (macOS Terminal) or do not
+draw flags at all (e.g. Alacritty, GNOME Terminal), so flags are not listed
+there. Received flags are still displayed, and a flag can be entered by
+typing its name, e.g. `:flag_sweden:`, and pressing `Ctrl-y` twice.
 
 
 Project Scope

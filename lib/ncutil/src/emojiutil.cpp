@@ -42,10 +42,18 @@ std::string EmojiUtil::Textize(const std::string& p_In)
 {
   static const std::map<std::string, std::string> emojiToText = []()
   {
+    // map both fully-qualified and bare (no VS16) forms, as protocols send
+    // either, and prefer the name listed in the emoji picker over aliases
     std::map<std::string, std::string> emToText;
-    for (auto& emojiPair : s_Map)
+    for (const bool viewPass : { false, true })
     {
-      emToText[emojiPair.second] = emojiPair.first;
+      for (auto& emojiPair : s_Map)
+      {
+        if (viewPass && !s_View.count(emojiPair.first)) continue;
+
+        emToText[emojiPair.second] = emojiPair.first;
+        emToText[StripVs16(emojiPair.second)] = emojiPair.first;
+      }
     }
 
     return emToText;
@@ -133,4 +141,17 @@ const std::map<std::string, std::string>& EmojiUtil::GetMap()
 const std::set<std::string>& EmojiUtil::GetView()
 {
   return s_View;
+}
+
+std::string EmojiUtil::StripVs16(const std::string& p_Str)
+{
+  static const std::string vs16 = "\xef\xb8\x8f"; // U+FE0F
+  std::string str = p_Str;
+  std::size_t pos = 0;
+  while ((pos = str.find(vs16, pos)) != std::string::npos)
+  {
+    str.erase(pos, vs16.size());
+  }
+
+  return str;
 }

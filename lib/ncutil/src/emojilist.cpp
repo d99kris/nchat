@@ -42,53 +42,69 @@ void EmojiList::Init()
   // create table if not exists
   *m_Db << "CREATE TABLE IF NOT EXISTS emojis (name TEXT PRIMARY KEY NOT NULL, emoji TEXT, usages INT);";
 
-  // get expected count
+  // get expected content
   const std::set<std::string>& emojiView = EmojiUtil::GetView();
   const std::map<std::string, std::string>& emojiMap = EmojiUtil::GetMap();
-  const int emojiViewCount = emojiListAll ? emojiMap.size() : emojiView.size();
-
-  // populate table if empty
-  int rowCount = 0;
-  *m_Db << "SELECT COUNT(emoji) FROM emojis;" >> rowCount;
-
-  // update map if needed
-  if (rowCount != emojiViewCount)
+  std::map<std::string, std::string> expected;
+  for (const auto& emoji : emojiMap)
   {
-    LOG_INFO("update emoji db %d to %d", rowCount, emojiViewCount);
-
-    *m_Db << "BEGIN;";
-    for (const auto& emoji : emojiMap)
+    if (emojiListAll || emojiView.count(emoji.first))
     {
-      if (emojiListAll || emojiView.count(emoji.first))
-      {
-        LOG_TRACE("add emoji %s", emoji.first.c_str());
-        *m_Db << "INSERT INTO emojis (name, emoji, usages) "
-          "VALUES (?,?,0) ON CONFLICT DO NOTHING;" << emoji.first << emoji.second;
-      }
+      expected.insert(emoji);
     }
-    *m_Db << "COMMIT;";
-
-    // *INDENT-OFF*
-    std::vector<std::string> names;
-    *m_Db << "SELECT name FROM emojis;" >>
-      [&](const std::string& name)
-      {
-        names.push_back(name);
-      };
-    // *INDENT-ON*
-
-    *m_Db << "BEGIN;";
-    for (const auto& name : names)
-    {
-      if ((emojiListAll && (emojiMap.count(name) == 0)) ||
-          (!emojiListAll && (emojiView.count(name) == 0)))
-      {
-        LOG_TRACE("remove emoji %s", name.c_str());
-        *m_Db << "DELETE FROM emojis WHERE name = ?;" << name;
-      }
-    }
-    *m_Db << "COMMIT;";
   }
+
+  // get current content
+  std::map<std::string, std::pair<std::string, int>> rows; // name -> emoji, usages
+  // *INDENT-OFF*
+  *m_Db << "SELECT name, emoji, usages FROM emojis;" >>
+    [&](const std::string& name, const std::string& emoji, int usages)
+    {
+      rows[name] = std::make_pair(emoji, usages);
+    };
+  // *INDENT-ON*
+
+  // update table if needed
+  bool inSync = (rows.size() == expected.size());
+  for (auto it = expected.begin(); inSync && (it != expected.end()); ++it)
+  {
+    auto rit = rows.find(it->first);
+    inSync = (rit != rows.end()) && (rit->second.first == it->second);
+  }
+
+  if (inSync) return;
+
+  LOG_INFO("update emoji db %d to %d", static_cast<int>(rows.size()), static_cast<int>(expected.size()));
+
+  // remove obsolete names, keeping their usages for a remaining name of same emoji
+  std::map<std::string, int> removedUsages; // emoji without vs16 -> usages
+  *m_Db << "BEGIN;";
+  for (const auto& row : rows)
+  {
+    if (expected.count(row.first)) continue;
+
+    LOG_TRACE("remove emoji %s", row.first.c_str());
+    *m_Db << "DELETE FROM emojis WHERE name = ?;" << row.first;
+    removedUsages[EmojiUtil::StripVs16(row.second.first)] += row.second.second;
+  }
+
+  // add new names and update emoji of existing names
+  for (const auto& emoji : expected)
+  {
+    int usages = 0;
+    auto uit = removedUsages.find(EmojiUtil::StripVs16(emoji.second));
+    if (uit != removedUsages.end())
+    {
+      usages = uit->second;
+      removedUsages.erase(uit);
+    }
+
+    LOG_TRACE("add emoji %s", emoji.first.c_str());
+    *m_Db << "INSERT INTO emojis (name, emoji, usages) VALUES (?,?,?) "
+      "ON CONFLICT(name) DO UPDATE SET emoji = excluded.emoji, usages = usages + excluded.usages;" <<
+      emoji.first << emoji.second << usages;
+  }
+  *m_Db << "COMMIT;";
 }
 
 void EmojiList::Cleanup()

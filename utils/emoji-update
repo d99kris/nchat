@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+
+# emoji-update
+#
+# Copyright (c) 2026 Kristofer Berggren
+# All rights reserved.
+#
+# emoji-update is distributed under the MIT license.
+
+# Regenerates lib/ncutil/src/emojiutil_map.h and emojiutil_view.h from
+# emojibase-data (https://emojibase.dev), which packages the Unicode emoji
+# list together with the GitHub, Slack (iamcal) and CLDR shortcode sets.
+#
+# - s_Map  (map.h)  every shortcode from all three sets -> emoji, used for
+#                   :shortcode: expansion and textized display.
+# - s_View (view.h) one primary shortcode per emoji, listed in the emoji
+#                   picker (emoji_list_all=1 lists all of s_Map instead).
+#
+# Review the resulting diff after updating, as some upstream changes would go
+# unnoticed. Potential improvements:
+# - GROUP_COMPONENT / GROUP_FLAGS are emojibase group numbers; renumbering
+#   upstream would silently list skin tone components in the picker or drop
+#   the flag_xxx primary names. Could look them up in meta/groups.json.
+# - --emojibase defaults to latest; pinning a version would make re-runs
+#   reproducible (the version used is recorded in the generated headers).
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+
+# Highest emoji version to include. Emoji 16.0+ introduce new codepoints that
+# libc wcwidth() does not know on e.g. macOS 15 and glibc < 2.41 (returns -1),
+# so ncurses cannot lay them out. Emoji 15.1 only adds ZWJ sequences of older
+# codepoints. Bump once common platforms' wcwidth() covers the next version.
+DEFAULT_MAX_VERSION = 15.1
+
+# Shortcode sets in priority order: first set claiming a shortcode owns it.
+SHORTCODE_SETS = ["iamcal", "github", "cldr"]
+
+# Emojis to keep out of the picker (they remain usable via :shortcode:), for
+# example ones that render poorly in common terminals. Use primary shortcodes.
+VIEW_EXCLUDE = set([
+])
+
+GROUP_COMPONENT = 2  # skin tones and hair components, not useful in picker
+GROUP_FLAGS = 9
+
+NAME_RE = re.compile(r"^[a-z0-9_+\-]+$")
+PRIMARY_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+
+
+def fetch_json(url):
+  req = urllib.request.Request(url, headers={"User-Agent": "emoji-update"})
+  with urllib.request.urlopen(req, timeout=60) as resp:
+    return json.loads(resp.read().decode("utf-8"))
+
+
+def latest_emojibase_version():
+  info = fetch_json("https://registry.npmjs.org/emojibase-data")
+  return info["dist-tags"]["latest"]
+
+
+def as_list(value):
+  return value if isinstance(value, list) else [value]
+
+
+def cpp_str(s):
+  for ch in s:
+    if ord(ch) < 0x20 or ch in "\"\\":
+      raise ValueError("unexpected character U+%04X in %r" % (ord(ch), s))
+  return s
+
+
+def primary_name(names, group):
+  # prefer cldr flag_xxx for flags, so filtering on "flag" lists them all
+  if group == GROUP_FLAGS:
+    for name in names:
+      if name.startswith("flag_") and PRIMARY_RE.match(name):
+        return name
+
+  # otherwise first plain name (skips e.g. +1, flag-se, man-woman-boy)
+  for name in names:
+    if PRIMARY_RE.match(name):
+      return name
+
+  return names[0]
+
+
+def write_header(path, decl, lines, comment):
+  with open(path, "w", encoding="utf-8", newline="\n") as f:
+    f.write("// " + os.path.basename(path) + "\n")
+    f.write("//\n")
+    f.write(comment)
+    f.write("\n")
+    f.write(decl + " = {\n")
+    for line in lines:
+      f.write("  " + line + "\n")
+    f.write("};\n")
+
+
+def main():
+  parser = argparse.ArgumentParser(description="regenerate nchat emoji tables from emojibase-data")
+  parser.add_argument("--emojibase", default="latest",
+                      help="emojibase-data npm version (default: latest)")
+  parser.add_argument("--max-version", type=float, default=DEFAULT_MAX_VERSION,
+                      help="highest emoji version to include (default: %s)" % DEFAULT_MAX_VERSION)
+  args = parser.parse_args()
+
+  reporoot = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+  srcdir = os.path.join(reporoot, "lib", "ncutil", "src")
+
+  ebver = latest_emojibase_version() if args.emojibase == "latest" else args.emojibase
+  baseurl = "https://cdn.jsdelivr.net/npm/emojibase-data@%s/en" % ebver
+  print("emojibase-data %s, emoji version <= %s" % (ebver, args.max_version))
+
+  data = fetch_json(baseurl + "/data.json")
+  shortcodes = {}
+  for setname in SHORTCODE_SETS:
+    shortcodes[setname] = fetch_json(baseurl + "/shortcodes/" + setname + ".json")
+
+  # skip lone regional indicators (no group) and too new emojis
+  entries = [entry for entry in data if entry.get("group") is not None]
+  skipped_version = len([entry for entry in entries if entry["version"] > args.max_version])
+  entries = [entry for entry in entries if entry["version"] <= args.max_version]
+
+  # assign each shortcode to one emoji, higher priority sets first
+  owner = {}  # name -> hexcode
+  names_by_hexcode = {}  # hexcode -> names, in priority order
+  for setname in SHORTCODE_SETS:
+    for entry in entries:
+      hexcode = entry["hexcode"]
+      for name in as_list(shortcodes[setname].get(hexcode, [])):
+        name = name.lower()
+        if NAME_RE.match(name) and (name not in owner):
+          owner[name] = hexcode
+          names_by_hexcode.setdefault(hexcode, []).append(name)
+
+  emoji_map = {}  # name -> emoji
+  view = set()  # primary names
+  for entry in entries:
+    hexcode = entry["hexcode"]
+    emoji = cpp_str(entry["emoji"])
+    names = names_by_hexcode.get(hexcode, [])
+    if not names:
+      print("warning: no shortcode for %s %s (%s)" % (hexcode, emoji, entry["label"]))
+      continue
+
+    for name in names:
+      emoji_map[name] = emoji
+
+    primary = primary_name(names, entry["group"])
+    if (entry["group"] != GROUP_COMPONENT) and (primary not in VIEW_EXCLUDE):
+      view.add(primary)
+
+  for name in VIEW_EXCLUDE - set(emoji_map):
+    print("warning: excluded name :%s: not found" % name)
+
+  comment = ("// Generated by utils/emoji-update from emojibase-data %s (emoji <= %s).\n"
+             "// Do not edit manually.\n" % (ebver, args.max_version))
+
+  map_lines = ['{ ":%s:", "%s" },' % (name, emoji_map[name]) for name in sorted(emoji_map)]
+  write_header(os.path.join(srcdir, "emojiutil_map.h"),
+               "static std::map<std::string, std::string> s_Map", map_lines, comment)
+
+  view_lines = ['{ ":%s:" },' % name for name in sorted(view)]
+  write_header(os.path.join(srcdir, "emojiutil_view.h"),
+               "static std::set<std::string> s_View", view_lines, comment)
+
+  print("map: %d names, view: %d emojis, skipped %d newer than %s" %
+        (len(emoji_map), len(view), skipped_version, args.max_version))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

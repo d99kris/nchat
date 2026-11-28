@@ -42,6 +42,7 @@ public:
   static Profile ProfileFromProbe(int p_Heart, int p_Thumb, int p_Flag, int p_Keycap, const std::string& p_XtVersion,
                                   const std::string& p_Term, const std::string& p_TermProgram, bool p_AlacrittyEnv);
   static const Profile& GetProfile();
+  static bool CanDrawFlags();
   static int CharWidth(wchar_t p_Wc);
   static Cluster GetCluster(const std::wstring& p_Str, size_t p_Pos, size_t p_End);
   static int StringWidth(const std::wstring& p_Str);

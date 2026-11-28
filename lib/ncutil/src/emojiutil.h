@@ -18,4 +18,5 @@ public:
   static std::string Textize(const std::string& p_In);
   static const std::map<std::string, std::string>& GetMap();
   static const std::set<std::string>& GetView();
+  static std::string StripVs16(const std::string& p_Str);
 };
