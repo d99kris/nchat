@@ -12,6 +12,8 @@
 #include <regex>
 #include <set>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include <cassert>
 #include <cerrno>
@@ -35,6 +37,7 @@
 #include "strutil.h"
 #include "sysutil.h"
 #include "theme.h"
+#include "timeutil.h"
 #include "ui.h"
 
 #ifdef HAS_DUMMY
@@ -502,14 +505,34 @@ int main(int argc, char* argv[])
     // Signal handler for terminate signals
     AppUtil::InitTerminateSignalHandler();
 
+    // Run a protocol function for all protocols in parallel started in protocol order
+    auto runParallel = [&](const std::function<void(const std::shared_ptr<Protocol>&)>& p_Func)
+    {
+      std::vector<std::thread> threads;
+      for (auto& protocol : protocolsSorted)
+      {
+        if (!threads.empty())
+        {
+          TimeUtil::Sleep(0.001); // Small delay for consistent order
+        }
+
+        threads.emplace_back(p_Func, protocol.second);
+      }
+
+      for (auto& thread : threads)
+      {
+        thread.join();
+      }
+    };
+
     // Login
     std::thread loginThread([&]
     {
-      for (auto& protocol : protocolsSorted)
+      runParallel([&](const std::shared_ptr<Protocol>& p_Protocol)
       {
-        protocol.second->SetMessageHandler(messageHandler);
-        protocol.second->Login();
-      }
+        p_Protocol->SetMessageHandler(messageHandler);
+        p_Protocol->Login();
+      });
     });
 
     // Ui main loop
@@ -522,9 +545,14 @@ int main(int argc, char* argv[])
     }
 
     // Logout
+    runParallel([&](const std::shared_ptr<Protocol>& p_Protocol)
+    {
+      p_Protocol->Logout();
+    });
+
+    // Close profiles
     for (auto& protocol : protocolsSorted)
     {
-      protocol.second->Logout();
       protocol.second->CloseProfile();
     }
   }

@@ -282,7 +282,10 @@ private:
   size_t m_GetUserDetailsCurrent = 0;
   size_t m_GetUserDetailsTotal = 0;
   static const int s_CacheDirVersion = 4;
+  static std::mutex s_ClientManagerMutex; // serializes tdlib client manager creation and destruction
 };
+
+std::mutex TgChat::Impl::s_ClientManagerMutex;
 
 // Public interface
 extern "C" TgChat* CreateTgChat()
@@ -1815,8 +1818,7 @@ void TgChat::Impl::Init()
   m_IsClosed = false;
 
   {
-    static std::mutex ctorMutex;
-    std::unique_lock<std::mutex> lock(ctorMutex);
+    std::unique_lock<std::mutex> lock(s_ClientManagerMutex);
 
     // TDLib logging is process-wide, so configure it only once. Changing the log file while another
     // profile's client is logging may crash, as TDLib closes the old file without blocking writers.
@@ -1911,6 +1913,7 @@ void TgChat::Impl::Cleanup()
     SendQuery(td::td_api::make_object<td::td_api::close>(), { });
   }
 
+  std::unique_lock<std::mutex> lock(s_ClientManagerMutex);
   m_ClientManager.reset();
 }
 
