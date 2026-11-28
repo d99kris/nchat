@@ -7,13 +7,13 @@
 
 #include "uikeydump.h"
 
-#include <locale.h>
 #include <unistd.h>
 
 #include <sys/select.h>
 
 #include <ncurses.h>
 
+#include "sysutil.h"
 #include "uiconfig.h"
 #include "uicontroller.h"
 #include "uikeyconfig.h"
@@ -25,7 +25,7 @@ void UiKeyDump::Run()
 {
   UiConfig::Init();
   printf("\033[?1004h");
-  setlocale(LC_ALL, "");
+  SysUtil::InitLocale();
   initscr();
   noecho();
   cbreak();

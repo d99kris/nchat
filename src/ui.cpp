@@ -7,7 +7,6 @@
 
 #include "ui.h"
 
-#include <locale.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -18,6 +17,7 @@
 #include "termutil.h"
 #include "log.h"
 #include "messagecache.h"
+#include "sysutil.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
@@ -53,7 +53,7 @@ void Ui::Init()
 
   printf("\033[?1004h"); // enable terminal focus in/out event
 
-  setlocale(LC_ALL, "");
+  SysUtil::InitLocale();
 #ifdef HAS_EMOJIWIDTH
   TermUtil::Probe(UiConfig::GetStr("emoji_width") != "off");
 #endif

@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 project(libncutil LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 14)
+include(CheckCXXSymbolExists)
 include(CheckIncludeFile)
 
 # Ccache
@@ -142,6 +143,11 @@ if(HAS_STATIC_EXTLIBS)
 endif()
 
 # Optional dependencies
+check_cxx_symbol_exists(nl_langinfo langinfo.h FOUND_NL_LANGINFO)
+if(FOUND_NL_LANGINFO)
+  target_compile_definitions(ncutil PRIVATE HAVE_NL_LANGINFO=1)
+endif()
+
 check_include_file_cxx(execinfo.h FOUND_EXECINFO_H)
 if(FOUND_EXECINFO_H)
   target_compile_definitions(ncutil PRIVATE HAVE_EXECINFO_H=1)

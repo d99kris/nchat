@@ -10,9 +10,15 @@
 #include <cerrno>
 #include <sstream>
 
+#ifdef HAVE_NL_LANGINFO
+#include <langinfo.h>
+#endif
+#include <locale.h>
 #include <signal.h>
+#include <strings.h>
 #include <unistd.h>
 
+#include <sys/statvfs.h>
 #include <sys/wait.h>
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -49,6 +55,25 @@ namespace
     }
 
     return result;
+  }
+}
+
+void SysUtil::CheckEnvironment()
+{
+  if (geteuid() == 0)
+  {
+    LOG_WARNING("running as root");
+  }
+
+  struct statvfs fsStat;
+  static const unsigned long long lowDiskSpace = 100ULL * 1024 * 1024;
+  if (statvfs(FileUtil::GetApplicationDir().c_str(), &fsStat) == 0)
+  {
+    const unsigned long long freeSpace = (unsigned long long)fsStat.f_bavail * fsStat.f_frsize;
+    if (freeSpace < lowDiskSpace)
+    {
+      LOG_WARNING("low disk space %s", FileUtil::GetSuffixedSize(freeSpace).c_str());
+    }
   }
 }
 
@@ -171,6 +196,26 @@ std::string SysUtil::GetOsArch(bool p_Verbose)
   }
 
   return StrUtil::ToLower(osArch);
+}
+
+void SysUtil::InitLocale()
+{
+  const char* locale = setlocale(LC_ALL, "");
+  if (locale == nullptr)
+  {
+    LOG_WARNING("setlocale failed");
+    return;
+  }
+
+  LOG_INFO("locale %s", locale);
+
+#ifdef HAVE_NL_LANGINFO
+  const char* codeset = nl_langinfo(CODESET);
+  if ((strcasecmp(codeset, "UTF-8") != 0) && (strcasecmp(codeset, "UTF8") != 0))
+  {
+    LOG_WARNING("non-utf8 codeset %s", codeset);
+  }
+#endif
 }
 
 bool SysUtil::IsSupportedLibc()

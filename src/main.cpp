@@ -343,12 +343,15 @@ int main(int argc, char* argv[])
   std::string features = GetFeatures();
   LOG_INFO("%s", features.c_str());
 
+  SysUtil::CheckEnvironment();
+
   // Init signal handler
   AppUtil::InitSignalHandler();
 
   // Run keydump if required
   if (isKeyDump)
   {
+    LOG_INFO("start keydump");
     Ui::RunKeyDump();
     return 0;
   }
@@ -384,6 +387,7 @@ int main(int argc, char* argv[])
   std::shared_ptr<Protocol> setupProtocol;
   if (isSetup)
   {
+    LOG_INFO("start setup");
     setupProtocol = SetupProfile();
     if (!setupProtocol)
     {
@@ -567,6 +571,7 @@ int main(int argc, char* argv[])
   // Perform export if requested
   if (!exportDir.empty())
   {
+    LOG_INFO("start export");
     MessageCache::Export(exportDir);
   }
 

@@ -14,6 +14,7 @@
 class SysUtil
 {
 public:
+  static void CheckEnvironment();
   static std::string GetBuildGitBranch();
   static std::string GetBuildGitSha();
   static std::string GetBuildInfo();
@@ -21,6 +22,7 @@ public:
   static std::string GetCompiler(bool p_Verbose);
   static std::string GetGo(const std::string& p_GoVersion);
   static std::string GetOsArch(bool p_Verbose);
+  static void InitLocale();
   static bool IsSupportedLibc();
   static bool RunCommand(const std::string& p_Cmd, std::string* p_StdOut = nullptr);
   static int System(const std::string& p_Cmd);
