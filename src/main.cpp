@@ -627,7 +627,7 @@ void RemoveProfile()
   std::string profilesDir = FileUtil::GetApplicationDir() + "/profiles";
   const std::vector<std::string> profileNames = GetProfileNamesSorted(profilesDir);
   int id = 0;
-  std::map<int, std::string> idPath;
+  std::map<int, std::string> idProfile;
   std::cout << "Remove profile:\n";
   for (auto& profileId : profileNames)
   {
@@ -637,12 +637,12 @@ void RemoveProfile()
     std::string protocolName;
     if ((profileId.find("_") == std::string::npos) || !std::getline(ss, protocolName, '_'))
     {
-      LOG_WARNING("invalid profile name, skipping %s", profileId.c_str());
+      std::cerr << "warning: invalid profile name, skipping " << profileId << "\n";
       continue;
     }
 
     std::cout << id << ". " << profileId << "\n";
-    idPath[id++] = profilesDir + "/" + profileId;
+    idProfile[id++] = profileId;
   }
 
   std::cout << id << ". Cancel removal\n";
@@ -663,15 +663,24 @@ void RemoveProfile()
     }
   }
 
-  if (!idPath.count(selectid))
+  if (!idProfile.count(selectid))
   {
     std::cout << "Removal aborted, exiting." << std::endl;
     return;
   }
 
-  std::string profilePath = idPath.at(selectid);
-  LOG_TRACE("deleting %s", profilePath.c_str());
+  const std::string profileId = idProfile.at(selectid);
+  const std::string profilePath = profilesDir + "/" + profileId;
   FileUtil::RmDir(profilePath);
+  std::cout << "Removed profile " << profilePath << "\n";
+
+  // Remove profile message cache, if present
+  const std::string cachePath = FileUtil::GetApplicationDir() + "/history/" + profileId;
+  if (FileUtil::Exists(cachePath))
+  {
+    FileUtil::RmDir(cachePath);
+    std::cout << "Removed cache " << cachePath << "\n";
+  }
 }
 
 std::shared_ptr<Protocol> SetupProfile()
