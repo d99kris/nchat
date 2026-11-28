@@ -10,7 +10,6 @@
 #include <algorithm>
 
 #include "apputil.h"
-#include "termutil.h"
 #include "numutil.h"
 #include "strutil.h"
 #include "uicolorconfig.h"
@@ -141,14 +140,11 @@ void UiTextInputDialog::Draw()
   }
 
   UiDrawUtil::AddWStr(m_Win, 1, 1, wdisp, m_W - 2);
-  int cursX = promptWidth + m_EntryPos - offset;
-  if (TermUtil::GetProfile().enabled)
-  {
-    // cursor column is the display width of the text before it
-    std::wstring prefix = m_EntryStr.substr(offset, std::max(m_EntryPos - offset, 0));
-    prefix.erase(std::remove(prefix.begin(), prefix.end(), EMOJI_PAD), prefix.end());
-    cursX = promptWidth + StrUtil::WStringWidth(prefix);
-  }
+
+  // cursor column is the display width of the text before it
+  std::wstring prefix = m_EntryStr.substr(offset, std::max(m_EntryPos - offset, 0));
+  prefix.erase(std::remove(prefix.begin(), prefix.end(), EMOJI_PAD), prefix.end());
+  const int cursX = promptWidth + StrUtil::WStringWidth(prefix);
 
   wmove(m_Win, 1, cursX);
 
