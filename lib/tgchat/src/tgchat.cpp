@@ -281,7 +281,7 @@ private:
   std::mutex m_Mutex;
   size_t m_GetUserDetailsCurrent = 0;
   size_t m_GetUserDetailsTotal = 0;
-  static const int s_CacheDirVersion = 3;
+  static const int s_CacheDirVersion = 4;
 };
 
 // Public interface
