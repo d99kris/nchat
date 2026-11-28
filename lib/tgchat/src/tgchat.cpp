@@ -41,6 +41,7 @@
 #include "qrutil.h"
 #include "status.h"
 #include "strutil.h"
+#include "sysutil.h"
 #include "tgrichmessage.h"
 #include "timeutil.h"
 
@@ -1815,10 +1816,18 @@ void TgChat::Impl::Init()
     static std::mutex ctorMutex;
     std::unique_lock<std::mutex> lock(ctorMutex);
 
-    td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
-    const std::string logPath(m_ProfileDir + std::string("/td.log"));
-    td::Log::set_file_path(logPath);
-    td::Log::set_max_file_size(1024 * 1024);
+    // TDLib logging is process-wide, so configure it only once. Changing the log file while another
+    // profile's client is logging may crash, as TDLib closes the old file without blocking writers.
+    static const bool isLogInited = [&]()
+    {
+      td::Log::set_verbosity_level(Log::GetDebugEnabled() ? 5 : 1);
+      const std::string logPath(m_ProfileDir + std::string("/td.log"));
+      td::Log::set_file_path(logPath);
+      td::Log::set_max_file_size(1024 * 1024);
+      return true;
+    }();
+    UNUSED(isLogInited);
+
     m_ClientManager = std::make_unique<td::ClientManager>();
     m_ClientId = m_ClientManager->create_client_id();
   }
